@@ -14,19 +14,34 @@ require('ghlite.types')
 
 local M = {}
 
---- @param cb fun(pr: PullRequest | nil)
-function M.get_selected_pr(cb)
-  if state.selected_PR ~= nil then
+--- @overload fun(cb: fun(pr: PullRequest | nil))
+--- @overload fun(pr_number: number | nil, cb: fun(pr: PullRequest | nil))
+function M.get_selected_pr(arg1, arg2)
+  local cb = assert(type(arg2) == 'function' and arg2 or arg1)
+  local prnum = type(arg2) == 'function' and arg1 or nil
+  if prnum then
+    -- If user provided PR number as a command arg, fetch and set as "selected".
+    gh.get_pr_info(prnum, function(pr_info)
+      if pr_info then
+        state.selected_PR = pr_info
+        cb(pr_info)
+      else
+        utils.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
+        cb(nil)
+      end
+    end)
+  elseif state.selected_PR ~= nil then
     return cb(state.selected_PR)
+  else
+    gh.get_current_pr(function(current_pr)
+      if current_pr ~= nil then
+        state.selected_PR = current_pr
+        cb(current_pr)
+      else
+        cb(nil)
+      end
+    end)
   end
-  gh.get_current_pr(function(current_pr)
-    if current_pr ~= nil then
-      state.selected_PR = current_pr
-      cb(current_pr)
-    else
-      cb(nil)
-    end
-  end)
 end
 
 --- @return PullRequest|nil returns checked out pr or nil if user does not approve check out

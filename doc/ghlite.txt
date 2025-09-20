@@ -3,10 +3,10 @@
 ==============================================================================
 ghlite.nvim                           *ghlite.nvim*
 
-Neovim plugin to work with GitHub PRs quickly.
+Review and manage GitHub PRs from Neovim.
 
-Main idea of this plugin is to provide tools that augment GitHub PR review using
-the web interface, instead of replacing it like other plugins.
+Unlike other plugins, this plugin augments GitHub PR review rather than
+replacing its web interface entirely.
 
 ==============================================================================
 REQUIREMENTS                        *ghlite.nvim-requirements*
@@ -23,63 +23,43 @@ vim.cmd('FzfLua register_ui_select')
 ==============================================================================
 INSTALLATION                        *ghlite.nvim-installation*
 
-Using lazy.nvim:
-
 NOTE: Default config is shown below. Skip settings if you are fine with defaults.
-
 >lua
-  {
-    'daliusd/ghlite.nvim',
-    config = function()
-      require('ghlite').setup({
-        debug = false, -- if set to true debugging information is written to ~/.ghlite.log file
-        view_split = 'vsplit', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
-        diff_split = 'vsplit', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
-        comment_split = 'split', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
-        open_command = 'open', -- open command to use, e.g. on Linux you might want to use xdg-open
-        merge = {
-          approved = '--squash',
-          nonapproved = '--auto --squash',
-        },
-        html_comments_command = { 'lynx', '-stdin', '-dump' }, -- command to render HTML comments in PR view
-        -- override default keymaps with the ones you prefer
-        -- set keymap to false or '' to disable it
-        keymaps = {
-          diff = {
-            open_file = 'gf',
-            open_file_tab = '',
-            open_file_split = 'o',
-            open_file_vsplit = 'O',
-            approve = 'cA',
-            request_changes = 'cR',
-          },
-          comment = {
-            send_comment = 'c<CR>' -- this one cannot be disabled
-          },
-          pr = {
-            approve = 'cA',
-            request_changes = 'cR',
-            merge = 'cM',
-            comment = 'ca',
-            diff = 'cp',
-          },
-        },
-      })
-    end,
-    keys = {
-      { '<leader>us', ':GHLitePRSelect<cr>',        silent = true, desc = 'PR Select' },
-      { '<leader>uo', ':GHLitePRCheckout<cr>',      silent = true, desc = 'PR Checkout' },
-      { '<leader>uv', ':GHLitePRView<cr>',          silent = true, desc = 'PR View' },
-      { '<leader>uu', ':GHLitePRLoadComments<cr>',  silent = true, desc = 'PR Load Comments' },
-      { '<leader>up', ':GHLitePRDiff<cr>',          silent = true, desc = 'PR Diff' },
-      { '<leader>ul', ':GHLitePRDiffview<cr>',      silent = true, desc = 'PR Diffview' },
-      { '<leader>ua', ':GHLitePRAddComment<cr>',    silent = true, desc = 'PR Add comment' },
-      { '<leader>ua', ':GHLitePRAddComment<cr>',    mode = 'x',    silent = true,             desc = 'PR Add comment' },
-      { '<leader>uc', ':GHLitePRUpdateComment<cr>', silent = true, desc = 'PR Update comment' },
-      { '<leader>ud', ':GHLitePRDeleteComment<cr>', silent = true, desc = 'PR Delete comment' },
-      { '<leader>ug', ':GHLitePROpenComment<cr>',   silent = true, desc = 'PR Open comment' },
-    }
-  }
+  vim.pack.add{ 'https://github.com/justinmk/ghlite.nvim' }
+  require('ghlite').setup({
+    debug = false, -- if set to true debugging information is written to ~/.ghlite.log file
+    view_split = 'vsplit', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
+    diff_split = 'vsplit', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
+    comment_split = 'split', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
+    open_command = 'open', -- open command to use, e.g. on Linux you might want to use xdg-open
+    merge = {
+      approved = '--squash',
+      nonapproved = '--auto --squash',
+    },
+    html_comments_command = { 'lynx', '-stdin', '-dump' }, -- command to render HTML comments in PR view
+    -- override default keymaps with the ones you prefer
+    -- set keymap to false or '' to disable it
+    keymaps = {
+      diff = {
+        open_file = 'gf',
+        open_file_tab = '',
+        open_file_split = 'o',
+        open_file_vsplit = 'O',
+        approve = 'cA',
+        request_changes = 'cR',
+      },
+      comment = {
+        send_comment = 'c<CR>' -- this one cannot be disabled
+      },
+      pr = {
+        approve = 'cA',
+        request_changes = 'cR',
+        merge = 'cM',
+        comment = 'ca',
+        diff = 'cp',
+      },
+    },
+  })
 <
 
 ==============================================================================
@@ -88,18 +68,12 @@ PR REVIEW USING GHLITE.NVIM         *ghlite.nvim-pr-review*
 ==============================================================================
 Quick PR Review                     *ghlite.nvim-quick-pr-review*
 
-If you want to make quick PR review without checking out PR code to your repo
-you can do it this way:
+To review a PR without doing a checkout in your repo:
 
-- Run `:GHLitePRSelect` and select PR you want to review. PR view will open.
-  You can open `:GHLitePRView` anytime later to refresh/reopen PR view.
-
-- Run `:GHLitePRDiff` to see diff of PR so you could review it in single
-  window. Comments that can be displayed in diff view are loaded as well as
-  diagnostics. Navigate comments using `vim.diagnostic.jump` or
-  `vim.diagnostic.goto_\*` functions (latter is for older neovim versions) or
-  keys you have mapped to those functions.
-
+- Run `:GHLitePRSelect` and select and view the PR.
+  - You can open `:GHLitePRView` anytime later to refresh/reopen PR view.
+- Run `:GHLitePRDiff` to see the diff. Comments on the diff are loaded.
+  Navigate comments using `vim.diagnostic.jump` (|]d| |[d|).
 - Run `:GHLitePRAddComment` to comment in existing conversations or start the
   new one directly in diff view. Alternatively you can use
   `:GHLitePROpenComment` to open comments in browser.
@@ -113,20 +87,11 @@ you can do it this way:
 ==============================================================================
 Thorough PR Review                  *ghlite.nvim-thorough-pr-review*
 
-However it might be that you want to make thorough PR review by looking not
-only at diff, but at surrounding code as well.
+The "checkout" workflow:
 
-- Run `:GHLitePRSelect` or `:GHLitePRCheckout` and select PR you want to
-  review. PR view will open. You can open `:GHLitePRView` anytime later to
-  refresh/reopen PR view. You can skip this step if you have locally branch
-  checked out that is related to PR. In that case plugin will resolve PR
-  number from git branch.
-
-- Run `:GHLitePRDiff` to see diff of PR so you could review it in single
-  window. Use `gf` in this buffer to go to specific file and line if you want
-  to see more context. If you have run `:GHLitePRSelect` initially and PR
-  branch is not checked out plugin will ask if you want to checkout branch.
-  Comments as diagnostics will be show in opened files as well.
+- Run `:GHLitePRDiff` to see the diff of the current PR. Use `gf` in this
+  buffer to go to a file and line if you want to see more context. Comments
+  will be shown as diagnostics in the opened file.
 
 - Run `:GHLitePRLoadComments` to review all comments in the code if diff view
   is not enough. List of comments is loaded to quickfix and shown in file as
@@ -148,18 +113,26 @@ COMMANDS                            *ghlite.nvim-commands*
 ==============================================================================
 :GHLitePRSelect                     *:GHLitePRSelect*
 
-This command shows selection of active PRs and selects PR for other operations.
-You can use this command if you want to review PR without checking it out.
+Sets a PR as the "selected" PR, without performing a git checkout in the
+workspace. >
+
+  :GHLitePRSelect 123
 
 ==============================================================================
 :GHLitePRCheckout                   *:GHLitePRCheckout*
 
-This command shows selection of active PRs and checkouts selected PR.
+Performs a git checkout of a PR selected from a list or provided as a command
+arg. >
+
+  :GHLitePRCheckout 123
 
 ==============================================================================
 :GHLitePRView                       *:GHLitePRView*
 
-This command shows PR information (wrapper for `gh pr view`).
+Shows PR information (`gh pr view`), or refreshes the view if it is already open.
+Works on the current "selected PR" or on the PR given as an arg: >
+
+  :GHLitePRView 123
 
 Supported key bindings:
 
@@ -189,10 +162,14 @@ Plugin searches for html tag and only then passes comment through
 
 This command approves selected PR.
 
+Can also be called with a PR number: `:GHLitePRApprove 123`
+
 ==============================================================================
 :GHLitePRRequestChanges             *:GHLitePRRequestChanges*
 
 This command request changes on PR.
+
+Can also be called with a PR number: `:GHLitePRRequestChanges 123`
 
 ==============================================================================
 :GHLitePRMerge                      *:GHLitePRMerge*
@@ -210,21 +187,21 @@ This command allows to comment on PR at top level (vs commenting on the code).
 ==============================================================================
 :GHLitePRLoadComments               *:GHLitePRLoadComments*
 
-This command loads PR comments. Only non-outdated review comments are loaded,
-PR comments are not loaded. Comments are loaded to quickfix list and to buffer
-diagnostics on buffer load. Navigate quickfix list using `cnext` and `cprev`
-(assumption here that you are using quickfix list in general).
+Loads PR comments of the current PR checked out `:GHLitePRCheckout`.
+Only non-outdated review comments are loaded, PR comments are not loaded.
+Comments are loaded to quickfix list and to buffer diagnostics on buffer load.
+Navigate quickfix list using `cnext` and `cprev`.
 
-NOTE: You must checkout git branch related to PR either using
-`:GHLitePRCheckout` or using other tools.
+NOTE: You must checkout the PR branch using git or via `:GHLitePRCheckout`.
 
 ==============================================================================
 :GHLitePRDiff                       *:GHLitePRDiff*
 
-This command loads PR diff that you can review. This command shows diff of
-selected PR. If no PR is selected then PR number is resolved from git branch
-associated with PR. Comments are loaded and shown as diagnostics in this view
-as well.
+Loads PR diff that you can review. Shows diff of selected PR. If no PR is
+selected then PR number is resolved from git branch associated with PR.
+Comments are loaded and shown as diagnostics in this view as well.
+
+Can also be called with a PR number: `:GHLitePRDiff 123`
 
 Supported key bindings:
 
@@ -238,13 +215,19 @@ Supported key bindings:
 ==============================================================================
 :GHLitePRDiffview                   *:GHLitePRDiffview*
 
-This command shows PR diff using
+Shows the diff of the selected PR, or [prnum], using
 [Diffview.nvim](https://github.com/sindrets/diffview.nvim).
+
+>
+    :GHLitePRDiffview 123
 
 However note that this command shows diff between what's in main branch and PR
 branch. This might be different from what's shown in GitHub. E.g. if there are
 changes in your main branch and your branch does not have changes from main
 branch, then you will be shown that some things are missing in your branch.
+
+This command will not show correct diff sometimes if you have gh older than
+2.63.0 (details here https://github.com/cli/cli/pull/9938).
 
 ==============================================================================
 :GHLitePRAddComment                 *:GHLitePRAddComment*

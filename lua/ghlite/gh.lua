@@ -43,6 +43,7 @@ function M.get_current_pr(cb)
   )
 end
 
+--- @param cb fun(pr?: PullRequest2)
 function M.get_pr_info(pr_number, cb)
   utils.system_str_cb(
     f(
@@ -213,7 +214,9 @@ function M.delete_comment(comment_id, cb)
   end)
 end
 
+--- @param cb fun(prs: PullRequest2[])
 function M.get_pr_list(cb)
+  -- TODO(justinmk): this does not pull all the fields required by PullRequest2
   utils.system_str_cb(
     'gh pr list --json number,title,author,createdAt,isDraft,reviewDecision,headRefName,headRefOid,baseRefName,baseRefOid,labels',
     function(resp, stderr)

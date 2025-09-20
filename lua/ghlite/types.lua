@@ -28,3 +28,15 @@
 --- @field headRefName string
 --- @field headRefOid string
 --- @field reviewDecision string
+
+--- @class PullRequest2: PullRequest
+--- @field url string
+--- @field author string
+--- @field title string
+--- @field labels string
+--- @field comments Comment[]
+--- @field reviews string
+--- @field body string
+--- @field changedFiles string
+--- @field isDraft string
+--- @field createdAt string

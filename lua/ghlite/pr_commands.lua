@@ -6,7 +6,8 @@ local utils = require('ghlite.utils')
 
 local M = {}
 
-local function ui_selectPR(prompt, callback)
+--- @param cb fun(pr: PullRequest2)
+local function ui_selectPR(prompt, cb)
   utils.notify('Loading PR list...')
   gh.get_pr_list(function(prs)
     if #prs == 0 then
@@ -17,6 +18,7 @@ local function ui_selectPR(prompt, callback)
     vim.schedule(function()
       vim.ui.select(prs, {
         prompt = prompt,
+        --- @param pr PullRequest2
         format_item = function(pr)
           local date = pr.createdAt:sub(1, 10)
           local draft = pr.isDraft and ' Draft' or ''
@@ -38,26 +40,44 @@ local function ui_selectPR(prompt, callback)
             labels
           )
         end,
-      }, callback)
+      }, cb)
     end)
   end)
 end
 
-function M.select()
-  ui_selectPR('Select PR:', function(pr)
-    if pr ~= nil then
-      state.selected_PR = pr
-      M.load_pr_view()
-    end
+--- @param opts table
+--- @param on_pr fun()
+local function on_pr_select(opts, on_pr)
+  local prnum = opts and opts.args and tonumber(opts.args)
+  if prnum then
+    gh.get_pr_info(prnum, function(pr)
+      if pr then
+        state.selected_PR = pr
+        on_pr()
+      else
+        utils.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
+      end
+    end)
+  else
+    ui_selectPR('Select PR:', function(pr)
+      if pr ~= nil then
+        state.selected_PR = pr
+        on_pr()
+      end
+    end)
+  end
+end
+
+function M.select(opts)
+  on_pr_select(opts, function()
+    M.load_pr_view()
   end)
 end
 
-function M.checkout()
-  ui_selectPR('Select PR to checkout:', function(pr)
-    if pr ~= nil then
-      state.selected_PR = pr
-      gh.checkout_pr(state.selected_PR.number, M.load_pr_view)
-    end
+function M.checkout(opts)
+  on_pr_select(opts, function()
+    M.load_pr_view()
+    gh.checkout_pr(state.selected_PR.number, M.load_pr_view)
   end)
 end
 
@@ -222,8 +242,9 @@ local function load_pr_view_for_pr(selected_pr)
   gh.get_pr_info(selected_pr.number, show_pr_info)
 end
 
-function M.load_pr_view()
-  pr_utils.get_selected_pr(load_pr_view_for_pr)
+function M.load_pr_view(opts)
+  local prnum = opts and opts.args and tonumber(opts.args)
+  pr_utils.get_selected_pr(prnum, load_pr_view_for_pr)
 end
 
 M.comment_on_pr = function(on_success)
