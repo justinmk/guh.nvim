@@ -1,6 +1,6 @@
 # guh.nvim (ghlite.nvim fork)
 
-W.I.P. Fork of https://github.com/justinmk/ghlite.nvim
+W.I.P. Fork of https://github.com/daliusd/ghlite.nvim
 
 Work with GitHub PRs in Neovim.
 
@@ -9,7 +9,7 @@ replacing its web interface entirely.
 
 ## Install
 
-    vim.pack.add{ 'https://github.com/justinmk/ghlite.nvim' }
+    vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
 
 See help for default config.
 

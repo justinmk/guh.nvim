@@ -1,4 +1,4 @@
-local config = require('ghlite.config')
+local config = require('guh.config')
 
 local M = {}
 

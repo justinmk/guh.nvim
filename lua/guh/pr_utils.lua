@@ -6,11 +6,11 @@
 --
 -- If there is branch checked out but no PR Selected then this PR becomes Selected.
 
-local gh = require('ghlite.gh')
-local state = require('ghlite.state')
-local utils = require('ghlite.utils')
+local gh = require('guh.gh')
+local state = require('guh.state')
+local utils = require('guh.utils')
 
-require('ghlite.types')
+require('guh.types')
 
 local M = {}
 

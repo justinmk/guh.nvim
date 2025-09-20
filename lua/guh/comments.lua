@@ -1,9 +1,9 @@
-local comments_utils = require('ghlite.comments_utils')
-local config = require('ghlite.config')
-local gh = require('ghlite.gh')
-local pr_utils = require('ghlite.pr_utils')
-local state = require('ghlite.state')
-local utils = require('ghlite.utils')
+local comments_utils = require('guh.comments_utils')
+local config = require('guh.config')
+local gh = require('guh.gh')
+local pr_utils = require('guh.pr_utils')
+local state = require('guh.state')
+local utils = require('guh.utils')
 
 local M = {}
 
@@ -115,7 +115,7 @@ M.load_comments_on_diff_buffer = function(bufnr)
             col = 0,
             message = comment.content,
             severity = vim.diagnostic.severity.INFO,
-            source = 'GHLite',
+            source = 'guh.nvim',
           })
         end
       end
@@ -123,7 +123,7 @@ M.load_comments_on_diff_buffer = function(bufnr)
   end
 
   vim.schedule(function()
-    vim.diagnostic.set(vim.api.nvim_create_namespace('GHLiteDiffNamespace'), bufnr, diagnostics, {})
+    vim.diagnostic.set(vim.api.nvim_create_namespace('guh.diff'), bufnr, diagnostics, {})
   end)
 end
 
@@ -486,12 +486,12 @@ M.load_comments_on_buffer_by_filename = function(bufnr, filename)
             col = 0,
             message = comment.content,
             severity = vim.diagnostic.severity.INFO,
-            source = 'GHLite',
+            source = 'guh.nvim',
           })
         end
       end
 
-      vim.diagnostic.set(vim.api.nvim_create_namespace('GHLiteNamespace'), bufnr, diagnostics, {})
+      vim.diagnostic.set(vim.api.nvim_create_namespace('guh.comments'), bufnr, diagnostics, {})
     end
   end)
 end

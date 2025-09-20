@@ -39,8 +39,7 @@ end
 
 function M.log(key, message)
   if M.s.debug then
-    local home = os.getenv('HOME')
-    local log_file_name = home .. '/.ghlite.log'
+    local log_file_name = vim.fn.stdpath('log') .. '/guh.log'
     local log_file = io.open(log_file_name, 'a')
     if log_file then
       log_file:write(os.date('%Y-%m-%d %H:%M:%S') .. ' ' .. key .. ':\n')

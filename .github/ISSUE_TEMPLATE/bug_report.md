@@ -7,26 +7,20 @@ assignees: ''
 
 ---
 
-**Describe the bug**
+## Problem
 A clear and concise description of what the bug is.
 
-**To Reproduce**
-Steps to reproduce the behavior:
+## Steps to reproduce
+
 1. Go to '...'
 2. Click on '....'
 3. Scroll down to '....'
 4. See error
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Expected behavior
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+A clear and concise description of what you expected to happen.
 
 **Neovim version and OS:**
  - nvim 0.10
  - Linux / Mac OS X / ...
-
-**Additional context**
-- ghlite.nvim config you are using
-- GitHub repository where I can reproduce the issue

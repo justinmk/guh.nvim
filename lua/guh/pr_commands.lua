@@ -1,8 +1,8 @@
-local config = require('ghlite.config')
-local gh = require('ghlite.gh')
-local pr_utils = require('ghlite.pr_utils')
-local state = require('ghlite.state')
-local utils = require('ghlite.utils')
+local config = require('guh.config')
+local gh = require('guh.gh')
+local pr_utils = require('guh.pr_utils')
+local state = require('guh.state')
+local utils = require('guh.utils')
 
 local M = {}
 
@@ -187,7 +187,7 @@ local function show_pr_info(pr_info)
         'n',
         config.s.keymaps.pr.approve,
         '',
-        { noremap = true, silent = true, callback = M.approve_pr }
+        { desc = 'Approve PR', noremap = true, silent = true, callback = M.approve_pr }
       )
     end
     if not utils.is_empty(config.s.keymaps.pr.request_changes) then
@@ -196,7 +196,7 @@ local function show_pr_info(pr_info)
         'n',
         config.s.keymaps.pr.request_changes,
         '',
-        { noremap = true, silent = true, callback = M.request_changes_pr }
+        { desc = 'Request PR changes', noremap = true, silent = true, callback = M.request_changes_pr }
       )
     end
     if not utils.is_empty(config.s.keymaps.pr.merge) then
@@ -205,11 +205,12 @@ local function show_pr_info(pr_info)
         'n',
         config.s.keymaps.pr.merge,
         '',
-        { noremap = true, silent = true, callback = M.merge_pr }
+        { desc = 'Merge PR in remote repo', noremap = true, silent = true, callback = M.merge_pr }
       )
     end
     if not utils.is_empty(config.s.keymaps.pr.comment) then
       vim.api.nvim_buf_set_keymap(buf, 'n', config.s.keymaps.pr.comment, '', {
+        desc = 'Comment on PR',
         noremap = true,
         silent = true,
         callback = function()
@@ -222,8 +223,8 @@ local function show_pr_info(pr_info)
         buf,
         'n',
         config.s.keymaps.pr.diff,
-        ':GHLitePRDiff<cr>',
-        { noremap = true, silent = true }
+        ':GuhDiff<cr>',
+        { desc = 'Merge PR in remote repo', noremap = true, silent = true }
       )
     end
 

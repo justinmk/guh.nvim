@@ -1,5 +1,5 @@
-local utils = require('ghlite.utils')
-require('ghlite.types')
+local utils = require('guh.utils')
+require('guh.types')
 
 local M = {}
 

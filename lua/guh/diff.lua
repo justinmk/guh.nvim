@@ -1,10 +1,10 @@
-local comments = require('ghlite.comments')
-local config = require('ghlite.config')
-local gh = require('ghlite.gh')
-local pr_commands = require('ghlite.pr_commands')
-local pr_utils = require('ghlite.pr_utils')
-local state = require('ghlite.state')
-local utils = require('ghlite.utils')
+local comments = require('guh.comments')
+local config = require('guh.config')
+local gh = require('guh.gh')
+local pr_commands = require('guh.pr_commands')
+local pr_utils = require('guh.pr_utils')
+local state = require('guh.state')
+local utils = require('guh.utils')
 
 local M = {}
 
@@ -105,7 +105,7 @@ function M.load_pr_diff()
               'n',
               config.s.keymaps.diff.open_file,
               '',
-              { noremap = true, silent = true, callback = open_file_from_diff('edit') }
+              { desc = 'Open file', noremap = true, silent = true, callback = open_file_from_diff('edit') }
             )
           end
 
@@ -115,7 +115,7 @@ function M.load_pr_diff()
               'n',
               config.s.keymaps.diff.open_file_tab,
               '',
-              { noremap = true, silent = true, callback = open_file_from_diff('tabedit') }
+              { desc = 'Open file in tab', noremap = true, silent = true, callback = open_file_from_diff('tabedit') }
             )
           end
 
@@ -125,7 +125,7 @@ function M.load_pr_diff()
               'n',
               config.s.keymaps.diff.open_file_split,
               '',
-              { noremap = true, silent = true, callback = open_file_from_diff('split') }
+              { desc = 'Open file in split', noremap = true, silent = true, callback = open_file_from_diff('split') }
             )
           end
 
@@ -135,7 +135,7 @@ function M.load_pr_diff()
               'n',
               config.s.keymaps.diff.open_file_vsplit,
               '',
-              { noremap = true, silent = true, callback = open_file_from_diff('vsplit') }
+              { desc = 'Open file in vertical split', noremap = true, silent = true, callback = open_file_from_diff('vsplit') }
             )
           end
 
@@ -145,7 +145,7 @@ function M.load_pr_diff()
               'n',
               config.s.keymaps.diff.approve,
               '',
-              { noremap = true, silent = true, callback = pr_commands.approve_pr }
+              { desc = 'Approve PR', noremap = true, silent = true, callback = pr_commands.approve_pr }
             )
           end
 
@@ -155,7 +155,7 @@ function M.load_pr_diff()
               'n',
               config.s.keymaps.diff.request_changes,
               '',
-              { noremap = true, silent = true, callback = pr_commands.request_changes_pr }
+              { desc = 'Request PR changes', noremap = true, silent = true, callback = pr_commands.request_changes_pr }
             )
           end
 
