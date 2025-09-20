@@ -22,3 +22,7 @@ Requirements:
 ## Usage
 
 See help file.
+
+## Related
+
+- https://github.com/pwntester/octo.nvim
