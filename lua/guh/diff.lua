@@ -74,11 +74,11 @@ function M.load_pr_diff()
     end
 
     local progress = utils.new_progress_report('Loading PR diff')
+    local buf = state.get_buf('diff', selected_pr.number)
     gh.get_pr_diff(selected_pr.number, function(diff_content)
       local diff_content_lines = vim.split(diff_content, '\n')
       construct_mappings(diff_content_lines, function()
         vim.schedule(function()
-          local buf = vim.api.nvim_create_buf(false, true)
           vim.api.nvim_buf_set_name(
             buf,
             'PR Diff: ' .. selected_pr.number .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')'
