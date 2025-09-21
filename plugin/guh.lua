@@ -1,1 +1,1 @@
-require('guh').setup{}
+require('guh').setup({})

@@ -34,7 +34,7 @@ function M.get_buf(feat, prnum)
   local prnumstr = tostring(prnum)
   local b = bufs[feat][prnumstr]
   if type(b) ~= 'number' or vim.api.nvim_buf_is_valid(b) then
-    b = vim.api.nvim_create_buf(false, true)
+    b = vim.api.nvim_create_buf(true, true)
     bufs[feat][prnumstr] = b
     assert(type(b) == 'number')
   end
