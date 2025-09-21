@@ -166,10 +166,12 @@ local function show_pr_info(pr_info)
     end
 
     local buf = state.get_buf('info', pr_info.number)
-    vim.api.nvim_buf_set_name(buf, 'PR View: ' .. pr_info.number .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')')
+    buf = state.try_set_buf_name(buf, 'info', pr_info.number)
 
     vim.bo[buf].buftype = 'nofile'
     vim.bo[buf].filetype = 'markdown'
+    vim.bo[buf].readonly = false
+    vim.bo[buf].modifiable = true
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, pr_view)
 
@@ -238,7 +240,9 @@ local function load_pr_view_for_pr(selected_pr)
     return
   end
 
-  vim.bo.busy = 1
+  vim.schedule(function()
+    vim.bo.busy = 1
+  end)
   gh.get_pr_info(selected_pr.number, show_pr_info)
 end
 

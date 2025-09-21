@@ -79,13 +79,12 @@ function M.load_pr_diff()
       local diff_content_lines = vim.split(diff_content, '\n')
       construct_mappings(diff_content_lines, function()
         vim.schedule(function()
-          vim.api.nvim_buf_set_name(
-            buf,
-            'PR Diff: ' .. selected_pr.number .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')'
-          )
+          buf = state.try_set_buf_name(buf, 'diff', selected_pr.number)
           state.diff_buffer_id = buf
 
           vim.bo[buf].buftype = 'nofile'
+          vim.bo[buf].readonly = false
+          vim.bo[buf].modifiable = true
 
           vim.api.nvim_buf_set_lines(buf, 0, -1, false, diff_content_lines)
 
