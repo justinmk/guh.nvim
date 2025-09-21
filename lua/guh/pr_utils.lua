@@ -51,7 +51,7 @@ local function approve_and_chechkout_selected_pr(cb)
 
     if choice == 1 then
       utils.notify(string.format('Checking out PR #%d...', state.selected_PR.number))
-      gh.checkout_pr(state.selected_PR.number, function()
+      gh.checkout_pr(state.selected_PR, function()
         utils.notify('PR check out finished.')
         cb(state.selected_PR)
       end)

@@ -31,7 +31,7 @@
 
 --- @class PullRequest2: PullRequest
 --- @field url string
---- @field author string
+--- @field author table
 --- @field title string
 --- @field labels string
 --- @field comments Comment[]

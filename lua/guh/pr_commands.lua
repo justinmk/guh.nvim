@@ -76,7 +76,7 @@ end
 
 function M.checkout(opts)
   on_pr_select(opts, function()
-    gh.checkout_pr(state.selected_PR.number, M.load_pr_view)
+    gh.checkout_pr(state.selected_PR, M.load_pr_view)
   end)
 end
 
