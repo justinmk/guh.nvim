@@ -49,7 +49,7 @@ end
 function M.get_pr_info(pr_number, cb)
   vim.schedule_wrap(utils.system_str_cb)(
     f(
-      'gh pr view %s --json url,author,title,number,labels,comments,reviews,body,changedFiles,isDraft,createdAt',
+      'gh pr view %s --json url,author,title,number,labels,comments,reviews,body,changedFiles,isDraft,createdAt,headRefOid',
       pr_number
     ),
     function(result)
@@ -123,16 +123,16 @@ function M.reply_to_comment(pr_number, body, reply_to, cb)
   end)
 end
 
-function M.new_comment(selected_pr, body, path, start_line, line, cb)
+function M.new_comment(pr, body, path, start_line, line, cb)
   get_repo(function(repo)
-    local commit_id = assert(selected_pr.headRefOid)
+    local commit_id = assert(pr.headRefOid)
 
     local request = {
       'gh',
       'api',
       '--method',
       'POST',
-      f('repos/%s/pulls/%d/comments', repo, selected_pr.number),
+      f('repos/%s/pulls/%d/comments', repo, pr.number),
       '-f',
       'body=' .. body,
       '-f',
@@ -160,12 +160,12 @@ function M.new_comment(selected_pr, body, path, start_line, line, cb)
   end)
 end
 
-function M.new_pr_comment(selected_pr, body, cb)
+function M.new_pr_comment(pr, body, cb)
   local request = {
     'gh',
     'pr',
     'comment',
-    f('%d', selected_pr.number),
+    f('%d', pr.number),
     '--body',
     body,
   }
