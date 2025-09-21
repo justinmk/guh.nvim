@@ -125,7 +125,7 @@ end
 
 function M.new_comment(selected_pr, body, path, start_line, line, cb)
   get_repo(function(repo)
-    local commit_id = selected_pr.headRefOid
+    local commit_id = assert(selected_pr.headRefOid)
 
     local request = {
       'gh',

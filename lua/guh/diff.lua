@@ -159,11 +159,11 @@ function M.load_pr_diff()
             )
           end
 
-          progress('end')
+          progress('success')
           progress = utils.new_progress_report('Loading diff comments')
           comments.load_comments_only(selected_pr.number, function()
             comments.load_comments_on_diff_buffer(buf)
-            progress('end')
+            progress('success')
           end)
         end)
       end)
@@ -180,7 +180,7 @@ function M.load_pr_diffview()
 
     local progress = utils.new_progress_report('Loading comments')
     comments.load_comments_only(selected_pr.number, function()
-      progress('end')
+      progress('success')
       utils.get_git_merge_base(
         selected_pr.baseRefOid and selected_pr.baseRefOid or selected_pr.baseRefName,
         selected_pr.headRefOid,

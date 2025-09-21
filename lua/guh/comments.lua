@@ -56,7 +56,7 @@ M.load_comments = function()
         load_comments_to_quickfix_list()
 
         M.load_comments_on_current_buffer()
-        progress('end')
+        progress('success')
       end)
     end)
   end)
@@ -223,16 +223,16 @@ M.comment_on_line = function()
             function(input)
               --- @param grouped_comment GroupedComment
               local function reply(grouped_comment)
-                utils.notify('Sending reply...')
+                local progress = utils.new_progress_report('Sending reply')
                 gh.reply_to_comment(state.selected_PR.number, input, grouped_comment.id, function(resp)
                   if resp['errors'] == nil then
-                    utils.notify('Reply sent.')
+                    progress('success', nil, 'Reply sent')
                     local new_comment = comments_utils.convert_comment(resp)
                     table.insert(grouped_comment.comments, new_comment)
                     grouped_comment.content = comments_utils.prepare_content(grouped_comment.comments)
                     M.load_comments_on_current_buffer()
                   else
-                    utils.notify('Failed to reply to comment.', vim.log.levels.WARN)
+                    progress('failed', nil, 'Failed to reply to comment')
                   end
                 end)
               end
@@ -252,7 +252,7 @@ M.comment_on_line = function()
                 end)
               else
                 if current_filename:sub(1, #git_root) == git_root then
-                  utils.notify('Sending comment...')
+                  local progress = utils.new_progress_report('Sending comment...')
                   gh.new_comment(
                     state.selected_PR,
                     input,
@@ -277,10 +277,10 @@ M.comment_on_line = function()
                           table.insert(state.comments_list[current_filename], new_comment_group)
                         end
 
-                        utils.notify('Comment sent.')
+                        progress('success', nil, 'Comment sent.')
                         M.load_comments_on_current_buffer()
                       else
-                        utils.notify('Failed to send comment.', vim.log.levels.WARN)
+                        progress('failed', nil, 'Failed to send comment.')
                       end
                     end
                   )
