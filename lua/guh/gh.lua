@@ -243,7 +243,7 @@ end
 --- @param pr PullRequest2
 function M.checkout_pr(pr, cb)
   local branch = ('pr%s-%s'):format(pr.number, pr.author.login):gsub(' ', '_')
-  utils.system_str_cb(f('gh pr checkout --branch %s %d', branch, pr.number), cb)
+  utils.system_str_cb(f('gh pr checkout --force --branch %s %d', branch, pr.number), cb)
 end
 
 function M.approve_pr(number, cb)
