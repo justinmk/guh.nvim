@@ -20,32 +20,34 @@ end
 function M.get_current_pr(cb)
   utils.system_str_cb(
     'gh pr view --json headRefName,headRefOid,number,baseRefName,baseRefOid,reviewDecision',
-    function(result, stderr)
-      local prefix = 'Unknown JSON field'
-      if result == nil then
-        cb(nil)
-        return
-      elseif string.sub(stderr, 1, #prefix) == prefix then
-        utils.system_str_cb(
-          'gh pr view --json headRefName,headRefOid,number,baseRefName,reviewDecision',
-          function(result2)
-            if result2 == nil then
-              cb(nil)
-              return
+    vim.schedule_wrap(
+      function(result, stderr)
+        local prefix = 'Unknown JSON field'
+        if result == nil then
+          cb(nil)
+          return
+        elseif string.sub(stderr, 1, #prefix) == prefix then
+          utils.system_str_cb(
+            'gh pr view --json headRefName,headRefOid,number,baseRefName,reviewDecision',
+            function(result2)
+              if result2 == nil then
+                cb(nil)
+                return
+              end
+              cb(parse_or_default(result2, nil))
             end
-            cb(parse_or_default(result2, nil))
-          end
-        )
-      else
-        cb(parse_or_default(result, nil))
+          )
+        else
+          cb(parse_or_default(result, nil))
+        end
       end
-    end
+    )
   )
 end
 
 --- @param cb fun(pr?: PullRequest2)
 function M.get_pr_info(pr_number, cb)
-  utils.system_str_cb(
+  vim.schedule_wrap(utils.system_str_cb)(
     f(
       'gh pr view %s --json url,author,title,number,labels,comments,reviews,body,changedFiles,isDraft,createdAt',
       pr_number
@@ -53,6 +55,7 @@ function M.get_pr_info(pr_number, cb)
     function(result)
       if result == nil then
         cb(nil)
+        vim.bo.busy = 0
         return
       end
       config.log('get_pr_info resp', result)

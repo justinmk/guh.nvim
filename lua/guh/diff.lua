@@ -73,7 +73,7 @@ function M.load_pr_diff()
       return
     end
 
-    utils.notify('PR diff loading started...')
+    local progress = utils.new_progress_report('Loading PR diff')
     gh.get_pr_diff(selected_pr.number, function(diff_content)
       local diff_content_lines = vim.split(diff_content, '\n')
       construct_mappings(diff_content_lines, function()
@@ -159,11 +159,11 @@ function M.load_pr_diff()
             )
           end
 
-          utils.notify('PR diff loaded.')
-          utils.notify('Comments on diff load started...')
+          progress('end')
+          progress = utils.new_progress_report('Loading diff comments')
           comments.load_comments_only(selected_pr.number, function()
             comments.load_comments_on_diff_buffer(buf)
-            utils.notify('Comments on diff loaded.')
+            progress('end')
           end)
         end)
       end)
@@ -178,9 +178,9 @@ function M.load_pr_diffview()
       return
     end
 
-    utils.notify('Comments load started...')
+    local progress = utils.new_progress_report('Loading comments')
     comments.load_comments_only(selected_pr.number, function()
-      utils.notify('Comments loaded.')
+      progress('end')
       utils.get_git_merge_base(
         selected_pr.baseRefOid and selected_pr.baseRefOid or selected_pr.baseRefName,
         selected_pr.headRefOid,

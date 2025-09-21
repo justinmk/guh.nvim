@@ -49,14 +49,14 @@ M.load_comments = function()
       return
     end
 
-    utils.notify('Comment loading started...')
+    local progress = utils.new_progress_report('Loading comments')
     gh.load_comments(checked_out_pr.number, function(comments_list)
       state.comments_list = comments_list
       vim.schedule(function()
         load_comments_to_quickfix_list()
 
         M.load_comments_on_current_buffer()
-        utils.notify('Comments loaded.')
+        progress('end')
       end)
     end)
   end)

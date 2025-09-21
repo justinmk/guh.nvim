@@ -14,7 +14,7 @@ replacing its web interface entirely.
 See help for default config.
 
 Requirements:
-- nvim 0.10+
+- nvim 0.12+
 - ["gh" (GitHub CLI)](https://cli.github.com/)
 - (Optional) For fzf-lua, telescope, etc., try `vim.cmd('FzfLua register_ui_select')`.
 - (Optional) [Diffview.nvim](https://github.com/sindrets/diffview.nvim)

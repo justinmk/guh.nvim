@@ -84,6 +84,7 @@ end
 local function show_pr_info(pr_info)
   if pr_info == nil then
     utils.notify('PR view load failed', vim.log.levels.ERROR)
+    vim.bo.busy = 0
     return
   end
 
@@ -224,11 +225,11 @@ local function show_pr_info(pr_info)
         'n',
         config.s.keymaps.pr.diff,
         ':GuhDiff<cr>',
-        { desc = 'Merge PR in remote repo', noremap = true, silent = true }
+        { desc = 'View the PR diff', noremap = true, silent = true }
       )
     end
 
-    utils.notify('PR view loaded.')
+    vim.bo.busy = 0
   end)
 end
 
@@ -238,8 +239,7 @@ local function load_pr_view_for_pr(selected_pr)
     return
   end
 
-  utils.notify('PR view loading started...')
-
+  vim.bo.busy = 1
   gh.get_pr_info(selected_pr.number, show_pr_info)
 end
 
@@ -286,21 +286,21 @@ M.comment_on_pr = function(on_success)
 end
 
 function M.approve_pr()
-  pr_utils.get_selected_pr(function(selected_pr)
-    if selected_pr == nil then
+  pr_utils.get_selected_pr(function(pr)
+    if pr == nil then
       utils.notify('No PR selected to approve', vim.log.levels.ERROR)
     end
 
-    utils.notify('PR approve started...')
-    gh.approve_pr(selected_pr.number, function()
-      utils.notify('PR approve finished.')
+    vim.bo.busy = 1
+    gh.approve_pr(pr.number, function()
+      vim.bo.busy = 0
     end)
   end)
 end
 
 function M.request_changes_pr()
-  pr_utils.get_selected_pr(function(selected_pr)
-    if selected_pr == nil then
+  pr_utils.get_selected_pr(function(pr)
+    if pr == nil then
       utils.notify('No PR selected to request changes', vim.log.levels.ERROR)
     end
 
@@ -310,15 +310,16 @@ function M.request_changes_pr()
         .. ' to request PR changes: -->'
 
       utils.get_comment(
-        'PR Request Changes: ' .. selected_pr.number .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')',
+        'PR Request Changes: ' .. pr.number .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')',
         config.s.comment_split,
         prompt,
         { prompt, '' },
         config.s.keymaps.comment.send_comment,
         function(input)
-          utils.notify('PR request changes started...')
-          gh.request_changes_pr(selected_pr.number, input, function()
-            utils.notify('PR request changes finished.')
+          vim.bo.busy = 1
+          gh.request_changes_pr(pr.number, input, function()
+            utils.notify('"Request PR changes" finished')
+            vim.bo.busy = 0
           end)
         end
       )
@@ -333,14 +334,16 @@ function M.merge_pr()
       return
     end
 
-    utils.notify('PR merge started...')
+    vim.bo.busy = 1
     if selected_pr.reviewDecision == 'APPROVED' then
       gh.merge_pr(selected_pr.number, config.s.merge.approved, function()
         utils.notify('PR merge finished.')
+        vim.bo.busy = 0
       end)
     else
       gh.merge_pr(selected_pr.number, config.s.merge.nonapproved, function()
         utils.notify('PR merge finished.')
+        vim.bo.busy = 0
       end)
     end
   end)

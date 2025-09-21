@@ -73,7 +73,8 @@ To review a PR without doing a checkout in your repo:
 - Run `:GuhSelect` and select and view the PR.
   - You can open `:GuhView` anytime later to refresh/reopen PR view.
 - Run `:GuhDiff` to see the diff. Comments on the diff are loaded.
-  Navigate comments using `vim.diagnostic.jump` (|]d| |[d|).
+  - Navigate comments using `vim.diagnostic.jump` (|]d| |[d|).
+  - See comment details using `<C-w>d` |CTRL-W_d-default|
 - Run `:GuhCommentLine` to comment in existing conversations or start the
   new one directly in diff view. Alternatively you can use
   `:GuhWebComment` to open comments in browser.

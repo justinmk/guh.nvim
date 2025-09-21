@@ -65,6 +65,21 @@ function M.notify(message, level)
   end)
 end
 
+--- @param action string
+--- @return fun(kind: 'begin'|'report'|'end', percent?: integer, fmt?: string, ...:any): nil
+function M.new_progress_report(action)
+  local progress = { kind = 'progress', title = 'vim.pack' }
+
+  return vim.schedule_wrap(function(kind, percent, fmt, ...)
+    progress.status = kind == 'end' and 'success' or 'running'
+    progress.percent = percent
+    local msg = ('%s %s'):format(action, (fmt or ''):format(...))
+    progress.id = vim.api.nvim_echo({ { msg } }, kind ~= 'report', progress)
+    -- Force redraw to show installation progress during startup
+    vim.cmd.redraw({ bang = true })
+  end)
+end
+
 function M.get_comment(buf_name, split_command, prompt, content, key_binding, callback)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_name(buf, buf_name)
