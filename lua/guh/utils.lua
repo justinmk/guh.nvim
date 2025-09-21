@@ -6,7 +6,7 @@ function M.system_str_cb(cmd, cb)
   local cmd_split = vim.split(cmd, ' ')
   vim.system(cmd_split, { text = true }, function(result)
     if type(cb) == 'function' then
-      if #result.stderr > 0 then
+      if result.code ~= 0 and #result.stderr > 0 then
         config.log('system_str_cb error', result.stderr)
         M.notify(result.stderr, vim.log.levels.ERROR)
       end
