@@ -20,11 +20,9 @@ M.diff_line_to_filename_line = {}
 --- feat+prnum => bufnr
 local bufs = {
   ---@type table<string, integer>
-  diff = {
-  },
+  diff = {},
   ---@type table<string, integer>
-  info = {
-  },
+  info = {},
 }
 
 --- Gets the buf for the given PR + feature, or creates a new one if not found.
@@ -51,10 +49,7 @@ function M.try_set_buf_name(buf, feat, prnum)
     return foundbuf
   end
   -- if not vim.api.nvim_buf_get_name(buf):match('guh%:') then
-  vim.api.nvim_buf_set_name(
-    buf,
-    ('guh://%s/%s'):format(feat, prnum)
-  )
+  vim.api.nvim_buf_set_name(buf, ('guh://%s/%s'):format(feat, prnum))
   -- XXX fucking hack because Vim creates new buffer after (re)naming it.
   bufs[feat][tostring(prnum)] = buf
   return buf

@@ -80,6 +80,17 @@ function M.new_progress_report(action)
   end)
 end
 
+function M.buf_keymap(buf, mode, lhs, desc, rhs)
+  if not M.is_empty(lhs) then
+    local opts = {}
+    opts.desc = opts.desc == nil and desc or opts.desc
+    opts.noremap = opts.noremap == nil and true or opts.noremap
+    opts.silent = opts.silent == nil and true or opts.silent
+    opts.buffer = buf
+    vim.keymap.set(mode, lhs, rhs, opts)
+  end
+end
+
 function M.get_comment(buf_name, split_command, prompt, content, key_binding, callback)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_name(buf, buf_name)
@@ -105,20 +116,8 @@ function M.get_comment(buf_name, split_command, prompt, content, key_binding, ca
     callback(input)
   end
 
-  vim.api.nvim_buf_set_keymap(
-    buf,
-    'n',
-    key_binding,
-    '',
-    { noremap = true, silent = true, callback = capture_input_and_close }
-  )
-  vim.api.nvim_buf_set_keymap(
-    buf,
-    'i',
-    key_binding,
-    '',
-    { noremap = true, silent = true, callback = capture_input_and_close }
-  )
+  M.buf_keymap(buf, 'n', key_binding, '', capture_input_and_close)
+  M.buf_keymap(buf, 'i', key_binding, '', capture_input_and_close)
 end
 
 return M

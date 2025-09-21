@@ -183,52 +183,13 @@ local function show_pr_info(pr_info)
     vim.bo[buf].readonly = true
     vim.bo[buf].modifiable = false
 
-    if not utils.is_empty(config.s.keymaps.pr.approve) then
-      vim.api.nvim_buf_set_keymap(
-        buf,
-        'n',
-        config.s.keymaps.pr.approve,
-        '',
-        { desc = 'Approve PR', noremap = true, silent = true, callback = M.approve_pr }
-      )
-    end
-    if not utils.is_empty(config.s.keymaps.pr.request_changes) then
-      vim.api.nvim_buf_set_keymap(
-        buf,
-        'n',
-        config.s.keymaps.pr.request_changes,
-        '',
-        { desc = 'Request PR changes', noremap = true, silent = true, callback = M.request_changes_pr }
-      )
-    end
-    if not utils.is_empty(config.s.keymaps.pr.merge) then
-      vim.api.nvim_buf_set_keymap(
-        buf,
-        'n',
-        config.s.keymaps.pr.merge,
-        '',
-        { desc = 'Merge PR in remote repo', noremap = true, silent = true, callback = M.merge_pr }
-      )
-    end
-    if not utils.is_empty(config.s.keymaps.pr.comment) then
-      vim.api.nvim_buf_set_keymap(buf, 'n', config.s.keymaps.pr.comment, '', {
-        desc = 'Comment on PR',
-        noremap = true,
-        silent = true,
-        callback = function()
-          M.comment_on_pr(M.load_pr_view)
-        end,
-      })
-    end
-    if not utils.is_empty(config.s.keymaps.pr.diff) then
-      vim.api.nvim_buf_set_keymap(
-        buf,
-        'n',
-        config.s.keymaps.pr.diff,
-        ':GuhDiff<cr>',
-        { desc = 'View the PR diff', noremap = true, silent = true }
-      )
-    end
+    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
+    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
+    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
+    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR', function()
+      M.comment_on_pr(M.load_pr_view)
+    end)
+    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
 
     vim.bo.busy = 0
   end)

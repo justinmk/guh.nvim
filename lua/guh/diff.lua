@@ -98,65 +98,36 @@ function M.load_pr_diff()
           vim.bo[buf].readonly = true
           vim.bo[buf].modifiable = false
 
-          if not utils.is_empty(config.s.keymaps.diff.open_file) then
-            vim.api.nvim_buf_set_keymap(
-              buf,
-              'n',
-              config.s.keymaps.diff.open_file,
-              '',
-              { desc = 'Open file', noremap = true, silent = true, callback = open_file_from_diff('edit') }
-            )
-          end
-
-          if not utils.is_empty(config.s.keymaps.diff.open_file_tab) then
-            vim.api.nvim_buf_set_keymap(
-              buf,
-              'n',
-              config.s.keymaps.diff.open_file_tab,
-              '',
-              { desc = 'Open file in tab', noremap = true, silent = true, callback = open_file_from_diff('tabedit') }
-            )
-          end
-
-          if not utils.is_empty(config.s.keymaps.diff.open_file_split) then
-            vim.api.nvim_buf_set_keymap(
-              buf,
-              'n',
-              config.s.keymaps.diff.open_file_split,
-              '',
-              { desc = 'Open file in split', noremap = true, silent = true, callback = open_file_from_diff('split') }
-            )
-          end
-
-          if not utils.is_empty(config.s.keymaps.diff.open_file_vsplit) then
-            vim.api.nvim_buf_set_keymap(
-              buf,
-              'n',
-              config.s.keymaps.diff.open_file_vsplit,
-              '',
-              { desc = 'Open file in vertical split', noremap = true, silent = true, callback = open_file_from_diff('vsplit') }
-            )
-          end
-
-          if not utils.is_empty(config.s.keymaps.diff.approve) then
-            vim.api.nvim_buf_set_keymap(
-              buf,
-              'n',
-              config.s.keymaps.diff.approve,
-              '',
-              { desc = 'Approve PR', noremap = true, silent = true, callback = pr_commands.approve_pr }
-            )
-          end
-
-          if not utils.is_empty(config.s.keymaps.diff.request_changes) then
-            vim.api.nvim_buf_set_keymap(
-              buf,
-              'n',
-              config.s.keymaps.diff.request_changes,
-              '',
-              { desc = 'Request PR changes', noremap = true, silent = true, callback = pr_commands.request_changes_pr }
-            )
-          end
+          utils.buf_keymap(buf, 'n', config.s.keymaps.diff.open_file, 'Open file', open_file_from_diff('edit'))
+          utils.buf_keymap(
+            buf,
+            'n',
+            config.s.keymaps.diff.open_file_tab,
+            'Open file in tab',
+            open_file_from_diff('tabedit')
+          )
+          utils.buf_keymap(
+            buf,
+            'n',
+            config.s.keymaps.diff.open_file_split,
+            'Open file in split',
+            open_file_from_diff('split')
+          )
+          utils.buf_keymap(
+            buf,
+            'n',
+            config.s.keymaps.diff.open_file_vsplit,
+            'Open file in vertical split',
+            open_file_from_diff('vsplit')
+          )
+          utils.buf_keymap(buf, 'n', config.s.keymaps.diff.approve, 'Approve PR', pr_commands.approve_pr)
+          utils.buf_keymap(
+            buf,
+            'n',
+            config.s.keymaps.diff.request_changes,
+            'Request PR changes',
+            pr_commands.request_changes_pr
+          )
 
           progress('success')
           progress = utils.new_progress_report('Loading diff comments')

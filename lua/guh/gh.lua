@@ -20,28 +20,26 @@ end
 function M.get_current_pr(cb)
   utils.system_str_cb(
     'gh pr view --json headRefName,headRefOid,number,baseRefName,baseRefOid,reviewDecision',
-    vim.schedule_wrap(
-      function(result, stderr)
-        local prefix = 'Unknown JSON field'
-        if result == nil then
-          cb(nil)
-          return
-        elseif string.sub(stderr, 1, #prefix) == prefix then
-          utils.system_str_cb(
-            'gh pr view --json headRefName,headRefOid,number,baseRefName,reviewDecision',
-            function(result2)
-              if result2 == nil then
-                cb(nil)
-                return
-              end
-              cb(parse_or_default(result2, nil))
+    vim.schedule_wrap(function(result, stderr)
+      local prefix = 'Unknown JSON field'
+      if result == nil then
+        cb(nil)
+        return
+      elseif string.sub(stderr, 1, #prefix) == prefix then
+        utils.system_str_cb(
+          'gh pr view --json headRefName,headRefOid,number,baseRefName,reviewDecision',
+          function(result2)
+            if result2 == nil then
+              cb(nil)
+              return
             end
-          )
-        else
-          cb(parse_or_default(result, nil))
-        end
+            cb(parse_or_default(result2, nil))
+          end
+        )
+      else
+        cb(parse_or_default(result, nil))
       end
-    )
+    end)
   )
 end
 
