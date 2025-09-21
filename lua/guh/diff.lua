@@ -102,6 +102,13 @@ function M.load_pr_diff()
           utils.buf_keymap(
             buf,
             'n',
+            config.s.keymaps.diff.comment,
+            'Comment on current line',
+            '<cmd>GuhCommentLine<cr>'
+          )
+          utils.buf_keymap(
+            buf,
+            'n',
             config.s.keymaps.diff.open_file_tab,
             'Open file in tab',
             open_file_from_diff('tabedit')

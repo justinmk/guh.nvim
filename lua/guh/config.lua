@@ -13,6 +13,7 @@ M.s = {
   html_comments_command = { 'lynx', '-stdin', '-dump' },
   keymaps = {
     diff = {
+      comment = 'cc',
       open_file = 'gf',
       open_file_tab = '',
       open_file_split = 'o',
@@ -27,7 +28,7 @@ M.s = {
       approve = 'cA',
       request_changes = 'cR',
       merge = 'cM',
-      comment = 'ca',
+      comment = 'cc',
       diff = 'cp',
     },
   },
