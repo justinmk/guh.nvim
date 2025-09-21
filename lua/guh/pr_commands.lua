@@ -165,7 +165,7 @@ local function show_pr_info(pr_info)
       end
     end
 
-    local buf = vim.api.nvim_create_buf(false, true)
+    local buf = state.get_buf('info', pr_info.number)
     vim.api.nvim_buf_set_name(buf, 'PR View: ' .. pr_info.number .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')')
 
     vim.bo[buf].buftype = 'nofile'

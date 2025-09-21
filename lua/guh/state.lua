@@ -28,7 +28,7 @@ local bufs = {
 }
 
 --- Gets the buf for the given PR + feature, or creates a new one if not found.
---- @param feat string
+--- @param feat 'diff'|'info'
 --- @param prnum string
 function M.get_buf(feat, prnum)
   local prnumstr = tostring(prnum)
