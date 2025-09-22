@@ -58,11 +58,16 @@ local function open_file_from_diff()
       vim.schedule(function()
         local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
 
-        local fnpair = vim.b[buf].diff_line_to_filename_line[cursor_line]
-        local file_path = fnpair[1]
-        local line_in_file = fnpair[2]
-        vim.ui.open(file_path)
-        vim.api.nvim_win_set_cursor(0, { line_in_file, 0 })
+        local current_buf = vim.api.nvim_get_current_buf()
+        local fnpair = vim.b[current_buf].diff_line_to_filename_line[cursor_line]
+        if fnpair and type(fnpair) == 'table' then
+          local file_path = fnpair[1]
+          local line_in_file = fnpair[2]
+          vim.cmd.edit(file_path)
+          vim.api.nvim_win_set_cursor(0, { line_in_file, 0 })
+        else
+          utils.notify('No file associated with this line.', vim.log.levels.WARN)
+        end
       end)
     end)
   end
