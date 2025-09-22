@@ -52,6 +52,25 @@ function M.try_set_buf_name(buf, feat, prnum)
   -- end
 end
 
+M.on_win_open = function()
+  vim.cmd [[
+    vertical topleft split
+    set wrap breakindent nonumber norelativenumber nolist
+  ]]
+end
+
+function M.show_win(buf)
+  -- Setup a split window.
+  M.on_win_open()
+
+  -- Focus the buffer in the split window (if any).
+  buf = buf or vim.api.nvim_create_buf(true, true)
+  local win = vim.api.nvim_get_current_win()
+  vim.api.nvim_win_set_buf(win, buf)
+
+  return { buf = buf, win = win }
+end
+
 M.bufs = bufs
 
 return M
