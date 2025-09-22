@@ -76,8 +76,8 @@ To review a PR without doing a checkout in your repo:
   - Navigate comments using `vim.diagnostic.jump` (|]d| |[d|).
   - See comment details using `<C-w>d` |CTRL-W_d-default|
 - Run `:GuhCommentLine` to comment in existing conversations or start the
-  new one directly in diff view. Alternatively you can use
-  `:GuhWebComment` to open comments in browser.
+  new one directly in diff view. Alternatively you can use `:GuhWeb` to open
+  comments in browser.
 
 - Run `:GuhApprove` to approve PR if everything is OK. you can use
   `ca` in diff and pr views.
@@ -99,8 +99,7 @@ The "checkout" workflow:
   diagnostic messages.
 
 - Run `:GuhComment` to comment in existing conversations or start the
-  new one. Alternatively you can use `:GuhWebComment` to open comments in
-  browser.
+  new one. Alternatively you can use `:GuhWeb` to open comments in browser.
 
 - Run `:GuhApprove` to approve PR if everything is OK. you can use
   `ca` in diff and pr views.
@@ -251,17 +250,17 @@ Supported key bindings:
     * If there is no comment on line then new conversation is started.
 
 ==============================================================================
-:GuhUpdateComment              *:GuhUpdateComment*
+:GuhCommentEdit                                              *:GuhCommentEdit*
 
 This command updates selected comment.
 
 ==============================================================================
-:GuhDeleteComment              *:GuhDeleteComment*
+:GuhCommentDelete                                          *:GuhCommentDelete*
 
 This command deletes selected comment.
 
 ==============================================================================
-:GuhWebComment                                                *:GuhWebComment*
+:GuhWeb                                                              *:GuhWeb*
 
 Opens comment under cursor in browser using `open_command` command (default
 `open`).

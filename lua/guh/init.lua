@@ -15,14 +15,16 @@ M.setup = function(user_config)
   vim.api.nvim_create_user_command('GuhApprove', pr_commands.approve_pr, {})
   vim.api.nvim_create_user_command('GuhRequestChanges', pr_commands.request_changes_pr, {})
   vim.api.nvim_create_user_command('GuhMerge', pr_commands.merge_pr, {})
-  vim.api.nvim_create_user_command('GuhComment', pr_commands.comment_on_pr, {})
-  vim.api.nvim_create_user_command('GuhLoadComments', comments.load_comments, {})
   vim.api.nvim_create_user_command('GuhDiff', diff.load_pr_diff, {})
   vim.api.nvim_create_user_command('GuhDiffview', diff.load_pr_diffview, {})
+  vim.api.nvim_create_user_command('GuhComment', pr_commands.comment_on_pr, {})
   vim.api.nvim_create_user_command('GuhCommentLine', comments.comment_on_line, { range = true })
-  vim.api.nvim_create_user_command('GuhUpdateComment', comments.update_comment, {})
-  vim.api.nvim_create_user_command('GuhWebComment', comments.open_comment, {})
-  vim.api.nvim_create_user_command('GuhDeleteComment', comments.delete_comment, {})
+  vim.api.nvim_create_user_command('GuhCommentEdit', comments.update_comment, {})
+  vim.api.nvim_create_user_command('GuhCommentDelete', comments.delete_comment, {})
+  vim.api.nvim_create_user_command('GuhWeb', comments.open_comment, {})
+
+  -- TODO: wtf is this for
+  vim.api.nvim_create_user_command('GuhLoadComments', comments.load_comments, {})
 
   vim.api.nvim_create_autocmd('BufReadPost', {
     pattern = '*',
