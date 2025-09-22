@@ -183,6 +183,7 @@ local function get_current_filename_and_line(cb)
   end)
 end
 
+--- Comments on a diff line/range.
 M.comment_on_line = function()
   pr_utils.get_selected_pr(function(selected_pr)
     if selected_pr == nil then
@@ -214,7 +215,7 @@ M.comment_on_line = function()
             .. config.s.keymaps.comment.send_comment
             .. ': -->'
 
-          utils.get_comment(
+          utils.edit_comment(
             999,
             prompt,
             { prompt, '' },
@@ -349,7 +350,7 @@ end
 local function edit_comment_body(comment, conversation)
   local prompt = '<!-- Change your comment and press ' .. config.s.keymaps.comment.send_comment .. ': -->'
 
-  utils.get_comment(
+  utils.edit_comment(
     comment.id,
     config.s.comment_split,
     prompt,
@@ -493,6 +494,59 @@ M.load_comments_on_buffer_by_filename = function(bufnr, filename)
       vim.diagnostic.set(vim.api.nvim_create_namespace('guh.comments'), bufnr, diagnostics, {})
     end
   end)
+end
+
+--- Performs a PR-level comment or diff line/range comment.
+M.comment = function(opts, on_success)
+  if opts.bang and opts.range then
+    utils.notify('Cannot use bang and range together.', vim.log.levels.ERROR)
+    return
+  end
+
+  if opts.bang then
+    -- PR-level comment
+    pr_utils.get_selected_pr(function(selected_pr)
+      if selected_pr == nil then
+        utils.notify('No PR selected/checked out', vim.log.levels.WARN)
+        return
+      end
+
+      vim.schedule(function()
+        local prompt = '<!-- Type your PR comment and press '
+          .. config.s.keymaps.comment.send_comment
+          .. ' to comment: -->'
+
+        utils.edit_comment(
+          selected_pr.number,
+          config.s.comment_split,
+          prompt,
+          { prompt, '' },
+          config.s.keymaps.comment.send_comment,
+          function(input)
+            utils.notify('Sending comment...')
+
+            gh.new_pr_comment(state.selected_PR, input, function(resp)
+              if resp ~= nil then
+                utils.notify('Comment sent.')
+                if type(on_success) == 'function' then
+                  on_success()
+                end
+              else
+                utils.notify('Failed to send comment.', vim.log.levels.WARN)
+              end
+            end)
+          end
+        )
+      end)
+    end)
+  else
+    -- Diff line-comment
+    if opts.range then
+      vim.fn.setpos("'<", {vim.api.nvim_get_current_buf(), opts.line1, 1, 0})
+      vim.fn.setpos("'>", {vim.api.nvim_get_current_buf(), opts.line2, 1, 0})
+    end
+    M.comment_on_line()
+  end
 end
 
 return M

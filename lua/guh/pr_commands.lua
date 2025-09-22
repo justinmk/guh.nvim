@@ -1,3 +1,4 @@
+local comments = require('guh.comments')
 local config = require('guh.config')
 local gh = require('guh.gh')
 local pr_utils = require('guh.pr_utils')
@@ -187,7 +188,7 @@ local function show_pr_info(pr_info)
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR', function()
-      M.comment_on_pr(M.load_pr_view)
+      M.comment(M.load_pr_view)
     end)
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
 
@@ -212,41 +213,13 @@ function M.load_pr_view(opts)
   pr_utils.get_selected_pr(prnum, load_pr_view_for_pr)
 end
 
-M.comment_on_pr = function(on_success)
-  pr_utils.get_selected_pr(function(selected_pr)
-    if selected_pr == nil then
-      utils.notify('No PR selected/checked out', vim.log.levels.WARN)
-      return
-    end
-
-    vim.schedule(function()
-      local prompt = '<!-- Type your PR comment and press '
-        .. config.s.keymaps.comment.send_comment
-        .. ' to comment: -->'
-
-      utils.get_comment(
-        selected_pr.number,
-        config.s.comment_split,
-        prompt,
-        { prompt, '' },
-        config.s.keymaps.comment.send_comment,
-        function(input)
-          utils.notify('Sending comment...')
-
-          gh.new_pr_comment(state.selected_PR, input, function(resp)
-            if resp ~= nil then
-              utils.notify('Comment sent.')
-              if type(on_success) == 'function' then
-                on_success()
-              end
-            else
-              utils.notify('Failed to send comment.', vim.log.levels.WARN)
-            end
-          end)
-        end
-      )
-    end)
-  end)
+--- Comment on a PR (bang "!") or a diff line/range.
+M.comment = function(arg1, arg2)
+  if type(arg1) == 'table' then -- opts from command
+    comments.comment(arg1, arg2)
+  else -- on_success from keymap, do PR comment
+    comments.comment({bang = true}, arg1)
+  end
 end
 
 function M.approve_pr()
@@ -273,7 +246,7 @@ function M.request_changes_pr()
         .. config.s.keymaps.comment.send_comment
         .. ' to request PR changes: -->'
 
-      utils.get_comment(
+      utils.edit_comment(
         pr.number,
         config.s.comment_split,
         prompt,

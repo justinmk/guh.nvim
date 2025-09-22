@@ -75,13 +75,11 @@ To review a PR without doing a checkout in your repo:
 - Run `:GuhDiff` to see the diff. Comments on the diff are loaded.
   - Navigate comments using `vim.diagnostic.jump` (|]d| |[d|).
   - See comment details using `<C-w>d` |CTRL-W_d-default|
-- Run `:GuhCommentLine` to comment in existing conversations or start the
+- Run `:GuhComment` to comment in existing conversations or start the
   new one directly in diff view. Alternatively you can use `:GuhWeb` to open
   comments in browser.
-
 - Run `:GuhApprove` to approve PR if everything is OK. you can use
   `ca` in diff and pr views.
-
 - Run `:GuhRequestChanges` to request changes on PR if something is
   wrong. you can use `cr` in diff and pr views.
 
@@ -93,17 +91,13 @@ The "checkout" workflow:
 - Run `:GuhDiff` to see the diff of the current PR. Use `gf` in this
   buffer to go to a file and line if you want to see more context. Comments
   will be shown as diagnostics in the opened file.
-
 - Run `:GuhLoadComments` to review all comments in the code if diff view
   is not enough. List of comments is loaded to quickfix and shown in file as
   diagnostic messages.
-
-- Run `:GuhComment` to comment in existing conversations or start the
-  new one. Alternatively you can use `:GuhWeb` to open comments in browser.
-
+- Run `:GuhComment` to comment in a conversation or a diff line/range.
+  Or use `:GuhWeb` to open the web UI.
 - Run `:GuhApprove` to approve PR if everything is OK. you can use
   `ca` in diff and pr views.
-
 - Run `:GuhRequestChanges` to request changes on PR if something is
   wrong. you can use `cr` in diff and pr views.
 
@@ -181,11 +175,6 @@ available options and use them in config's `merge` section if defaults are not
 working for you.
 
 ==============================================================================
-:GuhComment               *:GuhComment*
-
-This command allows to comment on PR at top level (vs commenting on the code).
-
-==============================================================================
 :GuhLoadComments               *:GuhLoadComments*
 
 TODO: i think this loads "new" comments or something..?
@@ -216,7 +205,7 @@ Supported key bindings:
 
 
 ==============================================================================
-:GuhDiffview                   *:GuhDiffview*
+:GuhDiffview                                                    *:GuhDiffview*
 
 Shows the diff of the selected PR, or [prnum], using
 [Diffview.nvim](https://github.com/sindrets/diffview.nvim).
@@ -233,36 +222,34 @@ This command will not show correct diff sometimes if you have gh older than
 2.63.0 (details here https://github.com/cli/cli/pull/9938).
 
 ==============================================================================
-:GuhCommentLine                 *:GuhCommentLine*
+:GuhComment                                                      *:GuhComment*
 
-This command opens buffer where you can write your comment.
+With bang "!", comments on PR at top level.
+Without bang, comments on the current diff line or range. >
+    :[range]GuhComment
+<
+Comment buffer-local mappings:
 
-If you want to create multi-line comment then select multiple lines using
-visual mode.
+c<Enter>
 
-Supported key bindings:
-
-* c-enter:
-
-    * If there is already loaded comment on cursor line (using
-      `GuhLoadComments` command) then comment is added as reply to thread.
-
-    * If there is no comment on line then new conversation is started.
+- If there is already loaded comment on cursor line (using
+  `GuhLoadComments` command) then comment is added as reply to thread.
+- If there is no comment on line then new conversation is started.
 
 ==============================================================================
 :GuhCommentEdit                                              *:GuhCommentEdit*
 
-This command updates selected comment.
+Updates selected comment.
 
 ==============================================================================
 :GuhCommentDelete                                          *:GuhCommentDelete*
 
-This command deletes selected comment.
+Deletes selected comment.
 
 ==============================================================================
 :GuhWeb                                                              *:GuhWeb*
 
-Opens comment under cursor in browser using `open_command` command (default
+Opens GitHub web UI in your browser using `open_command` command (default
 `open`).
 
 ------------------------------------------------------------------------------

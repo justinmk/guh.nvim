@@ -109,8 +109,8 @@ function M.load_pr_diff()
             buf,
             'n',
             config.s.keymaps.diff.comment,
-            'Comment on current line',
-            '<cmd>GuhCommentLine<cr>'
+            'Comment on current line or range',
+            '<cmd>GuhComment<cr>'
           )
           utils.buf_keymap(
             buf,

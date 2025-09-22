@@ -92,7 +92,7 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
   end
 end
 
-function M.get_comment(prnum, split_command, prompt, content, key_binding, callback)
+function M.edit_comment(prnum, split_command, prompt, content, key_binding, callback)
   local buf = state.get_buf('comment', prnum)
   state.try_set_buf_name(buf, 'comment', prnum)
   vim.bo[buf].buftype = 'nofile'
