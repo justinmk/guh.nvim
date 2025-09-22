@@ -305,7 +305,7 @@ M.open_comment = function()
 
     vim.schedule(function()
       if #conversations == 1 then
-        utils.system({ config.s.open_command, conversations[1].url })
+        vim.ui.open(conversations[1].url)
       elseif #conversations > 1 then
         vim.ui.select(conversations, {
           prompt = 'Select conversation to open in browser:',
@@ -314,7 +314,7 @@ M.open_comment = function()
           end,
         }, function(comment)
           if comment ~= nil then
-            utils.system({ config.s.open_command, comment.url })
+            vim.ui.open(comment.url)
           end
         end)
       else

@@ -5,7 +5,6 @@ M.s = {
   view_split = 'vsplit',
   diff_split = 'vsplit',
   comment_split = 'split',
-  open_command = 'open',
   merge = {
     approved = '--squash',
     nonapproved = '--auto --squash',

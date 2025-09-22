@@ -47,7 +47,7 @@ local function construct_mappings(diff_content, cb)
   end)
 end
 
-local function open_file_from_diff(open_command)
+local function open_file_from_diff()
   return function()
     pr_utils.get_checked_out_pr(function(checked_out_pr)
       if checked_out_pr == nil then
@@ -61,7 +61,7 @@ local function open_file_from_diff(open_command)
         local fnpair = vim.b[buf].diff_line_to_filename_line[cursor_line]
         local file_path = fnpair[1]
         local line_in_file = fnpair[2]
-        vim.cmd(open_command .. ' ' .. file_path)
+        vim.ui.open(file_path)
         vim.api.nvim_win_set_cursor(0, { line_in_file, 0 })
       end)
     end)

@@ -249,8 +249,7 @@ Deletes selected comment.
 ==============================================================================
 :GuhWeb                                                              *:GuhWeb*
 
-Opens GitHub web UI in your browser using `open_command` command (default
-`open`).
+Opens the converation at cursor in the GitHub web UI in your browser.
 
 ------------------------------------------------------------------------------
 vim:tw=78:ts=8:ft=help:norl:
