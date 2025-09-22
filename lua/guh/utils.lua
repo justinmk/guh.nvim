@@ -3,12 +3,12 @@ local state = require('guh.state')
 
 local M = {}
 
-function M.system_str_cb(cmd, cb)
+function M.system_str(cmd, cb)
   local cmd_split = vim.split(cmd, ' ')
   vim.system(cmd_split, { text = true }, function(result)
     if type(cb) == 'function' then
       if result.code ~= 0 and #result.stderr > 0 then
-        config.log('system_str_cb error', result.stderr)
+        config.log('system_str error', result.stderr)
         M.notify(result.stderr, vim.log.levels.ERROR)
       end
 
@@ -17,7 +17,7 @@ function M.system_str_cb(cmd, cb)
   end)
 end
 
-function M.system_cb(cmd, cb)
+function M.system(cmd, cb)
   vim.system(cmd, { text = true }, function(result)
     if type(cb) == 'function' then
       cb(result.stdout)
@@ -43,19 +43,19 @@ function M.is_empty(value)
 end
 
 function M.get_git_root(cb)
-  M.system_str_cb('git rev-parse --show-toplevel', function(result)
+  M.system_str('git rev-parse --show-toplevel', function(result)
     cb(vim.split(result, '\n')[1])
   end)
 end
 
 function M.get_git_merge_base(baseCommitId, headCommitId, cb)
-  M.system_str_cb('git merge-base ' .. baseCommitId .. ' ' .. headCommitId, function(result)
+  M.system_str('git merge-base ' .. baseCommitId .. ' ' .. headCommitId, function(result)
     cb(vim.split(result, '\n')[1])
   end)
 end
 
 function M.get_current_git_branch_name(cb)
-  M.system_str_cb('git branch --show-current', function(result)
+  M.system_str('git branch --show-current', function(result)
     cb(vim.split(result, '\n')[1])
   end)
 end

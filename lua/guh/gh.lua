@@ -18,7 +18,7 @@ local function parse_or_default(str, default)
 end
 
 function M.get_current_pr(cb)
-  utils.system_str_cb(
+  utils.system_str(
     'gh pr view --json headRefName,headRefOid,number,baseRefName,baseRefOid,reviewDecision',
     vim.schedule_wrap(function(result, stderr)
       local prefix = 'Unknown JSON field'
@@ -26,7 +26,7 @@ function M.get_current_pr(cb)
         cb(nil)
         return
       elseif string.sub(stderr, 1, #prefix) == prefix then
-        utils.system_str_cb(
+        utils.system_str(
           'gh pr view --json headRefName,headRefOid,number,baseRefName,reviewDecision',
           function(result2)
             if result2 == nil then
@@ -45,7 +45,7 @@ end
 
 --- @param cb fun(pr?: PullRequest2)
 function M.get_pr_info(pr_number, cb)
-  vim.schedule_wrap(utils.system_str_cb)(
+  vim.schedule_wrap(utils.system_str)(
     f(
       'gh pr view %s --json url,author,title,number,labels,comments,reviews,body,changedFiles,isDraft,createdAt,headRefOid',
       pr_number
@@ -64,7 +64,7 @@ function M.get_pr_info(pr_number, cb)
 end
 
 local function get_repo(cb)
-  utils.system_str_cb('gh repo view --json nameWithOwner -q .nameWithOwner', function(result)
+  utils.system_str('gh repo view --json nameWithOwner -q .nameWithOwner', function(result)
     if result ~= nil then
       cb(vim.split(result, '\n')[1])
     end
@@ -75,7 +75,7 @@ end
 function M.load_comments(pr_number, cb)
   get_repo(function(repo)
     config.log('repo', repo)
-    utils.system_str_cb(f('gh api repos/%s/pulls/%d/comments', repo, pr_number), function(comments_json)
+    utils.system_str(f('gh api repos/%s/pulls/%d/comments', repo, pr_number), function(comments_json)
       local comments = parse_or_default(comments_json, {})
       config.log('comments', comments)
 
@@ -112,7 +112,7 @@ function M.reply_to_comment(pr_number, body, reply_to, cb)
     }
     config.log('reply_to_comment request', request)
 
-    utils.system_cb(request, function(result)
+    utils.system(request, function(result)
       local resp = parse_or_default(result, { errors = {} })
 
       config.log('reply_to_comment resp', resp)
@@ -150,7 +150,7 @@ function M.new_comment(pr, body, path, start_line, line, cb)
 
     config.log('new_comment request', request)
 
-    utils.system_cb(request, function(result)
+    utils.system(request, function(result)
       local resp = parse_or_default(result, { errors = {} })
       config.log('new_comment resp', resp)
       cb(resp)
@@ -170,7 +170,7 @@ function M.new_pr_comment(pr, body, cb)
 
   config.log('new_pr_comment request', request)
 
-  local result = utils.system_cb(request, function(result)
+  local result = utils.system(request, function(result)
     config.log('new_pr_comment resp', result)
     cb(result)
   end)
@@ -189,7 +189,7 @@ function M.update_comment(comment_id, body, cb)
     }
     config.log('update_comment request', request)
 
-    utils.system_cb(request, function(result)
+    utils.system(request, function(result)
       local resp = parse_or_default(result, { errors = {} })
       config.log('update_comment resp', resp)
       cb(resp)
@@ -208,7 +208,7 @@ function M.delete_comment(comment_id, cb)
     }
     config.log('delete_comment request', request)
 
-    utils.system_cb(request, function(resp)
+    utils.system(request, function(resp)
       config.log('delete_comment resp', resp)
       cb(resp)
     end)
@@ -218,13 +218,13 @@ end
 --- @param cb fun(prs: PullRequest2[])
 function M.get_pr_list(cb)
   -- TODO(justinmk): this does not pull all the fields required by PullRequest2
-  utils.system_str_cb(
+  utils.system_str(
     'gh pr list --json number,title,author,createdAt,isDraft,reviewDecision,headRefName,headRefOid,baseRefName,baseRefOid,labels',
     function(resp, stderr)
       config.log('get_pr_list resp', resp)
       local prefix = 'Unknown JSON field'
       if string.sub(stderr, 1, #prefix) == prefix then
-        utils.system_str_cb(
+        utils.system_str(
           'gh pr list --json number,title,author,createdAt,isDraft,reviewDecision,headRefName,headRefOid,baseRefName,labels',
           function(resp2)
             config.log('get_pr_list resp', resp2)
@@ -241,11 +241,11 @@ end
 --- @param pr PullRequest2
 function M.checkout_pr(pr, cb)
   local branch = ('pr%s-%s'):format(pr.number, pr.author.login):gsub(' ', '_')
-  utils.system_str_cb(f('gh pr checkout --force --branch %s %d', branch, pr.number), cb)
+  utils.system_str(f('gh pr checkout --force --branch %s %d', branch, pr.number), cb)
 end
 
 function M.approve_pr(number, cb)
-  utils.system_str_cb(f('gh pr review %s -a', number), cb)
+  utils.system_str(f('gh pr review %s -a', number), cb)
 end
 
 function M.request_changes_pr(number, body, cb)
@@ -261,22 +261,22 @@ function M.request_changes_pr(number, body, cb)
 
   config.log('request_changes_pr request', request)
 
-  local result = utils.system_cb(request, function(result)
+  local result = utils.system(request, function(result)
     config.log('request_changes_pr resp', result)
     cb(result)
   end)
 end
 
 function M.get_pr_diff(number, cb)
-  utils.system_str_cb(f('gh pr diff %s', number), cb)
+  utils.system_str(f('gh pr diff %s', number), cb)
 end
 
 function M.merge_pr(number, options, cb)
-  utils.system_str_cb(f('gh pr merge %s %s', number, options), cb)
+  utils.system_str(f('gh pr merge %s %s', number, options), cb)
 end
 
 function M.get_user(cb)
-  utils.system_str_cb('gh api user -q .login', function(result)
+  utils.system_str('gh api user -q .login', function(result)
     if result ~= nil then
       cb(vim.split(result, '\n')[1])
     end
