@@ -33,7 +33,7 @@ function M.get_selected_pr(arg1, arg2)
   elseif state.selected_PR ~= nil then
     return vim.schedule_wrap(cb)(state.selected_PR)
   else
-    gh.get_current_pr(function(current_pr)
+    gh.get_pr_info('', function(current_pr)
       if current_pr ~= nil then
         state.selected_PR = current_pr
         cb(current_pr)
@@ -79,7 +79,7 @@ function M.get_checked_out_pr(cb)
         cb(state.selected_PR)
       end
     else
-      gh.get_current_pr(function(current_pr)
+      gh.get_pr_info('', function(current_pr)
         if current_pr ~= nil then
           state.selected_PR = current_pr
           cb(current_pr)
