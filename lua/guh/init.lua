@@ -8,6 +8,7 @@ local M = {}
 M.setup = function(user_config)
   config.setup(user_config)
 
+  vim.api.nvim_create_user_command('Guh', pr_commands.select, { nargs = '?' })
   vim.api.nvim_create_user_command('GuhSelect', pr_commands.select, { nargs = '?' })
   vim.api.nvim_create_user_command('GuhCheckout', pr_commands.checkout, { nargs = '?' })
   vim.api.nvim_create_user_command('GuhView', pr_commands.load_pr_view, { nargs = '?' })
