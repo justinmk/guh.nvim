@@ -28,9 +28,6 @@ NOTE: Default config is shown below. Skip settings if you are fine with defaults
   vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
   require('guh').setup({
     debug = false, -- if set to true debugging information is written to ~/.guh.log file
-    view_split = 'vsplit', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
-    diff_split = 'vsplit', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
-    comment_split = 'split', -- set to empty string '' to open in active buffer, use 'tabnew' to open in tab
     open_command = 'open', -- open command to use, e.g. on Linux you might want to use xdg-open
     merge = {
       approved = '--squash',

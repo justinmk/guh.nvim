@@ -7,6 +7,8 @@ local utils = require('guh.utils')
 
 local M = {}
 
+local severity = vim.diagnostic.severity
+
 local function load_comments_to_quickfix_list()
   local qf_entries = {}
 
@@ -114,7 +116,7 @@ M.load_comments_on_diff_buffer = function(bufnr)
             lnum = diff_line - 1,
             col = 0,
             message = comment.content,
-            severity = vim.diagnostic.severity.INFO,
+            severity = severity.INFO,
             source = 'guh.nvim',
           })
         end
@@ -226,7 +228,6 @@ M.comment_on_line = function(start_line, end_line)
 
             utils.edit_comment(
               999,
-              nil,
               prompt,
               { prompt, '' },
               config.s.keymaps.comment.send_comment,
@@ -378,7 +379,6 @@ local function edit_comment_body(comment, conversation)
 
   utils.edit_comment(
     comment.id,
-    config.s.comment_split,
     prompt,
     vim.split(prompt .. '\n' .. comment.body, '\n'),
     config.s.keymaps.comment.send_comment,
@@ -499,7 +499,7 @@ M.load_comments_on_buffer_by_filename = function(bufnr, filename)
             lnum = comment.line - 1,
             col = 0,
             message = comment.content,
-            severity = vim.diagnostic.severity.INFO,
+            severity = severity.INFO,
             source = 'guh.nvim',
           })
         end
@@ -532,7 +532,6 @@ M.comment = function(opts, on_success)
 
         utils.edit_comment(
           selected_pr.number,
-          config.s.comment_split,
           prompt,
           { prompt, '' },
           config.s.keymaps.comment.send_comment,

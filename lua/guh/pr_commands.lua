@@ -176,11 +176,6 @@ local function show_pr_info(pr_info)
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, pr_view)
 
-    if config.s.view_split then
-      vim.api.nvim_command(config.s.view_split)
-    end
-    vim.api.nvim_set_current_buf(buf)
-
     vim.bo[buf].readonly = true
     vim.bo[buf].modifiable = false
 
@@ -226,6 +221,7 @@ function M.approve_pr()
   pr_utils.get_selected_pr(function(pr)
     if pr == nil then
       utils.notify('No PR selected to approve', vim.log.levels.ERROR)
+      return
     end
 
     vim.bo.busy = 1
@@ -239,6 +235,7 @@ function M.request_changes_pr()
   pr_utils.get_selected_pr(function(pr)
     if pr == nil then
       utils.notify('No PR selected to request changes', vim.log.levels.ERROR)
+      return
     end
 
     vim.schedule(function()
@@ -248,7 +245,6 @@ function M.request_changes_pr()
 
       utils.edit_comment(
         pr.number,
-        config.s.comment_split,
         prompt,
         { prompt, '' },
         config.s.keymaps.comment.send_comment,
@@ -265,24 +261,18 @@ function M.request_changes_pr()
 end
 
 function M.merge_pr()
-  pr_utils.get_selected_pr(function(selected_pr)
-    if selected_pr == nil then
+  pr_utils.get_selected_pr(function(pr)
+    if pr == nil then
       utils.notify('No PR selected to merge', vim.log.levels.ERROR)
       return
     end
 
     vim.bo.busy = 1
-    if selected_pr.reviewDecision == 'APPROVED' then
-      gh.merge_pr(selected_pr.number, config.s.merge.approved, function()
-        utils.notify('PR merge finished.')
-        vim.bo.busy = 0
-      end)
-    else
-      gh.merge_pr(selected_pr.number, config.s.merge.nonapproved, function()
-        utils.notify('PR merge finished.')
-        vim.bo.busy = 0
-      end)
-    end
+    local s = config.s.merge[pr.reviewDecision == 'APPROVED' and 'approved' or 'nonapproved']
+    gh.merge_pr(pr.number, s, function()
+      utils.notify('PR merge finished.')
+      vim.bo.busy = 0
+    end)
   end)
 end
 

@@ -36,39 +36,38 @@ function M.get_buf(feat, prnum)
 end
 
 function M.try_set_buf_name(buf, feat, prnum)
-  local bufname = ('guh://%s/%s'):format(feat, prnum)
-  local foundbuf = vim.fn.bufnr(bufname)
-  if foundbuf > 0 and buf ~= foundbuf then
-    vim.api.nvim_set_current_buf(foundbuf)
-    -- XXX fucking hack because Vim creates new buffer after (re)naming it.
-    bufs[feat][tostring(prnum)] = foundbuf
-    return foundbuf
-  end
-  -- if not vim.api.nvim_buf_get_name(buf):match('guh%:') then
-  vim.api.nvim_buf_set_name(buf, ('guh://%s/%s'):format(feat, prnum))
+   local bufname = ('guh://%s/%s'):format(feat, prnum)
+   local foundbuf = vim.fn.bufnr(bufname)
+   if foundbuf > 0 and buf ~= foundbuf then
+      local existing_wins = vim.fn.win_findbuf(foundbuf)
+      if #existing_wins > 0 then
+         -- Already displayed elsewhere, focus it
+         vim.api.nvim_set_current_win(existing_wins[1])
+         bufs[feat][tostring(prnum)] = foundbuf
+         return foundbuf
+      else
+         -- Not displayed, switch to reuse the buffer
+         vim.api.nvim_set_current_buf(foundbuf)
+      -- XXX fucking hack because Vim creates new buffer after (re)naming it.
+         bufs[feat][tostring(prnum)] = foundbuf
+         return foundbuf
+      end
+   end
+   -- New buffer, set name and display in split
+   vim.api.nvim_buf_set_name(buf, bufname)
   -- XXX fucking hack because Vim creates new buffer after (re)naming it.
-  bufs[feat][tostring(prnum)] = buf
-  return buf
-  -- end
+   bufs[feat][tostring(prnum)] = buf
+   M.on_win_open()
+   local win = vim.api.nvim_get_current_win()
+   vim.api.nvim_win_set_buf(win, buf)
+   return buf
 end
 
 M.on_win_open = function()
-  vim.cmd [[
-    vertical topleft split
-    set wrap breakindent nonumber norelativenumber nolist
-  ]]
-end
-
-function M.show_win(buf)
-  -- Setup a split window.
-  M.on_win_open()
-
-  -- Focus the buffer in the split window (if any).
-  buf = buf or vim.api.nvim_create_buf(true, true)
-  local win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(win, buf)
-
-  return { buf = buf, win = win }
+   vim.cmd [[
+     vertical topleft split
+     set wrap breakindent nonumber norelativenumber nolist
+   ]]
 end
 
 M.bufs = bufs

@@ -92,18 +92,13 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
   end
 end
 
-function M.edit_comment(prnum, buftext, prompt, content, key_binding, callback)
+function M.edit_comment(prnum, prompt, content, key_binding, callback)
   local buf = state.get_buf('comment', prnum)
   state.try_set_buf_name(buf, 'comment', prnum)
-  state.show_win(buf)
   vim.bo[buf].buftype = 'nofile'
   vim.bo[buf].filetype = 'markdown'
   vim.bo[buf].modifiable = true
 
-  if buftext then
-    vim.fn.append(1, buftext)
-  end
-  vim.api.nvim_set_current_buf(buf)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
   vim.api.nvim_win_set_cursor(0, { 2, 0 })
 

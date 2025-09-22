@@ -87,15 +87,8 @@ function M.load_pr_diff()
           vim.bo[buf].buftype = 'nofile'
           vim.bo[buf].readonly = false
           vim.bo[buf].modifiable = true
-
           vim.api.nvim_buf_set_lines(buf, 0, -1, false, diff_content_lines)
-
           vim.bo[buf].filetype = 'diff'
-
-          if config.s.diff_split then
-            vim.api.nvim_command(config.s.diff_split)
-          end
-          vim.api.nvim_set_current_buf(buf)
 
           vim.bo[buf].readonly = true
           vim.bo[buf].modifiable = false

@@ -2,9 +2,6 @@ local M = {}
 
 M.s = {
   debug = false,
-  view_split = 'vsplit',
-  diff_split = 'vsplit',
-  comment_split = 'split',
   merge = {
     approved = '--squash',
     nonapproved = '--auto --squash',
