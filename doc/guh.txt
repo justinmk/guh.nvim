@@ -67,8 +67,8 @@ Quick PR Review                                           *guh-quick-workflow*
 
 To review a PR without doing a checkout in your repo:
 
-- Run `:Guh` and select and view the PR.
-  - You can open `:GuhView` anytime later to refresh/reopen PR view.
+- Run `:Guh` to select and view a PR.
+  - Run it anytime later to refresh/reopen the PR view.
 - Run `:GuhDiff` to see the diff. Comments on the diff are loaded.
   - Navigate comments using `vim.diagnostic.jump` (|]d| |[d|).
   - See comment details using `<C-w>d` |CTRL-W_d-default|
@@ -109,34 +109,13 @@ workspace. >
 
   :Guh 123
 
-==============================================================================
-:GuhCheckout                   *:GuhCheckout*
+Shows PR information (`gh pr view`), or refreshes if it is already open.
 
-Performs a git checkout of a PR selected from a list or provided as a command
-arg. >
-
-  :GuhCheckout 123
-
-==============================================================================
-:GuhView                       *:GuhView*
-
-Shows PR information (`gh pr view`), or refreshes the view if it is already open.
-Works on the current "selected PR" or on the PR given as an arg: >
-
-  :GuhView 123
-
-Supported key bindings:
-
-* `cA` to approve PR
-
-* `cM` to merge PR (see `GuhMerge` for details)
-
-* `ca` to write top level PR comment
-
-* `cp` to open diff view
-
-Note: You can use default vim shortcuts as well, like `gx` to open links in
-this view.
+Buffer-local key bindings:
+- `cA` to approve PR
+- `cM` to merge PR (see `GuhMerge` for details)
+- `ca` to write top level PR comment
+- `cp` to open diff view
 
 HTML comments is the thing too and they look bad in text. To render HTML as
 text `html_comments_command` settings can be used to specify command. You can
@@ -147,6 +126,14 @@ it.
 Plugin searches for html tag and only then passes comment through
 `html_comments_command`. You can disable this functionality by setting
 `html_comments_command` as `false`.
+
+==============================================================================
+:GuhCheckout                   *:GuhCheckout*
+
+Performs a git checkout of a PR selected from a list or provided as a command
+arg. >
+
+  :GuhCheckout 123
 
 ==============================================================================
 :GuhApprove                    *:GuhApprove*

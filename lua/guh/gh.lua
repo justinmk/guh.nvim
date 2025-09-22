@@ -17,7 +17,7 @@ local function parse_or_default(str, default)
   return default
 end
 
---- @param prnum string PR number, or empty for "current PR"
+--- @param prnum string|number PR number, or empty for "current PR"
 --- @param cb fun(pr?: PullRequest2)
 function M.get_pr_info(prnum, cb)
   local cmd = 'gh pr view %s --json author,baseRefName,baseRefOid,body,changedFiles,comments,createdAt,headRefName,headRefOid,isDraft,labels,number,reviewDecision,reviews,title,url'

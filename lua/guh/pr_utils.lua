@@ -15,22 +15,24 @@ require('guh.types')
 local M = {}
 
 --- @overload fun(cb: fun(pr: PullRequest | nil))
---- @overload fun(pr_number: number | nil, cb: fun(pr: PullRequest | nil))
+--- @overload fun(prnum: number | nil, cb: fun(pr: PullRequest | nil))
 function M.get_selected_pr(arg1, arg2)
   local cb = assert(type(arg2) == 'function' and arg2 or arg1)
   local prnum = type(arg2) == 'function' and arg1 or nil
   if prnum then
+    assert(type(prnum) == 'number')
     -- If user provided PR number as a command arg, fetch and set as "selected".
-    gh.get_pr_info(prnum, function(pr_info)
-      if pr_info then
-        state.selected_PR = pr_info
-        cb(pr_info)
+    gh.get_pr_info(prnum, function(pr)
+      if pr then
+        state.selected_PR = pr
+        cb(pr)
       else
         utils.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
         cb(nil)
       end
     end)
   elseif state.selected_PR ~= nil then
+    assert(type(cb) == 'function')
     return vim.schedule_wrap(cb)(state.selected_PR)
   else
     gh.get_pr_info('', function(current_pr)

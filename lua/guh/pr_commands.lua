@@ -51,14 +51,7 @@ end
 local function on_pr_select(opts, on_pr)
   local prnum = opts and opts.args and tonumber(opts.args)
   if prnum then
-    gh.get_pr_info(prnum, function(pr)
-      if pr then
-        state.selected_PR = pr
-        on_pr()
-      else
-        utils.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
-      end
-    end)
+    pr_utils.get_selected_pr(prnum, on_pr)
   else
     ui_selectPR('Select PR:', function(pr)
       if pr ~= nil then
