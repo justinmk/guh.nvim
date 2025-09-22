@@ -170,7 +170,7 @@ local function get_current_filename_and_line(start_line, end_line, cb)
       M.get_diffview_filename(current_filename, function(filename)
         cb(filename, current_start_line, current_line)
       end)
-    else
+    elseif not state.selected_PR then
       pr_utils.is_pr_checked_out(function(is_pr_checked_out)
         pr_utils.get_checked_out_pr(function(checked_out_pr)
           if not is_pr_checked_out then
@@ -183,7 +183,6 @@ local function get_current_filename_and_line(start_line, end_line, cb)
           cb(current_filename, current_start_line, current_line)
         end)
       end)
-      return
     end
 
     cb(current_filename, current_start_line, current_line)
@@ -227,6 +226,7 @@ M.comment_on_line = function(start_line, end_line)
 
             utils.edit_comment(
               999,
+              nil,
               prompt,
               { prompt, '' },
               config.s.keymaps.comment.send_comment,
@@ -304,13 +304,26 @@ M.comment_on_line = function(start_line, end_line)
   end)
 end
 
+local function validate_cur_filename(f)
+  if f == nil then
+    utils.notify('You are on a branch without PR.', vim.log.levels.WARN)
+    return false
+  end
+
+  if f:match('guh://info/') then
+    utils.notify('This command is for file comments. Use :GuhComment for PR comments.', vim.log.levels.WARN)
+    return false
+  end
+
+  return true
+end
+
 M.open_comment = function(opts)
   get_current_filename_and_line(
     opts.range and opts.line1 or nil,
     opts.range and opts.line2 or nil,
     function(current_filename, _, current_line)
-      if current_filename == nil then
-        utils.notify('You are on a branch without PR.', vim.log.levels.WARN)
+      if not validate_cur_filename(current_filename) then
         return
       end
 
@@ -386,31 +399,32 @@ local function edit_comment_body(comment, conversation)
   )
 end
 
-M.update_comment = function(opts)
+--- @param opts table
+--- @param fn fun(conversations_list: any, comment: any, idx?: integer)
+local function on_comment(action, opts, fn)
   get_current_filename_and_line(
     opts.range and opts.line1 or nil,
     opts.range and opts.line2 or nil,
     function(current_filename, _, current_line)
-      if current_filename == nil then
-        utils.notify('You are on a branch without PR.', vim.log.levels.WARN)
+      if not validate_cur_filename(current_filename) then
         return
       end
 
       get_own_comments(current_filename, current_line, function(comments_list, conversations_list)
         if #comments_list == 0 then
-          utils.notify('No comments found that could be updated.', vim.log.levels.WARN)
+          utils.notify('No comments found.', vim.log.levels.WARN)
           return
         end
 
         vim.schedule(function()
           vim.ui.select(comments_list, {
-            prompt = 'Select comment to update:',
+            prompt = ('Select comment to %s:'):format(action),
             format_item = function(comment)
               return string.format('%s: %s', comment.updated_at, vim.split(comment.body, '\n')[1])
             end,
           }, function(comment, idx)
             if comment ~= nil then
-              edit_comment_body(comment, conversations_list[idx])
+              fn(conversations_list, comment, idx)
             end
           end)
         end)
@@ -419,49 +433,28 @@ M.update_comment = function(opts)
   )
 end
 
+M.update_comment = function(opts)
+  on_comment('update', opts, function(conversations_list, comment, idx)
+    edit_comment_body(comment, conversations_list[idx])
+  end)
+end
+
 M.delete_comment = function(opts)
-  get_current_filename_and_line(
-    opts.range and opts.line1 or nil,
-    opts.range and opts.line2 or nil,
-    function(current_filename, _, current_line)
-      if current_filename == nil then
-        utils.notify('You are on a branch without PR.', vim.log.levels.WARN)
-        return
+  on_comment('delete', opts, function(conversations_list, comment, idx)
+    local progress = utils.new_progress_report('Deleting comment...')
+    gh.delete_comment(comment.id, function()
+      local function is_non_deleted_comment(c)
+        return c.id ~= comment.id
       end
 
-      get_own_comments(current_filename, current_line, function(comments_list, conversations_list)
-        if #comments_list == 0 then
-          utils.notify('No comments found that could be deleted.', vim.log.levels.WARN)
-          return
-        end
+      local convo = conversations_list[idx]
+      convo.comments = utils.filter_array(convo.comments, is_non_deleted_comment)
+      convo.content = comments_utils.prepare_content(convo.comments)
 
-        vim.schedule(function()
-          vim.ui.select(comments_list, {
-            prompt = 'Select comment to delete:',
-            format_item = function(comment)
-              return string.format('%s: %s', comment.updated_at, vim.split(comment.body, '\n')[1])
-            end,
-          }, function(comment, idx)
-            if comment ~= nil then
-              utils.notify('Deleting comment...')
-              gh.delete_comment(comment.id, function()
-                local function is_non_deleted_comment(c)
-                  return c.id ~= comment.id
-                end
-
-                local convo = conversations_list[idx]
-                convo.comments = utils.filter_array(convo.comments, is_non_deleted_comment)
-                convo.content = comments_utils.prepare_content(convo.comments)
-
-                utils.notify('Comment deleted.')
-                M.load_comments_on_current_buffer()
-              end)
-            end
-          end)
-        end)
-      end)
-    end
-  )
+      progress('success')
+      M.load_comments_on_current_buffer()
+    end)
+  end)
 end
 
 M.is_in_diffview = function(buf_name)
