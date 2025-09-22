@@ -102,13 +102,12 @@ The "checkout" workflow:
 COMMANDS                                                        *guh-commands*
 
 ==============================================================================
-:GuhSelect                     *:Guh* *:GuhSelect*
+:Guh                                                                    *:Guh*
 
 Sets a PR as the "selected" PR, without performing a git checkout in the
 workspace. >
 
   :Guh 123
-  :GuhSelect 123
 
 ==============================================================================
 :GuhCheckout                   *:GuhCheckout*
@@ -194,11 +193,9 @@ Can also be called with a PR number: `:GuhDiff 123`
 
 Supported key bindings:
 
-* `gf` go to file from PR diff. `gf` command will not work if you use
-  `:GuhSelect` command and branch is not checked out or you have different
-  branch checked out.
-
-* `cA` to approve PR
+- `gf` go to file from PR diff. `gf` command will not work if you use `:Guh`
+  command and branch is not checked out.
+- `cA` to approve PR
 
 
 ==============================================================================
