@@ -106,9 +106,9 @@ M.load_comments_on_diff_buffer = function(bufnr)
   local diagnostics = {}
 
   for filename, comments in pairs(state.comments_list) do
-    if state.filename_line_to_diff_line[filename] then
+    if vim.b[bufnr].filename_line_to_diff_line[filename] then
       for _, comment in pairs(comments) do
-        local diff_line = state.filename_line_to_diff_line[filename][comment.line]
+        local diff_line = vim.b[bufnr].filename_line_to_diff_line[filename][comment.line]
         if diff_line and #comment.comments > 0 then
           table.insert(diagnostics, {
             lnum = diff_line - 1,
@@ -154,10 +154,10 @@ local function get_current_filename_and_line(cb)
     local current_filename = vim.api.nvim_buf_get_name(current_buf)
 
     if current_buf == state.diff_buffer_id then
-      local info = state.diff_line_to_filename_line[current_start_line]
+      local info = vim.b[current_buf].diff_line_to_filename_line[current_start_line]
       current_filename = info[1]
       current_start_line = info[2]
-      info = state.diff_line_to_filename_line[current_line]
+      info = vim.b[current_buf].diff_line_to_filename_line[current_line]
       current_line = info[2]
     elseif M.is_in_diffview(current_filename) then
       M.get_diffview_filename(current_filename, function(filename)
