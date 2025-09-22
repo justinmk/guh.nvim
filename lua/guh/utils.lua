@@ -1,4 +1,5 @@
 local config = require('guh.config')
+local state = require('guh.state')
 
 local M = {}
 
@@ -91,10 +92,9 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
   end
 end
 
-function M.get_comment(buf_name, split_command, prompt, content, key_binding, callback)
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_name(buf, buf_name)
-
+function M.get_comment(prnum, split_command, prompt, content, key_binding, callback)
+  local buf = state.get_buf('comment', prnum)
+  state.try_set_buf_name(buf, 'comment', prnum)
   vim.bo[buf].buftype = 'nofile'
   vim.bo[buf].filetype = 'markdown'
 

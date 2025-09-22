@@ -215,8 +215,7 @@ M.comment_on_line = function()
             .. ': -->'
 
           utils.get_comment(
-            (#conversations > 0 and 'PR reply' or 'PR comment') .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')',
-            config.s.comment_split,
+            999,
             prompt,
             { prompt, '' },
             config.s.keymaps.comment.send_comment,
@@ -351,7 +350,7 @@ local function edit_comment_body(comment, conversation)
   local prompt = '<!-- Change your comment and press ' .. config.s.keymaps.comment.send_comment .. ': -->'
 
   utils.get_comment(
-    'PR edit comment' .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')',
+    comment.id,
     config.s.comment_split,
     prompt,
     vim.split(prompt .. '\n' .. comment.body, '\n'),

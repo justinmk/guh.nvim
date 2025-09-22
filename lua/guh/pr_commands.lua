@@ -225,7 +225,7 @@ M.comment_on_pr = function(on_success)
         .. ' to comment: -->'
 
       utils.get_comment(
-        'PR Comment: ' .. selected_pr.number .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')',
+        selected_pr.number,
         config.s.comment_split,
         prompt,
         { prompt, '' },
@@ -274,7 +274,7 @@ function M.request_changes_pr()
         .. ' to request PR changes: -->'
 
       utils.get_comment(
-        'PR Request Changes: ' .. pr.number .. ' (' .. os.date('%Y-%m-%d %H:%M:%S') .. ')',
+        pr.number,
         config.s.comment_split,
         prompt,
         { prompt, '' },

@@ -14,13 +14,15 @@ M.diff_buffer_id = nil
 --- feat+prnum => bufnr
 local bufs = {
   ---@type table<string, integer>
+  comment = {},
+  ---@type table<string, integer>
   diff = {},
   ---@type table<string, integer>
   info = {},
 }
 
 --- Gets the buf for the given PR + feature, or creates a new one if not found.
---- @param feat 'diff'|'info'
+--- @param feat 'diff'|'info'|'comment'
 --- @param prnum string|number
 function M.get_buf(feat, prnum)
   local prnumstr = tostring(prnum)
