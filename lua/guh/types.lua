@@ -1,42 +1,40 @@
 --- @class Comment
---- @field id number
---- @field url string
---- @field path string
---- @field line number
---- @field start_line number
---- @field user string
 --- @field body string
---- @field updated_at string
 --- @field diff_hunk string
+--- @field id number
+--- @field line number
+--- @field path string
+--- @field start_line number
+--- @field updated_at string
+--- @field url string
+--- @field user string
 
 --- @class GroupedComment
+--- @field comments Comment[]
+--- @field content string
 --- @field id number
 --- @field line number
 --- @field start_line number
 --- @field url string
---- @field content string
---- @field comments Comment[]
 
 --- @class FileNameAndLinePair
 --- @field [1] string filename
 --- @field [2] number line
 
 --- @class PullRequest
---- @field number number
+--- @field author table
 --- @field baseRefName string
 --- @field baseRefOid string
+--- @field body string
+--- @field changedFiles number
+--- @field comments Comment[]
+--- @field createdAt string
 --- @field headRefName string
 --- @field headRefOid string
+--- @field isDraft boolean
+--- @field labels table
+--- @field number number
 --- @field reviewDecision string
-
---- @class PullRequest2: PullRequest
---- @field url string
---- @field author table
+--- @field reviews table
 --- @field title string
---- @field labels string
---- @field comments Comment[]
---- @field reviews string
---- @field body string
---- @field changedFiles string
---- @field isDraft string
---- @field createdAt string
+--- @field url string

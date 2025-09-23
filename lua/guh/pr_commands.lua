@@ -7,7 +7,7 @@ local utils = require('guh.utils')
 
 local M = {}
 
---- @param cb fun(pr: PullRequest2)
+--- @param cb fun(pr: PullRequest)
 local function ui_selectPR(prompt, cb)
   local progress = utils.new_progress_report('Loading PR list...', vim.fn.bufnr())
   gh.get_pr_list(function(prs)
@@ -19,7 +19,7 @@ local function ui_selectPR(prompt, cb)
     vim.schedule(function()
       vim.ui.select(prs, {
         prompt = prompt,
-        --- @param pr PullRequest2
+        --- @param pr PullRequest
         format_item = function(pr)
           local date = pr.createdAt:sub(1, 10)
           local draft = pr.isDraft and ' Draft' or ''

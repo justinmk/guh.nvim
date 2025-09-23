@@ -8,6 +8,25 @@ local f = string.format
 
 local M = {}
 
+local pr_fields = {
+  'author',
+  'baseRefName',
+  'baseRefOid',
+  'body',
+  'changedFiles',
+  'comments',
+  'createdAt',
+  'headRefName',
+  'headRefOid',
+  'isDraft',
+  'labels',
+  'number',
+  'reviewDecision',
+  'reviews',
+  'title',
+  'url',
+}
+
 local function parse_or_default(str, default)
   local success, result = pcall(vim.json.decode, str)
   if success then
@@ -18,10 +37,9 @@ local function parse_or_default(str, default)
 end
 
 --- @param prnum string|number PR number, or empty for "current PR"
---- @param cb fun(pr?: PullRequest2)
+--- @param cb fun(pr?: PullRequest)
 function M.get_pr_info(prnum, cb)
-  local cmd =
-    'gh pr view %s --json author,baseRefName,baseRefOid,body,changedFiles,comments,createdAt,headRefName,headRefOid,isDraft,labels,number,reviewDecision,reviews,title,url'
+  local cmd = 'gh pr view %s --json ' .. table.concat(pr_fields, ',')
   vim.schedule_wrap(utils.system_str)(f(cmd, prnum), function(result, stderr)
     if result == nil then
       cb(nil)
@@ -188,17 +206,18 @@ function M.delete_comment(comment_id, cb)
   end)
 end
 
---- @param cb fun(prs: PullRequest2[])
+--- @param cb fun(prs: PullRequest[])
 function M.get_pr_list(cb)
-  -- TODO(justinmk): this does not pull all the fields required by PullRequest2
   utils.system_str(
-    'gh pr list --json number,title,author,createdAt,isDraft,reviewDecision,headRefName,headRefOid,baseRefName,baseRefOid,labels',
+    'gh pr list --json ' .. table.concat(pr_fields, ','),
     function(resp, stderr)
       config.log('get_pr_list resp', resp)
       local prefix = 'Unknown JSON field'
       if string.sub(stderr, 1, #prefix) == prefix then
+        -- Without "baseRefOid" field.
+        local fields = vim.iter(pr_fields):filter(function(v) return v ~= 'baseRefOid' end):totable()
         utils.system_str(
-          'gh pr list --json number,title,author,createdAt,isDraft,reviewDecision,headRefName,headRefOid,baseRefName,labels',
+          'gh pr list --json ' .. table.concat(fields, ','),
           function(resp2)
             config.log('get_pr_list resp', resp2)
             cb(parse_or_default(resp2, {}))
@@ -211,7 +230,7 @@ function M.get_pr_list(cb)
   )
 end
 
---- @param pr PullRequest2
+--- @param pr PullRequest
 function M.checkout_pr(pr, cb)
   local branch = ('pr%s-%s'):format(pr.number, pr.author.login):gsub(' ', '_')
   utils.system_str(f('gh pr checkout --force --branch %s %d', branch, pr.number), cb)
