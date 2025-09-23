@@ -9,10 +9,10 @@ local M = {}
 
 --- @param cb fun(pr: PullRequest2)
 local function ui_selectPR(prompt, cb)
-  utils.notify('Loading PR list...')
+  local progress = utils.new_progress_report('Loading PR list...', vim.fn.bufnr())
   gh.get_pr_list(function(prs)
     if #prs == 0 then
-      utils.notify('No PRs found. Make sure you have `gh` configured.', vim.log.levels.WARN)
+      progress('failed', nil, 'No PRs found. Make sure you have `gh` configured.')
       return
     end
 
@@ -41,7 +41,10 @@ local function ui_selectPR(prompt, cb)
             labels
           )
         end,
-      }, cb)
+      }, function()
+        progress('success')
+        return cb()
+      end)
     end)
   end)
 end
@@ -76,8 +79,7 @@ end
 
 local function show_pr_info(pr_info)
   if pr_info == nil then
-    utils.notify('PR view load failed', vim.log.levels.ERROR)
-    return
+    return utils.notify('PR view load failed', vim.log.levels.ERROR)
   end
 
   vim.schedule(function()
@@ -185,8 +187,7 @@ function M.load_pr_view(opts)
   local prnum = opts and opts.args and tonumber(opts.args)
   pr_utils.get_selected_pr(prnum, function(selected_pr)
     if selected_pr == nil then
-      utils.notify('No PR selected/checked out', vim.log.levels.WARN)
-      return
+      return utils.notify('No PR selected/checked out', vim.log.levels.WARN)
     end
     gh.get_pr_info(selected_pr.number, show_pr_info)
   end)

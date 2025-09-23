@@ -76,9 +76,11 @@ function M.new_progress_report(action, buf)
   end
 
   return vim.schedule_wrap(function(status, percent, fmt, ...)
+    local done = (status == 'failed' or status == 'success')
     progress.status = status
-    progress.percent = percent
-    local msg = ('%s %s'):format(action, (fmt or ''):format(...))
+    progress.percent = not done and percent or nil
+    progress.title = not done and progress.title or nil
+    local msg = done and '' or ('%s %s'):format(action, (fmt or ''):format(...))
     progress.id = vim.api.nvim_echo({ { msg } }, status ~= 'running', progress)
 
     if buf then

@@ -12,8 +12,7 @@ local severity = vim.diagnostic.severity
 local function load_comments_to_quickfix_list()
   local comments_list = vim.b.guh_comments
   if not comments_list then
-    utils.notify('No comments loaded for this buffer.')
-    return
+    return utils.notify('No comments loaded for this buffer.')
   end
 
   local qf_entries = {}
@@ -386,16 +385,15 @@ local function edit_comment_body(comment, conversation)
     vim.split(prompt .. '\n' .. comment.body, '\n'),
     config.s.keymaps.comment.send_comment,
     function(input)
-      utils.notify('Updating comment...')
+      local progress = utils.new_progress_report('Updating comment...', vim.fn.bufnr())
       gh.update_comment(comment.id, input, function(resp)
         if resp['errors'] == nil then
-          utils.notify('Comment updated.')
+          progress('success')
           comment.body = resp.body
           conversation.content = comments_utils.prepare_content(conversation.comments)
-
           M.load_comments_on_current_buffer()
         else
-          utils.notify('Failed to update the comment.', vim.log.levels.ERROR)
+          progress('failed')
         end
       end)
     end
@@ -517,16 +515,14 @@ end
 --- Performs a PR-level comment or diff line/range comment.
 M.comment = function(opts, on_success)
   if opts.bang and opts.range then
-    utils.notify('Cannot use bang and range together.', vim.log.levels.ERROR)
-    return
+    return utils.notify('Cannot use bang and range together.', vim.log.levels.ERROR)
   end
 
   if opts.bang then
     -- PR-level comment
     pr_utils.get_selected_pr(function(selected_pr)
       if selected_pr == nil then
-        utils.notify('No PR selected/checked out', vim.log.levels.WARN)
-        return
+        return utils.notify('No PR selected/checked out', vim.log.levels.WARN)
       end
 
       vim.schedule(function()
@@ -540,16 +536,16 @@ M.comment = function(opts, on_success)
           { prompt, '' },
           config.s.keymaps.comment.send_comment,
           function(input)
-            utils.notify('Sending comment...')
+            local progress = utils.new_progress_report('Sending comment...', vim.fn.bufnr())
 
             gh.new_pr_comment(state.selected_PR, input, function(resp)
               if resp ~= nil then
-                utils.notify('Comment sent.')
+                progress('success')
                 if type(on_success) == 'function' then
                   on_success()
                 end
               else
-                utils.notify('Failed to send comment.', vim.log.levels.WARN)
+                progress('failed')
               end
             end)
           end

@@ -49,12 +49,12 @@ end
 --- @return PullRequest|nil returns checked out pr or nil if user does not approve check out
 local function approve_and_chechkout_selected_pr(cb)
   vim.schedule(function()
-    local choice = vim.fn.confirm('Do you want to check out selected PR?', '&Yes\n&No', 1)
+    local choice = vim.fn.confirm('Checkout selected PR?', '&Yes\n&No', 1)
 
     if choice == 1 then
-      utils.notify(string.format('Checking out PR #%d...', state.selected_PR.number))
+      local progress = utils.new_progress_report(string.format('Checking out PR #%d...', state.selected_PR.number), vim.fn.bufnr())
       gh.checkout_pr(state.selected_PR, function()
-        utils.notify('PR check out finished.')
+        progress('success')
         cb(state.selected_PR)
       end)
     end
