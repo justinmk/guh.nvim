@@ -20,7 +20,7 @@ M.setup = function(user_config)
   vim.api.nvim_create_user_command('GuhComment', pr_commands.comment, { bang = true, range = true })
   vim.api.nvim_create_user_command('GuhCommentEdit', comments.update_comment, { range = true })
   vim.api.nvim_create_user_command('GuhCommentDelete', comments.delete_comment, { range = true })
-  vim.api.nvim_create_user_command('GuhWeb', comments.open_comment, { range = true })
+  vim.api.nvim_create_user_command('GuhWeb', comments.open_web_comment, { range = true })
   -- TODO: wtf is this for
   vim.api.nvim_create_user_command('GuhLoadComments', comments.load_comments, {})
 

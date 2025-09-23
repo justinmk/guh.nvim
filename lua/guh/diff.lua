@@ -12,8 +12,8 @@ local function construct_mappings(diff_content, cb)
   utils.get_git_root(function(git_root)
     local current_filename = nil
     local current_line_in_file = 0
-    local filename_line_to_diff_line = {}
-    local diff_line_to_filename_line = {}
+    local fname_line_to_diff_line = {}
+    local diff_line_to_fname_line = {}
 
     for line_num = 1, #diff_content do
       local line = diff_content[line_num]
@@ -31,19 +31,19 @@ local function construct_mappings(diff_content, cb)
           current_line_in_file = lineno
         end
       elseif current_filename then
-        if filename_line_to_diff_line[current_filename] == nil then
-          filename_line_to_diff_line[current_filename] = {}
+        if fname_line_to_diff_line[current_filename] == nil then
+          fname_line_to_diff_line[current_filename] = {}
         end
-        filename_line_to_diff_line[current_filename][current_line_in_file] = line_num
+        fname_line_to_diff_line[current_filename][current_line_in_file] = line_num
 
-        diff_line_to_filename_line[line_num] = { current_filename, current_line_in_file }
+        diff_line_to_fname_line[line_num] = { current_filename, current_line_in_file }
         if line:sub(1, 1) ~= '-' then
           current_line_in_file = current_line_in_file + 1
         end
       end
     end
 
-    cb(filename_line_to_diff_line, diff_line_to_filename_line)
+    cb(fname_line_to_diff_line, diff_line_to_fname_line)
   end)
 end
 
@@ -58,8 +58,7 @@ local function open_file_from_diff()
       vim.schedule(function()
         local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
 
-        local current_buf = vim.api.nvim_get_current_buf()
-        local fnpair = vim.b[current_buf].diff_line_to_filename_line[cursor_line]
+        local fnpair = vim.b.guh_diff_line_to_fname_line[cursor_line]
         if fnpair and type(fnpair) == 'table' then
           local file_path = fnpair[1]
           local line_in_file = fnpair[2]
@@ -101,10 +100,13 @@ function M.load_pr_diff(strategy)
     local buf = state.get_buf('diff', pr.number)
     gh.get_pr_diff(pr.number, function(diff_content)
       local diff_content_lines = vim.split(diff_content, '\n')
-      construct_mappings(diff_content_lines, function(filename_line_to_diff_line, diff_line_to_filename_line)
+      construct_mappings(diff_content_lines, function(fname_line_to_diff_line, diff_line_to_fname_line)
         vim.schedule(function()
           buf = state.try_set_buf_name(buf, 'diff', pr.number)
+          -- Store data in buffer-local variables.
           vim.b[buf].guh_pr = pr
+          vim.b[buf].guh_fname_line_to_diff_line = fname_line_to_diff_line
+          vim.b[buf].guh_diff_line_to_fname_line = diff_line_to_fname_line
 
           vim.bo[buf].buftype = 'nofile'
           vim.bo[buf].readonly = false
@@ -114,10 +116,6 @@ function M.load_pr_diff(strategy)
 
           vim.bo[buf].readonly = true
           vim.bo[buf].modifiable = false
-
-          -- Store mappings in buffer-local variables
-          vim.b[buf].filename_line_to_diff_line = filename_line_to_diff_line
-          vim.b[buf].diff_line_to_filename_line = diff_line_to_filename_line
 
           local conf = config.s.keymaps.diff
           utils.buf_keymap(buf, 'n', conf.open_file, 'Open file', open_file_from_diff('edit'))

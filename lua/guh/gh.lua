@@ -208,26 +208,26 @@ end
 
 --- @param cb fun(prs: PullRequest[])
 function M.get_pr_list(cb)
-  utils.system_str(
-    'gh pr list --json ' .. table.concat(pr_fields, ','),
-    function(resp, stderr)
-      config.log('get_pr_list resp', resp)
-      local prefix = 'Unknown JSON field'
-      if string.sub(stderr, 1, #prefix) == prefix then
-        -- Without "baseRefOid" field.
-        local fields = vim.iter(pr_fields):filter(function(v) return v ~= 'baseRefOid' end):totable()
-        utils.system_str(
-          'gh pr list --json ' .. table.concat(fields, ','),
-          function(resp2)
-            config.log('get_pr_list resp', resp2)
-            cb(parse_or_default(resp2, {}))
-          end
-        )
-      else
-        cb(parse_or_default(resp, {}))
-      end
+  local cmd = 'gh pr list --json ' .. table.concat(pr_fields, ',')
+  utils.system_str(cmd, function(resp, stderr)
+    config.log('get_pr_list resp', resp)
+    local prefix = 'Unknown JSON field'
+    if string.sub(stderr, 1, #prefix) == prefix then
+      -- Without "baseRefOid" field.
+      local fields = vim
+        .iter(pr_fields)
+        :filter(function(v)
+          return v ~= 'baseRefOid'
+        end)
+        :totable()
+      utils.system_str('gh pr list --json ' .. table.concat(fields, ','), function(resp2)
+        config.log('get_pr_list resp', resp2)
+        cb(parse_or_default(resp2, {}))
+      end)
+    else
+      cb(parse_or_default(resp, {}))
     end
-  )
+  end)
 end
 
 --- @param pr PullRequest

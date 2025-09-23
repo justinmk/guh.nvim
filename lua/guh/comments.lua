@@ -2,7 +2,6 @@ local comments_utils = require('guh.comments_utils')
 local config = require('guh.config')
 local gh = require('guh.gh')
 local pr_utils = require('guh.pr_utils')
-local state = require('guh.state')
 local utils = require('guh.utils')
 
 local M = {}
@@ -111,9 +110,9 @@ M.load_comments_on_diff_buffer = function(bufnr)
   local diagnostics = {}
 
   for filename, comments in pairs(comments_list) do
-    if vim.b[bufnr].filename_line_to_diff_line[filename] then
+    if vim.b[bufnr].guh_fname_line_to_diff_line[filename] then
       for _, comment in pairs(comments) do
-        local diff_line = vim.b[bufnr].filename_line_to_diff_line[filename][comment.line]
+        local diff_line = vim.b[bufnr].guh_fname_line_to_diff_line[filename][comment.line]
         if diff_line and #comment.comments > 0 then
           table.insert(diagnostics, {
             lnum = diff_line - 1,
@@ -166,11 +165,11 @@ local function get_current_filename_and_line(start_line, end_line, cb)
 
     local current_filename = vim.api.nvim_buf_get_name(current_buf)
 
-    if vim.tbl_get(vim.b, 'diff_line_to_filename_line', current_start_line) then
-      local info = vim.b.diff_line_to_filename_line[current_start_line]
+    if (vim.b.guh_diff_line_to_fname_line or {})[current_start_line] then
+      local info = vim.b.guh_diff_line_to_fname_line[current_start_line]
       current_filename = info[1]
       current_start_line = info[2]
-      info = vim.b.diff_line_to_filename_line[current_line]
+      info = vim.b.guh_diff_line_to_fname_line[current_line]
       current_line = info[2]
     elseif M.is_in_diffview(current_filename) then
       M.get_diffview_filename(current_filename, function(filename)
@@ -305,7 +304,7 @@ local function validate_cur_filename(f)
   return true
 end
 
-M.open_comment = function(opts)
+M.open_web_comment = function(opts)
   get_current_filename_and_line(
     opts.range and opts.line1 or nil,
     opts.range and opts.line2 or nil,
@@ -515,26 +514,20 @@ M.comment = function(opts, on_success)
           .. config.s.keymaps.comment.send_comment
           .. ' to comment: -->'
 
-        utils.edit_comment(
-          pr.number,
-          prompt,
-          { prompt, '' },
-          config.s.keymaps.comment.send_comment,
-          function(input)
-            local progress = utils.new_progress_report('Sending comment...', vim.fn.bufnr())
+        utils.edit_comment(pr.number, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
+          local progress = utils.new_progress_report('Sending comment...', vim.fn.bufnr())
 
-            gh.new_pr_comment(pr, input, function(resp)
-              if resp ~= nil then
-                progress('success')
-                if type(on_success) == 'function' then
-                  on_success()
-                end
-              else
-                progress('failed')
+          gh.new_pr_comment(pr, input, function(resp)
+            if resp ~= nil then
+              progress('success')
+              if type(on_success) == 'function' then
+                on_success()
               end
-            end)
-          end
-        )
+            else
+              progress('failed')
+            end
+          end)
+        end)
       end)
     end)
   else
