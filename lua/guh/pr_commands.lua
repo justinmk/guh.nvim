@@ -206,7 +206,7 @@ M.comment = function(arg1, arg2)
   if type(arg1) == 'table' then -- opts from command
     comments.comment(arg1, arg2)
   else -- on_success from keymap, do PR comment
-    comments.comment({bang = true}, arg1)
+    comments.comment({ bang = true }, arg1)
   end
 end
 
@@ -236,19 +236,13 @@ function M.request_changes_pr()
         .. config.s.keymaps.comment.send_comment
         .. ' to request PR changes: -->'
 
-      utils.edit_comment(
-        pr.number,
-        prompt,
-        { prompt, '' },
-        config.s.keymaps.comment.send_comment,
-        function(input)
-          vim.bo.busy = 1
-          gh.request_changes_pr(pr.number, input, function()
-            utils.notify('"Request PR changes" finished')
-            vim.bo.busy = 0
-          end)
-        end
-      )
+      utils.edit_comment(pr.number, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
+        vim.bo.busy = 1
+        gh.request_changes_pr(pr.number, input, function()
+          utils.notify('"Request PR changes" finished')
+          vim.bo.busy = 0
+        end)
+      end)
     end)
   end)
 end

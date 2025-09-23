@@ -199,109 +199,100 @@ M.comment_on_line = function(start_line, end_line)
       return
     end
 
-    get_current_filename_and_line(
-      start_line,
-      end_line,
-      function(current_filename, current_start_line, current_line)
-        if current_filename == nil or current_start_line == nil or current_line == nil then
-          utils.notify('You are on a branch without PR.', vim.log.levels.WARN)
+    get_current_filename_and_line(start_line, end_line, function(current_filename, current_start_line, current_line)
+      if current_filename == nil or current_start_line == nil or current_line == nil then
+        utils.notify('You are on a branch without PR.', vim.log.levels.WARN)
+        return
+      end
+
+      utils.get_git_root(function(git_root)
+        if current_filename:sub(1, #git_root) ~= git_root then
+          utils.notify('File is not under git folder.', vim.log.levels.ERROR)
           return
         end
 
-        utils.get_git_root(function(git_root)
-          if current_filename:sub(1, #git_root) ~= git_root then
-            utils.notify('File is not under git folder.', vim.log.levels.ERROR)
-            return
+        vim.schedule(function()
+          local conversations = {}
+          if current_start_line == current_line then
+            conversations = M.get_conversations(current_filename, current_line)
           end
 
-          vim.schedule(function()
-            local conversations = {}
-            if current_start_line == current_line then
-              conversations = M.get_conversations(current_filename, current_line)
+          local prompt = '<!-- Type your '
+            .. (#conversations > 0 and 'reply' or 'comment')
+            .. ' and press '
+            .. config.s.keymaps.comment.send_comment
+            .. ': -->'
+
+          utils.edit_comment(999, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
+            --- @param grouped_comment GroupedComment
+            local function reply(grouped_comment)
+              local progress = utils.new_progress_report('Sending reply')
+              gh.reply_to_comment(state.selected_PR.number, input, grouped_comment.id, function(resp)
+                if resp['errors'] == nil then
+                  progress('success', nil, 'Reply sent')
+                  local new_comment = comments_utils.convert_comment(resp)
+                  table.insert(grouped_comment.comments, new_comment)
+                  grouped_comment.content = comments_utils.prepare_content(grouped_comment.comments)
+                  M.load_comments_on_current_buffer()
+                else
+                  progress('failed', nil, 'Failed to reply to comment')
+                end
+              end)
             end
 
-            local prompt = '<!-- Type your '
-              .. (#conversations > 0 and 'reply' or 'comment')
-              .. ' and press '
-              .. config.s.keymaps.comment.send_comment
-              .. ': -->'
-
-            utils.edit_comment(
-              999,
-              prompt,
-              { prompt, '' },
-              config.s.keymaps.comment.send_comment,
-              function(input)
-                --- @param grouped_comment GroupedComment
-                local function reply(grouped_comment)
-                  local progress = utils.new_progress_report('Sending reply')
-                  gh.reply_to_comment(state.selected_PR.number, input, grouped_comment.id, function(resp)
+            if #conversations == 1 then
+              reply(conversations[1])
+            elseif #conversations > 1 then
+              vim.ui.select(conversations, {
+                prompt = 'Select comment to reply to:',
+                format_item = function(comment)
+                  return string.format('%s', vim.split(comment.content, '\n')[1])
+                end,
+              }, function(comment)
+                if comment ~= nil then
+                  reply(comment)
+                end
+              end)
+            else
+              if current_filename:sub(1, #git_root) == git_root then
+                local progress = utils.new_progress_report('Sending comment...')
+                gh.new_comment(
+                  state.selected_PR,
+                  input,
+                  current_filename:sub(#git_root + 2),
+                  current_start_line,
+                  current_line,
+                  function(resp)
                     if resp['errors'] == nil then
-                      progress('success', nil, 'Reply sent')
                       local new_comment = comments_utils.convert_comment(resp)
-                      table.insert(grouped_comment.comments, new_comment)
-                      grouped_comment.content = comments_utils.prepare_content(grouped_comment.comments)
+                      --- @type GroupedComment
+                      local new_comment_group = {
+                        id = resp.id,
+                        line = current_line,
+                        start_line = current_start_line,
+                        url = resp.html_url,
+                        comments = { new_comment },
+                        content = comments_utils.prepare_content({ new_comment }),
+                      }
+                      if state.comments_list[current_filename] == nil then
+                        state.comments_list[current_filename] = { new_comment_group }
+                      else
+                        table.insert(state.comments_list[current_filename], new_comment_group)
+                      end
+
+                      progress('success', nil, 'Comment sent.')
                       M.load_comments_on_current_buffer()
                     else
-                      progress('failed', nil, 'Failed to reply to comment')
+                      progress('failed', nil, 'Failed to send comment.')
                     end
-                  end)
-                end
-
-                if #conversations == 1 then
-                  reply(conversations[1])
-                elseif #conversations > 1 then
-                  vim.ui.select(conversations, {
-                    prompt = 'Select comment to reply to:',
-                    format_item = function(comment)
-                      return string.format('%s', vim.split(comment.content, '\n')[1])
-                    end,
-                  }, function(comment)
-                    if comment ~= nil then
-                      reply(comment)
-                    end
-                  end)
-                else
-                  if current_filename:sub(1, #git_root) == git_root then
-                    local progress = utils.new_progress_report('Sending comment...')
-                    gh.new_comment(
-                      state.selected_PR,
-                      input,
-                      current_filename:sub(#git_root + 2),
-                      current_start_line,
-                      current_line,
-                      function(resp)
-                        if resp['errors'] == nil then
-                          local new_comment = comments_utils.convert_comment(resp)
-                          --- @type GroupedComment
-                          local new_comment_group = {
-                            id = resp.id,
-                            line = current_line,
-                            start_line = current_start_line,
-                            url = resp.html_url,
-                            comments = { new_comment },
-                            content = comments_utils.prepare_content({ new_comment }),
-                          }
-                          if state.comments_list[current_filename] == nil then
-                            state.comments_list[current_filename] = { new_comment_group }
-                          else
-                            table.insert(state.comments_list[current_filename], new_comment_group)
-                          end
-
-                          progress('success', nil, 'Comment sent.')
-                          M.load_comments_on_current_buffer()
-                        else
-                          progress('failed', nil, 'Failed to send comment.')
-                        end
-                      end
-                    )
                   end
-                end
+                )
               end
-            )
+            end
           end)
         end)
       end)
+    end)
   end)
 end
 
@@ -332,7 +323,7 @@ M.open_comment = function(opts)
 
       vim.schedule(function()
         if #conversations == 1 then
-        vim.ui.open(conversations[1].url)
+          vim.ui.open(conversations[1].url)
         elseif #conversations > 1 then
           vim.ui.select(conversations, {
             prompt = 'Select conversation to open in browser:',
@@ -341,14 +332,15 @@ M.open_comment = function(opts)
             end,
           }, function(comment)
             if comment ~= nil then
-            vim.ui.open(comment.url)
+              vim.ui.open(comment.url)
             end
           end)
         else
           utils.notify('No comments found on this line.', vim.log.levels.WARN)
         end
       end)
-    end)
+    end
+  )
 end
 
 local function get_own_comments(current_filename, current_line, cb)

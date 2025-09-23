@@ -20,23 +20,21 @@ end
 --- @param prnum string|number PR number, or empty for "current PR"
 --- @param cb fun(pr?: PullRequest2)
 function M.get_pr_info(prnum, cb)
-  local cmd = 'gh pr view %s --json author,baseRefName,baseRefOid,body,changedFiles,comments,createdAt,headRefName,headRefOid,isDraft,labels,number,reviewDecision,reviews,title,url'
-  vim.schedule_wrap(utils.system_str)(
-    f(cmd, prnum),
-    function(result, stderr)
-      if result == nil then
-        cb(nil)
-        vim.bo.busy = 0
-        return
-      elseif stderr:match('Unknown JSON field') then
-        error(('Unknown JSON field (baseRefOid?): %s'):format(stderr))
-        cb(parse_or_default(result, nil))
-      end
-      config.log('get_pr_info resp', result)
-
+  local cmd =
+    'gh pr view %s --json author,baseRefName,baseRefOid,body,changedFiles,comments,createdAt,headRefName,headRefOid,isDraft,labels,number,reviewDecision,reviews,title,url'
+  vim.schedule_wrap(utils.system_str)(f(cmd, prnum), function(result, stderr)
+    if result == nil then
+      cb(nil)
+      vim.bo.busy = 0
+      return
+    elseif stderr:match('Unknown JSON field') then
+      error(('Unknown JSON field (baseRefOid?): %s'):format(stderr))
       cb(parse_or_default(result, nil))
     end
-  )
+    config.log('get_pr_info resp', result)
+
+    cb(parse_or_default(result, nil))
+  end)
 end
 
 local function get_repo(cb)

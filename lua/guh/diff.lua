@@ -102,43 +102,20 @@ function M.load_pr_diff()
           vim.b[buf].filename_line_to_diff_line = filename_line_to_diff_line
           vim.b[buf].diff_line_to_filename_line = diff_line_to_filename_line
 
-          utils.buf_keymap(buf, 'n', config.s.keymaps.diff.open_file, 'Open file', open_file_from_diff('edit'))
+          local conf = config.s.keymaps.diff
+          utils.buf_keymap(buf, 'n', conf.open_file, 'Open file', open_file_from_diff('edit'))
+          utils.buf_keymap(buf, 'n', conf.comment, 'Comment on current line or range', '<cmd>GuhComment<cr>')
+          utils.buf_keymap(buf, 'n', conf.open_file_tab, 'Open file in tab', open_file_from_diff('tabedit'))
+          utils.buf_keymap(buf, 'n', conf.open_file_split, 'Open file in split', open_file_from_diff('split'))
           utils.buf_keymap(
             buf,
             'n',
-            config.s.keymaps.diff.comment,
-            'Comment on current line or range',
-            '<cmd>GuhComment<cr>'
-          )
-          utils.buf_keymap(
-            buf,
-            'n',
-            config.s.keymaps.diff.open_file_tab,
-            'Open file in tab',
-            open_file_from_diff('tabedit')
-          )
-          utils.buf_keymap(
-            buf,
-            'n',
-            config.s.keymaps.diff.open_file_split,
-            'Open file in split',
-            open_file_from_diff('split')
-          )
-          utils.buf_keymap(
-            buf,
-            'n',
-            config.s.keymaps.diff.open_file_vsplit,
+            conf.open_file_vsplit,
             'Open file in vertical split',
             open_file_from_diff('vsplit')
           )
-          utils.buf_keymap(buf, 'n', config.s.keymaps.diff.approve, 'Approve PR', pr_commands.approve_pr)
-          utils.buf_keymap(
-            buf,
-            'n',
-            config.s.keymaps.diff.request_changes,
-            'Request PR changes',
-            pr_commands.request_changes_pr
-          )
+          utils.buf_keymap(buf, 'n', conf.approve, 'Approve PR', pr_commands.approve_pr)
+          utils.buf_keymap(buf, 'n', conf.request_changes, 'Request PR changes', pr_commands.request_changes_pr)
 
           progress('success')
           progress = utils.new_progress_report('Loading diff comments')
