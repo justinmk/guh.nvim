@@ -3,29 +3,31 @@
 ==============================================================================
 guh.nvim                                                            *guh*
 
-Review and manage GitHub PRs from Neovim.
-
-Unlike other plugins, this plugin augments GitHub PR review rather than
-replacing its web interface entirely.
+Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI tool and provides
+a very minimalist yet effective workflow.
 
 ==============================================================================
-REQUIREMENTS                        *guh-requirements*
+REQUIREMENTS                                                *guh-requirements*
 
-- Neovim 0.10+
-- GitHub CLI (gh) (https://cli.github.com/)
-- Optional: [Diffview.nvim](https://github.com/sindrets/diffview.nvim)
-
-To override UI select for fzf-lua or telescope, use:
->lua
-vim.cmd('FzfLua register_ui_select')
+- nvim 0.12+
+- ["gh" (GitHub CLI)](https://cli.github.com/)
+- (Optional) [Diffview.nvim](https://github.com/sindrets/diffview.nvim)
+- (Optional) To override UI select for fzf-lua or telescope: >
+  vim.cmd('FzfLua register_ui_select')
 <
-
 ==============================================================================
-INSTALLATION                        *guh-installation*
+INSTALLATION                                                     *guh-install*
 
-NOTE: Default config is shown below. Skip settings if you are fine with defaults.
+ To install:
 >lua
   vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
+
+==============================================================================
+CONFIGURATION                                                     *guh-config*
+
+Default config is below. You can change any of these options, or skip this if
+you don't want to change the defaults. >lua
+
   require('guh').setup({
     debug = false, -- if set to true debugging information is written to ~/.guh.log file
     open_command = 'open', -- open command to use, e.g. on Linux you might want to use xdg-open
@@ -60,10 +62,10 @@ NOTE: Default config is shown below. Skip settings if you are fine with defaults
 <
 
 ==============================================================================
-PR REVIEW WORKFLOWS
+WORKFLOWS
 
 ==============================================================================
-Quick PR Review                                           *guh-quick-workflow*
+Quick PR Review                                           *guh-basic-workflow*
 
 To review a PR without doing a checkout in your repo:
 
@@ -101,136 +103,114 @@ The "checkout" workflow:
 ==============================================================================
 COMMANDS                                                        *guh-commands*
 
-==============================================================================
-:Guh                                                                    *:Guh*
+                                                                        *:Guh*
+:Guh [prnum]  Sets a PR as the "selected" PR, without performing a git
+              checkout in the workspace. >
 
-Sets a PR as the "selected" PR, without performing a git checkout in the
-workspace. >
-
-  :Guh 123
-
-Shows PR information (`gh pr view`), or refreshes if it is already open.
-
-Buffer-local key bindings:
-- `cA` to approve PR
-- `cM` to merge PR (see `GuhMerge` for details)
-- `ca` to write top level PR comment
-- `cp` to open diff view
-
-HTML comments is the thing too and they look bad in text. To render HTML as
-text `html_comments_command` settings can be used to specify command. You can
-use any command here that accepts html via stdin and outputs text to stdout. By
-default `lynx` is used, but if something works better for you feel free to use
-it.
-
-Plugin searches for html tag and only then passes comment through
-`html_comments_command`. You can disable this functionality by setting
-`html_comments_command` as `false`.
-
-==============================================================================
-:GuhCheckout                   *:GuhCheckout*
-
-Performs a git checkout of a PR selected from a list or provided as a command
-arg. >
-
-  :GuhCheckout 123
-
-==============================================================================
-:GuhApprove                    *:GuhApprove*
-
-This command approves selected PR.
-
-Can also be called with a PR number: `:GuhApprove 123`
-
-==============================================================================
-:GuhRequestChanges             *:GuhRequestChanges*
-
-This command request changes on PR.
-
-Can also be called with a PR number: `:GuhRequestChanges 123`
-
-==============================================================================
-:GuhMerge                      *:GuhMerge*
-
-This command merges selected PR. Approved and non-approved PRs use different
-options when running `gh pr merge` command. Check `gh pr merge -h` for
-available options and use them in config's `merge` section if defaults are not
-working for you.
-
-==============================================================================
-:GuhLoadComments               *:GuhLoadComments*
-
-TODO: i think this loads "new" comments or something..?
-
-Loads PR comments of the current PR checked out `:GuhCheckout`.
-Only non-outdated review comments are loaded, PR comments are not loaded.
-Comments are loaded to quickfix list and to buffer diagnostics on buffer load.
-Navigate quickfix list using `cnext` and `cprev`.
-
-NOTE: You must checkout the PR branch using git or via `:GuhCheckout`.
-
-==============================================================================
-:GuhDiff                                                            *:GuhDiff*
-
-Loads PR diff that you can review. Shows diff of selected PR. If no PR is
-selected then PR number is resolved from git branch associated with PR.
-Comments are loaded and shown as diagnostics in this view as well.
-
-Can also be called with a PR number: `:GuhDiff 123`
-
-Supported key bindings:
-
-- `gf` go to file from PR diff. `gf` command will not work if you use `:Guh`
-  command and branch is not checked out.
-- `cA` to approve PR
-
-
-==============================================================================
-:GuhDiffview                                                    *:GuhDiffview*
-
-Shows the diff of the selected PR, or [prnum], using
-[Diffview.nvim](https://github.com/sindrets/diffview.nvim).
-
->
-    :GuhDiffview 123
-
-However note that this command shows diff between what's in main branch and PR
-branch. This might be different from what's shown in GitHub. E.g. if there are
-changes in your main branch and your branch does not have changes from main
-branch, then you will be shown that some things are missing in your branch.
-
-This command will not show correct diff sometimes if you have gh older than
-2.63.0 (details here https://github.com/cli/cli/pull/9938).
-
-==============================================================================
-:GuhComment                                                      *:GuhComment*
-
-With bang "!", comments on PR at top level.
-Without bang, comments on the current diff line or range. >
-    :[range]GuhComment
+                :Guh 123
 <
-Comment buffer-local mappings:
+              Shows PR information (`gh pr view`), or refreshes if it is
+              already open.
 
-c<Enter>
+              Buffer-local key bindings:
+              - `cA` to approve PR
+              - `cM` to merge PR (see `GuhMerge` for details)
+              - `ca` to write top level PR comment
+              - `cp` to open diff view
 
-- If there is already loaded comment on cursor line (using
-  `GuhLoadComments` command) then comment is added as reply to thread.
-- If there is no comment on line then new conversation is started.
+              HTML comments is the thing too and they look bad in text. To
+              render HTML as text `html_comments_command` settings can be used
+              to specify command. You can use any command here that accepts
+              html via stdin and outputs text to stdout. By default `lynx` is
+              used, but if something works better for you feel free to use it.
 
-==============================================================================
-:GuhCommentEdit                                              *:GuhCommentEdit*
+              Plugin searches for html tag and only then passes comment
+              through `html_comments_command`. You can disable this
+              functionality by setting `html_comments_command` as `false`.
 
-Updates selected comment.
+                                                                *:GuhCheckout*
+:GuhCheckout [prnum]
 
-==============================================================================
-:GuhCommentDelete                                          *:GuhCommentDelete*
+              Performs a git checkout of a PR selected from a list or provided
+              as a command arg. >
 
-Deletes selected comment.
+                :GuhCheckout 123
+<
 
-==============================================================================
-:GuhWeb                                                              *:GuhWeb*
+                                                                 *:GuhApprove*
+:GuhApprove   Approves the selected PR.
 
-Opens the converation at cursor in the GitHub web UI in your browser.
+                                                          *:GuhRequestChanges*
+:GuhRequestChanges
+              Request changes on PR.
+
+                                                                   *:GuhMerge*
+:GuhMerge     This command merges selected PR. Approved and non-approved PRs
+              use different options when running `gh pr merge` command. Check
+              `gh pr merge -h` for available options and use them in config's
+              `merge` section if defaults are not working for you.
+
+                                                            *:GuhLoadComments*
+:GuhLoadComments
+              TODO: i think this loads "new" comments or something..?
+
+              NOTE: You must checkout the PR branch using git or via
+              `:GuhCheckout`.
+
+              Loads PR comments of the current PR checked out `:GuhCheckout`.
+              Only non-outdated review comments are loaded, PR comments are
+              not loaded. Comments are loaded to quickfix list and to buffer
+              diagnostics on buffer load. Navigate quickfix list using `cnext`
+              and `cprev`.
+
+                                                                    *:GuhDiff*
+:GuhDiff      Loads PR diff that you can review. Shows diff of selected PR. If
+              no PR is selected then PR number is resolved from git branch
+              associated with PR. Comments are loaded and shown as diagnostics
+              in this view as well.
+
+              Buffer-local key bindings:
+              - `gf` go to file from PR diff. `gf` command will not work if
+                you use `:Guh` command and branch is not checked out.
+              - `cA` to approve PR
+
+
+                                                                *:GuhDiffview*
+:GuhDiffview  Shows the diff of the selected PR, or [prnum], using
+              [Diffview.nvim](https://github.com/sindrets/diffview.nvim).
+
+              However note that this command shows diff between what's in main
+              branch and PR branch. This might be different from what's shown
+              in GitHub. E.g. if there are changes in your main branch and
+              your branch does not have changes from main branch, then you
+              will be shown that some things are missing in your branch.
+
+              Requires gh 2.64.0+ (see https://github.com/cli/cli/pull/9938)
+
+                                                                 *:GuhComment*
+:GuhComment   With bang "!", comments on PR at top level. Without bang,
+              comments on the current diff line or range. >
+                :[range]GuhComment
+<
+              Buffer-local mappings:
+
+              - c<Enter> If there is already loaded comment on cursor line
+                (using `GuhLoadComments` command) then comment is added as
+                reply to thread. If there is no comment on line then new
+                conversation is started.
+
+                                                             *:GuhCommentEdit*
+:GuhCommentEdit
+              Updates selected comment.
+
+                                                           *:GuhCommentDelete*
+:GuhCommentDelete
+              Deletes selected comment.
+
+                                                                     *:GuhWeb*
+:GuhWeb       Opens the converation at cursor in the GitHub web UI in your
+              browser.
+
 
 ------------------------------------------------------------------------------
 vim:tw=78:ts=8:ft=help:norl:
