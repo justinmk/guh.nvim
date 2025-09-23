@@ -110,7 +110,7 @@ M.load_comments_on_diff_buffer = function(bufnr)
   local diagnostics = {}
 
   for filename, comments in pairs(comments_list) do
-    if vim.b[bufnr].guh_fname_line_to_diff_line[filename] then
+    if ((vim.b[bufnr] or {}).guh_fname_line_to_diff_line or {})[filename] then
       for _, comment in pairs(comments) do
         local diff_line = vim.b[bufnr].guh_fname_line_to_diff_line[filename][comment.line]
         if diff_line and #comment.comments > 0 then

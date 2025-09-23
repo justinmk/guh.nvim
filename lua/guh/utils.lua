@@ -108,7 +108,7 @@ function M.edit_comment(prnum, prompt, content, key_binding, callback)
   vim.bo[buf].modifiable = true
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
-  vim.api.nvim_win_set_cursor(0, { 2, 0 })
+  vim.cmd[[normal! G]]
 
   local function capture_input_and_close()
     local input_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)

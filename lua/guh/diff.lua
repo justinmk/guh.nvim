@@ -135,6 +135,7 @@ function M.load_pr_diff(strategy)
           progress('success')
           progress = utils.new_progress_report('Loading diff comments', vim.fn.bufnr())
           comments.load_comments_only(pr.number, function()
+            vim.b[buf].guh_comments = vim.b.guh_comments
             comments.load_comments_on_diff_buffer(buf)
             progress('success')
           end)
