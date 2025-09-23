@@ -25,7 +25,6 @@ function M.get_pr_info(prnum, cb)
   vim.schedule_wrap(utils.system_str)(f(cmd, prnum), function(result, stderr)
     if result == nil then
       cb(nil)
-      vim.bo.busy = 0
       return
     elseif stderr:match('Unknown JSON field') then
       error(('Unknown JSON field (baseRefOid?): %s'):format(stderr))

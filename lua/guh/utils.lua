@@ -67,17 +67,23 @@ function M.notify(message, level)
 end
 
 --- @param action string
+--- @param buf integer
 --- @return fun(status: 'running'|'success'|'failed'|'cancel', percent?: integer, fmt?: string, ...:any): nil
-function M.new_progress_report(action)
+function M.new_progress_report(action, buf)
   local progress = { kind = 'progress', title = 'guh' }
+  if buf then
+    vim.bo[buf].busy = vim.bo[buf].busy + 1
+  end
 
   return vim.schedule_wrap(function(status, percent, fmt, ...)
     progress.status = status
     progress.percent = percent
     local msg = ('%s %s'):format(action, (fmt or ''):format(...))
     progress.id = vim.api.nvim_echo({ { msg } }, status ~= 'running', progress)
-    -- Force redraw to show installation progress during startup
-    vim.cmd.redraw({ bang = true })
+
+    if buf then
+      vim.bo[buf].busy = math.max(0, vim.bo[buf].busy - 1)
+    end
   end)
 end
 

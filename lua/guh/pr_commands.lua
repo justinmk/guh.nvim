@@ -77,7 +77,6 @@ end
 local function show_pr_info(pr_info)
   if pr_info == nil then
     utils.notify('PR view load failed', vim.log.levels.ERROR)
-    vim.bo.busy = 0
     return
   end
 
@@ -179,26 +178,18 @@ local function show_pr_info(pr_info)
       M.comment(M.load_pr_view)
     end)
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
-
-    vim.bo.busy = 0
   end)
-end
-
-local function load_pr_view_for_pr(selected_pr)
-  if selected_pr == nil then
-    utils.notify('No PR selected/checked out', vim.log.levels.WARN)
-    return
-  end
-
-  vim.schedule(function()
-    vim.bo.busy = 1
-  end)
-  gh.get_pr_info(selected_pr.number, show_pr_info)
 end
 
 function M.load_pr_view(opts)
   local prnum = opts and opts.args and tonumber(opts.args)
-  pr_utils.get_selected_pr(prnum, load_pr_view_for_pr)
+  pr_utils.get_selected_pr(prnum, function(selected_pr)
+    if selected_pr == nil then
+      utils.notify('No PR selected/checked out', vim.log.levels.WARN)
+      return
+    end
+    gh.get_pr_info(selected_pr.number, show_pr_info)
+  end)
 end
 
 --- Comment on a PR (bang "!") or a diff line/range.
@@ -213,13 +204,12 @@ end
 function M.approve_pr()
   pr_utils.get_selected_pr(function(pr)
     if pr == nil then
-      utils.notify('No PR selected to approve', vim.log.levels.ERROR)
-      return
+      return utils.notify('No PR selected', vim.log.levels.ERROR)
     end
 
-    vim.bo.busy = 1
+    local progress = utils.new_progress_report('Approving...', vim.fn.bufnr())
     gh.approve_pr(pr.number, function()
-      vim.bo.busy = 0
+      progress('success')
     end)
   end)
 end
@@ -227,21 +217,18 @@ end
 function M.request_changes_pr()
   pr_utils.get_selected_pr(function(pr)
     if pr == nil then
-      utils.notify('No PR selected to request changes', vim.log.levels.ERROR)
-      return
+      return utils.notify('No PR selected', vim.log.levels.ERROR)
     end
 
+    local progress = utils.new_progress_report('Requesting...', vim.fn.bufnr())
     vim.schedule(function()
       local prompt = '<!-- Type your comment and press '
         .. config.s.keymaps.comment.send_comment
         .. ' to request PR changes: -->'
 
       utils.edit_comment(pr.number, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
-        vim.bo.busy = 1
-        gh.request_changes_pr(pr.number, input, function()
-          utils.notify('"Request PR changes" finished')
-          vim.bo.busy = 0
-        end)
+        gh.request_changes_pr(pr.number, input, function() end)
+        progress('success')
       end)
     end)
   end)
@@ -250,15 +237,13 @@ end
 function M.merge_pr()
   pr_utils.get_selected_pr(function(pr)
     if pr == nil then
-      utils.notify('No PR selected to merge', vim.log.levels.ERROR)
-      return
+      return utils.notify('No PR selected to merge', vim.log.levels.ERROR)
     end
 
-    vim.bo.busy = 1
+    local progress = utils.new_progress_report('Merging...', vim.fn.bufnr())
     local s = config.s.merge[pr.reviewDecision == 'APPROVED' and 'approved' or 'nonapproved']
     gh.merge_pr(pr.number, s, function()
-      utils.notify('PR merge finished.')
-      vim.bo.busy = 0
+      progress('success')
     end)
   end)
 end

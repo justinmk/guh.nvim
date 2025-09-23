@@ -76,7 +76,7 @@ end
 --- Use the DiffView plugin to view a pr diff.
 --- @param pr PullRequest
 local function view_diffview(pr)
-  local progress = utils.new_progress_report('Loading PR diff')
+  local progress = utils.new_progress_report('Loading PR diff', vim.fn.bufnr())
   comments.load_comments_only(pr.number, function()
     progress('success')
     utils.get_git_merge_base(
@@ -101,7 +101,7 @@ function M.load_pr_diff(strategy)
       view_diffview(pr)
     end
 
-    local progress = utils.new_progress_report('Loading PR diff')
+    local progress = utils.new_progress_report('Loading PR diff', vim.fn.bufnr())
     local buf = state.get_buf('diff', pr.number)
     gh.get_pr_diff(pr.number, function(diff_content)
       local diff_content_lines = vim.split(diff_content, '\n')
@@ -139,7 +139,7 @@ function M.load_pr_diff(strategy)
           utils.buf_keymap(buf, 'n', conf.request_changes, 'Request PR changes', pr_commands.request_changes_pr)
 
           progress('success')
-          progress = utils.new_progress_report('Loading diff comments')
+          progress = utils.new_progress_report('Loading diff comments', vim.fn.bufnr())
           comments.load_comments_only(pr.number, function()
             comments.load_comments_on_diff_buffer(buf)
             progress('success')

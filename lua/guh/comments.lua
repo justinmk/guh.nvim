@@ -51,7 +51,7 @@ M.load_comments = function()
       return
     end
 
-    local progress = utils.new_progress_report('Loading comments')
+    local progress = utils.new_progress_report('Loading comments', vim.fn.bufnr())
     gh.load_comments(checked_out_pr.number, function(comments_list)
       state.comments_list = comments_list
       vim.schedule(function()
@@ -226,7 +226,7 @@ M.comment_on_line = function(start_line, end_line)
           utils.edit_comment(999, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
             --- @param grouped_comment GroupedComment
             local function reply(grouped_comment)
-              local progress = utils.new_progress_report('Sending reply')
+              local progress = utils.new_progress_report('Sending reply', vim.fn.bufnr())
               gh.reply_to_comment(state.selected_PR.number, input, grouped_comment.id, function(resp)
                 if resp['errors'] == nil then
                   progress('success', nil, 'Reply sent')
@@ -255,7 +255,7 @@ M.comment_on_line = function(start_line, end_line)
               end)
             else
               if current_filename:sub(1, #git_root) == git_root then
-                local progress = utils.new_progress_report('Sending comment...')
+                local progress = utils.new_progress_report('Sending comment...', vim.fn.bufnr())
                 gh.new_comment(
                   state.selected_PR,
                   input,
@@ -433,7 +433,7 @@ end
 
 M.delete_comment = function(opts)
   on_comment('delete', opts, function(conversations_list, comment, idx)
-    local progress = utils.new_progress_report('Deleting comment...')
+    local progress = utils.new_progress_report('Deleting comment...', vim.fn.bufnr())
     gh.delete_comment(comment.id, function()
       local function is_non_deleted_comment(c)
         return c.id ~= comment.id

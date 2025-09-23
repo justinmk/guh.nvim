@@ -71,6 +71,7 @@ function M.is_pr_checked_out(cb)
   end
 end
 
+--- 🪦☠️
 --- @return PullRequest|nil returns pull request or nil in case pull request is not checked out
 function M.get_checked_out_pr(cb)
   utils.get_current_git_branch_name(function(current_branch)
