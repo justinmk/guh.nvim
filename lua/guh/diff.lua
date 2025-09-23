@@ -73,20 +73,41 @@ local function open_file_from_diff()
   end
 end
 
-function M.load_pr_diff()
-  pr_utils.get_selected_pr(function(selected_pr)
-    if selected_pr == nil then
-      utils.notify('No PR selected/checked out', vim.log.levels.WARN)
+--- Use the DiffView plugin to view a pr diff.
+--- @param pr PullRequest
+local function view_diffview(pr)
+  local progress = utils.new_progress_report('Loading PR diff')
+  comments.load_comments_only(pr.number, function()
+    progress('success')
+    utils.get_git_merge_base(
+      pr.baseRefOid and pr.baseRefOid or pr.baseRefName,
+      pr.headRefOid,
+      function(mergeBaseOid)
+        vim.schedule(function()
+          vim.cmd(string.format('DiffviewOpen %s..%s', mergeBaseOid, pr.headRefOid))
+        end)
+      end
+    )
+  end)
+end
+
+--- @param strategy? 'builtin'|'diffview' # Diff viewer
+function M.load_pr_diff(strategy)
+  pr_utils.get_selected_pr(function(pr)
+    if pr == nil then
+      utils.notify('No PR selected', vim.log.levels.WARN)
       return
+    elseif strategy == 'diffview' then
+      view_diffview(pr)
     end
 
     local progress = utils.new_progress_report('Loading PR diff')
-    local buf = state.get_buf('diff', selected_pr.number)
-    gh.get_pr_diff(selected_pr.number, function(diff_content)
+    local buf = state.get_buf('diff', pr.number)
+    gh.get_pr_diff(pr.number, function(diff_content)
       local diff_content_lines = vim.split(diff_content, '\n')
       construct_mappings(diff_content_lines, function(filename_line_to_diff_line, diff_line_to_filename_line)
         vim.schedule(function()
-          buf = state.try_set_buf_name(buf, 'diff', selected_pr.number)
+          buf = state.try_set_buf_name(buf, 'diff', pr.number)
           state.diff_buffer_id = buf
 
           vim.bo[buf].buftype = 'nofile'
@@ -119,35 +140,12 @@ function M.load_pr_diff()
 
           progress('success')
           progress = utils.new_progress_report('Loading diff comments')
-          comments.load_comments_only(selected_pr.number, function()
+          comments.load_comments_only(pr.number, function()
             comments.load_comments_on_diff_buffer(buf)
             progress('success')
           end)
         end)
       end)
-    end)
-  end)
-end
-
-function M.load_pr_diffview()
-  pr_utils.get_selected_pr(function(selected_pr)
-    if selected_pr == nil then
-      utils.notify('No PR to work with.', vim.log.levels.WARN)
-      return
-    end
-
-    local progress = utils.new_progress_report('Loading comments')
-    comments.load_comments_only(selected_pr.number, function()
-      progress('success')
-      utils.get_git_merge_base(
-        selected_pr.baseRefOid and selected_pr.baseRefOid or selected_pr.baseRefName,
-        selected_pr.headRefOid,
-        function(mergeBaseOid)
-          vim.schedule(function()
-            vim.cmd(string.format('DiffviewOpen %s..%s', mergeBaseOid, selected_pr.headRefOid))
-          end)
-        end
-      )
     end)
   end)
 end
