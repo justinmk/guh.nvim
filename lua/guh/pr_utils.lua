@@ -14,6 +14,12 @@ require('guh.types')
 
 local M = {}
 
+--- Fetchs `prnum`, or if not given, resolves in this order:
+---
+--- 1. `b:guh_pr`
+--- 2. XXX `state.selected_PR`
+--- 3. XXX ?? `get_pr_info('')`
+---
 --- @overload fun(cb: fun(pr: PullRequest | nil))
 --- @overload fun(prnum: number | nil, cb: fun(pr: PullRequest | nil))
 function M.get_selected_pr(arg1, arg2)
@@ -24,17 +30,20 @@ function M.get_selected_pr(arg1, arg2)
     -- If user provided PR number as a command arg, fetch and set as "selected".
     gh.get_pr_info(prnum, function(pr)
       if pr then
-        state.selected_PR = pr
         cb(pr)
       else
         utils.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
         cb(nil)
       end
     end)
+  elseif vim.b.guh_pr then
+    assert(type(cb) == 'function')
+    return vim.schedule_wrap(cb)(vim.b.guh_pr)
   elseif state.selected_PR ~= nil then
     assert(type(cb) == 'function')
     return vim.schedule_wrap(cb)(state.selected_PR)
   else
+    -- TODO(justinmk): what is this supposed to do?
     gh.get_pr_info('', function(current_pr)
       if current_pr ~= nil then
         state.selected_PR = current_pr
@@ -47,12 +56,13 @@ function M.get_selected_pr(arg1, arg2)
 end
 
 --- @return PullRequest|nil returns checked out pr or nil if user does not approve check out
-local function approve_and_chechkout_selected_pr(cb)
+local function confirm_checkout_pr(cb)
   vim.schedule(function()
     local choice = vim.fn.confirm('Checkout selected PR?', '&Yes\n&No', 1)
 
     if choice == 1 then
-      local progress = utils.new_progress_report(string.format('Checking out PR #%d...', state.selected_PR.number), vim.fn.bufnr())
+      local progress =
+        utils.new_progress_report(string.format('Checking out PR #%d...', state.selected_PR.number), vim.fn.bufnr())
       gh.checkout_pr(state.selected_PR, function()
         progress('success')
         cb(state.selected_PR)
@@ -61,23 +71,13 @@ local function approve_and_chechkout_selected_pr(cb)
   end)
 end
 
-function M.is_pr_checked_out(cb)
-  if state.selected_PR == nil then
-    cb(false)
-  else
-    utils.get_current_git_branch_name(function(current_branch)
-      cb(state.selected_PR.headRefName == current_branch)
-    end)
-  end
-end
-
 --- 🪦☠️
 --- @return PullRequest|nil returns pull request or nil in case pull request is not checked out
 function M.get_checked_out_pr(cb)
   utils.get_current_git_branch_name(function(current_branch)
     if state.selected_PR ~= nil then
       if state.selected_PR.headRefName ~= current_branch then
-        approve_and_chechkout_selected_pr(cb)
+        confirm_checkout_pr(cb)
       else
         cb(state.selected_PR)
       end

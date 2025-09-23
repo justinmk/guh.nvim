@@ -50,7 +50,7 @@ local function ui_selectPR(prompt, cb)
 end
 
 --- @param opts table
---- @param on_pr fun()
+--- @param on_pr fun(pr: PullRequest)
 local function on_pr_select(opts, on_pr)
   local prnum = opts and opts.args and tonumber(opts.args)
   if prnum then
@@ -58,25 +58,14 @@ local function on_pr_select(opts, on_pr)
   else
     ui_selectPR('Select PR:', function(pr)
       if pr ~= nil then
-        state.selected_PR = pr
-        on_pr()
+        on_pr(pr)
       end
     end)
   end
 end
 
-function M.select(opts)
-  on_pr_select(opts, function()
-    M.load_pr_view()
-  end)
-end
-
-function M.checkout(opts)
-  on_pr_select(opts, function()
-    gh.checkout_pr(state.selected_PR, M.load_pr_view)
-  end)
-end
-
+--- Shows PR info. Sets `b:guh_pr`.
+---
 local function show_pr_info(pr_info)
   if pr_info == nil then
     return utils.notify('PR view load failed', vim.log.levels.ERROR)
@@ -162,6 +151,7 @@ local function show_pr_info(pr_info)
 
     local buf = state.get_buf('info', pr_info.number)
     buf = state.try_set_buf_name(buf, 'info', pr_info.number)
+    vim.b[buf].guh_pr = pr_info
 
     vim.bo[buf].buftype = 'nofile'
     vim.bo[buf].filetype = 'markdown'
@@ -176,20 +166,26 @@ local function show_pr_info(pr_info)
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR', function()
-      M.comment(M.load_pr_view)
-    end)
+    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR', ':GuhComment<cr>')
     utils.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
   end)
 end
 
-function M.load_pr_view(opts)
-  local prnum = opts and opts.args and tonumber(opts.args)
-  pr_utils.get_selected_pr(prnum, function(selected_pr)
-    if selected_pr == nil then
-      return utils.notify('No PR selected/checked out', vim.log.levels.WARN)
-    end
-    gh.get_pr_info(selected_pr.number, show_pr_info)
+--- Shows PR info.
+--- Calls `show_pr_info`, which sets `b:guh_pr`.
+function M.select(opts)
+  on_pr_select(opts, function(pr)
+    gh.get_pr_info(pr.number, show_pr_info)
+  end)
+end
+
+--- Performs checkout. Shows PR info.
+--- Calls `show_pr_info`, which sets `b:guh_pr`.
+function M.checkout(opts)
+  on_pr_select(opts, function(pr)
+    gh.checkout_pr(pr, function()
+      gh.get_pr_info(pr.number, show_pr_info)
+    end)
   end)
 end
 

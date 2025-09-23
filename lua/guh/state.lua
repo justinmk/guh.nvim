@@ -2,6 +2,7 @@ require('guh.types')
 
 local M = {}
 
+--- The current checked-out PR.
 --- @type PullRequest|nil
 M.selected_PR = nil
 

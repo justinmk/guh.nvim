@@ -50,13 +50,13 @@ local function load_comments_to_quickfix_list()
 end
 
 M.load_comments = function()
-  pr_utils.get_selected_pr(function(selected_pr)
-    if selected_pr == nil then
+  pr_utils.get_selected_pr(function(pr)
+    if pr == nil then
       return utils.notify('No PR to work with.', vim.log.levels.WARN)
     end
 
     local progress = utils.new_progress_report('Loading comments', vim.fn.bufnr())
-    gh.load_comments(selected_pr.number, function(comments_list)
+    gh.load_comments(pr.number, function(comments_list)
       vim.b.guh_comments = comments_list
       vim.schedule(function()
         load_comments_to_quickfix_list()
@@ -98,13 +98,7 @@ M.load_comments_on_buffer = function(bufnr)
     return
   end
 
-  pr_utils.is_pr_checked_out(function(is_pr_checked_out)
-    if not is_pr_checked_out then
-      return
-    end
-
-    M.load_comments_on_buffer_by_filename(bufnr, buf_name)
-  end)
+  M.load_comments_on_buffer_by_filename(bufnr, buf_name)
 end
 
 M.load_comments_on_diff_buffer = function(bufnr)
@@ -172,29 +166,20 @@ local function get_current_filename_and_line(start_line, end_line, cb)
 
     local current_filename = vim.api.nvim_buf_get_name(current_buf)
 
-    if current_buf == state.diff_buffer_id then
-      local info = vim.b[current_buf].diff_line_to_filename_line[current_start_line]
+    if vim.tbl_get(vim.b, 'diff_line_to_filename_line', current_start_line) then
+      local info = vim.b.diff_line_to_filename_line[current_start_line]
       current_filename = info[1]
       current_start_line = info[2]
-      info = vim.b[current_buf].diff_line_to_filename_line[current_line]
+      info = vim.b.diff_line_to_filename_line[current_line]
       current_line = info[2]
     elseif M.is_in_diffview(current_filename) then
       M.get_diffview_filename(current_filename, function(filename)
         cb(filename, current_start_line, current_line)
       end)
-    elseif not state.selected_PR then
-      pr_utils.is_pr_checked_out(function(is_pr_checked_out)
-        pr_utils.get_checked_out_pr(function(checked_out_pr)
-          if not is_pr_checked_out then
-            if checked_out_pr then
-              utils.notify('Command canceled because of PR check out.', vim.log.levels.WARN)
-            end
-            cb(nil, nil, nil)
-            return
-          end
-          cb(current_filename, current_start_line, current_line)
-        end)
-      end)
+    else
+      utils.notify('XXX: this wanted a checkout :(', vim.log.levels.WARN)
+      cb(nil, nil, nil)
+      return
     end
 
     cb(current_filename, current_start_line, current_line)
@@ -203,9 +188,9 @@ end
 
 --- Comments on a diff line/range.
 M.comment_on_line = function(start_line, end_line)
-  pr_utils.get_selected_pr(function(selected_pr)
-    if selected_pr == nil then
-      return utils.notify('No PR selected/checked out', vim.log.levels.WARN)
+  pr_utils.get_selected_pr(function(pr)
+    if pr == nil then
+      return utils.notify('No PR selected', vim.log.levels.WARN)
     end
 
     get_current_filename_and_line(start_line, end_line, function(current_filename, current_start_line, current_line)
@@ -234,7 +219,7 @@ M.comment_on_line = function(start_line, end_line)
             --- @param grouped_comment GroupedComment
             local function reply(grouped_comment)
               local progress = utils.new_progress_report('Sending reply', vim.fn.bufnr())
-              gh.reply_to_comment(state.selected_PR.number, input, grouped_comment.id, function(resp)
+              gh.reply_to_comment(pr.number, input, grouped_comment.id, function(resp)
                 if resp['errors'] == nil then
                   progress('success', nil, 'Reply sent')
                   local new_comment = comments_utils.convert_comment(resp)
@@ -264,7 +249,7 @@ M.comment_on_line = function(start_line, end_line)
               if current_filename:sub(1, #git_root) == git_root then
                 local progress = utils.new_progress_report('Sending comment...', vim.fn.bufnr())
                 gh.new_comment(
-                  state.selected_PR,
+                  pr,
                   input,
                   current_filename:sub(#git_root + 2),
                   current_start_line,
@@ -466,9 +451,9 @@ M.get_diffview_filename = function(buf_name, cb)
   local view = require('diffview.lib').get_current_view()
   local file = view:infer_cur_file()
   if file then
-    pr_utils.get_selected_pr(function(selected_pr)
-      if selected_pr == nil then
-        utils.notify('No PR selected/checked out', vim.log.levels.WARN)
+    pr_utils.get_selected_pr(function(pr)
+      if pr == nil then
+        utils.notify('No PR selected', vim.log.levels.WARN)
         return
       end
 
@@ -476,9 +461,9 @@ M.get_diffview_filename = function(buf_name, cb)
 
       config.log('get_diffview_filename. buf_name', buf_name)
       config.log('get_diffview_filename. full_name', full_name)
-      config.log('get_diffview_filename. selected_pr.headRefOid', selected_pr.headRefOid)
+      config.log('get_diffview_filename. pr.headRefOid', pr.headRefOid)
 
-      local commit_abbrev = selected_pr.headRefOid:sub(1, 11)
+      local commit_abbrev = pr.headRefOid:sub(1, 11)
 
       local found = string.find(buf_name, commit_abbrev, 1, true)
       if found then
@@ -520,9 +505,9 @@ M.comment = function(opts, on_success)
 
   if opts.bang then
     -- PR-level comment
-    pr_utils.get_selected_pr(function(selected_pr)
-      if selected_pr == nil then
-        return utils.notify('No PR selected/checked out', vim.log.levels.WARN)
+    pr_utils.get_selected_pr(function(pr)
+      if pr == nil then
+        return utils.notify('No PR selected', vim.log.levels.WARN)
       end
 
       vim.schedule(function()
@@ -531,14 +516,14 @@ M.comment = function(opts, on_success)
           .. ' to comment: -->'
 
         utils.edit_comment(
-          selected_pr.number,
+          pr.number,
           prompt,
           { prompt, '' },
           config.s.keymaps.comment.send_comment,
           function(input)
             local progress = utils.new_progress_report('Sending comment...', vim.fn.bufnr())
 
-            gh.new_pr_comment(state.selected_PR, input, function(resp)
+            gh.new_pr_comment(pr, input, function(resp)
               if resp ~= nil then
                 progress('success')
                 if type(on_success) == 'function' then

@@ -105,6 +105,7 @@ function M.load_pr_diff(strategy)
         vim.schedule(function()
           buf = state.try_set_buf_name(buf, 'diff', pr.number)
           state.diff_buffer_id = buf
+          vim.b[buf].guh_pr = pr
 
           vim.bo[buf].buftype = 'nofile'
           vim.bo[buf].readonly = false
