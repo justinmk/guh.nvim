@@ -83,7 +83,7 @@ M.load_comments_on_current_buffer = function()
 end
 
 M.load_comments_on_buffer = function(bufnr)
-  if bufnr == state.diff_buffer_id then
+  if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
     M.load_comments_on_diff_buffer(bufnr)
     return
   end

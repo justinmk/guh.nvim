@@ -6,9 +6,6 @@ local M = {}
 --- @type PullRequest|nil
 M.selected_PR = nil
 
---- @type integer|nil Diff view buffer id
-M.diff_buffer_id = nil
-
 --- feat+prnum => bufnr
 local bufs = {
   ---@type table<string, integer>

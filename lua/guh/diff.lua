@@ -104,7 +104,6 @@ function M.load_pr_diff(strategy)
       construct_mappings(diff_content_lines, function(filename_line_to_diff_line, diff_line_to_filename_line)
         vim.schedule(function()
           buf = state.try_set_buf_name(buf, 'diff', pr.number)
-          state.diff_buffer_id = buf
           vim.b[buf].guh_pr = pr
 
           vim.bo[buf].buftype = 'nofile'
