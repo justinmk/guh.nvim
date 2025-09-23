@@ -10,16 +10,22 @@ local M = {}
 local severity = vim.diagnostic.severity
 
 local function load_comments_to_quickfix_list()
+  local comments_list = vim.b.guh_comments
+  if not comments_list then
+    utils.notify('No comments loaded for this buffer.')
+    return
+  end
+
   local qf_entries = {}
 
   local filenames = {}
-  for fn in pairs(state.comments_list) do
+  for fn in pairs(comments_list) do
     table.insert(filenames, fn)
   end
   table.sort(filenames)
 
   for _, filename in pairs(filenames) do
-    local comments_in_file = state.comments_list[filename]
+    local comments_in_file = comments_list[filename]
 
     table.sort(comments_in_file, function(a, b)
       return a.line < b.line
@@ -45,15 +51,14 @@ local function load_comments_to_quickfix_list()
 end
 
 M.load_comments = function()
-  pr_utils.get_checked_out_pr(function(checked_out_pr)
-    if checked_out_pr == nil then
-      utils.notify('No PR to work with.', vim.log.levels.WARN)
-      return
+  pr_utils.get_selected_pr(function(selected_pr)
+    if selected_pr == nil then
+      return utils.notify('No PR to work with.', vim.log.levels.WARN)
     end
 
     local progress = utils.new_progress_report('Loading comments', vim.fn.bufnr())
-    gh.load_comments(checked_out_pr.number, function(comments_list)
-      state.comments_list = comments_list
+    gh.load_comments(selected_pr.number, function(comments_list)
+      vim.b.guh_comments = comments_list
       vim.schedule(function()
         load_comments_to_quickfix_list()
 
@@ -66,7 +71,7 @@ end
 
 M.load_comments_only = function(pr_to_load, cb)
   gh.load_comments(pr_to_load, function(comments_list)
-    state.comments_list = comments_list
+    vim.b.guh_comments = comments_list
     cb()
   end)
 end
@@ -105,9 +110,14 @@ end
 
 M.load_comments_on_diff_buffer = function(bufnr)
   config.log('load_comments_on_diff_buffer')
+  local comments_list = vim.b[bufnr].guh_comments
+  if not comments_list then
+    return
+  end
+
   local diagnostics = {}
 
-  for filename, comments in pairs(state.comments_list) do
+  for filename, comments in pairs(comments_list) do
     if vim.b[bufnr].filename_line_to_diff_line[filename] then
       for _, comment in pairs(comments) do
         local diff_line = vim.b[bufnr].filename_line_to_diff_line[filename][comment.line]
@@ -132,8 +142,9 @@ end
 M.get_conversations = function(current_filename, current_line)
   --- @type GroupedComment[]
   local conversations = {}
-  if state.comments_list[current_filename] ~= nil then
-    for _, comment in pairs(state.comments_list[current_filename]) do
+  local comments_list = vim.b.guh_comments
+  if comments_list and comments_list[current_filename] ~= nil then
+    for _, comment in pairs(comments_list[current_filename]) do
       if current_line == comment.line then
         table.insert(conversations, comment)
       end
@@ -195,20 +206,17 @@ end
 M.comment_on_line = function(start_line, end_line)
   pr_utils.get_selected_pr(function(selected_pr)
     if selected_pr == nil then
-      utils.notify('No PR selected/checked out', vim.log.levels.WARN)
-      return
+      return utils.notify('No PR selected/checked out', vim.log.levels.WARN)
     end
 
     get_current_filename_and_line(start_line, end_line, function(current_filename, current_start_line, current_line)
       if current_filename == nil or current_start_line == nil or current_line == nil then
-        utils.notify('You are on a branch without PR.', vim.log.levels.WARN)
-        return
+        return utils.notify('You are on a branch without PR.', vim.log.levels.WARN)
       end
 
       utils.get_git_root(function(git_root)
         if current_filename:sub(1, #git_root) ~= git_root then
-          utils.notify('File is not under git folder.', vim.log.levels.ERROR)
-          return
+          return utils.notify('File is not under git folder.', vim.log.levels.ERROR)
         end
 
         vim.schedule(function()
@@ -274,11 +282,14 @@ M.comment_on_line = function(start_line, end_line)
                         comments = { new_comment },
                         content = comments_utils.prepare_content({ new_comment }),
                       }
-                      if state.comments_list[current_filename] == nil then
-                        state.comments_list[current_filename] = { new_comment_group }
+                      local comments_list = vim.b.guh_comments or {}
+                      if comments_list[current_filename] == nil then
+                        comments_list[current_filename] = { new_comment_group }
                       else
-                        table.insert(state.comments_list[current_filename], new_comment_group)
+                        table.insert(comments_list[current_filename], new_comment_group)
                       end
+                      -- Store buffer-local data.
+                      vim.b.guh_comments = comments_list
 
                       progress('success', nil, 'Comment sent.')
                       M.load_comments_on_current_buffer()
@@ -482,9 +493,10 @@ end
 M.load_comments_on_buffer_by_filename = function(bufnr, filename)
   vim.schedule(function()
     config.log('load_comments_on_buffer filename', filename)
-    if state.comments_list[filename] ~= nil then
+    local comments_list = vim.b[bufnr].guh_comments
+    if comments_list and comments_list[filename] ~= nil then
       local diagnostics = {}
-      for _, comment in pairs(state.comments_list[filename]) do
+      for _, comment in pairs(comments_list[filename]) do
         if #comment.comments > 0 then
           config.log('comment to diagnostics', comment)
           table.insert(diagnostics, {

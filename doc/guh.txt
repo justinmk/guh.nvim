@@ -6,6 +6,11 @@ guh.nvim                                                            *guh*
 Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI tool and provides
 a very minimalist yet effective workflow.
 
+Tenets:
+- Never lose data.
+- Avoid messing with the workspace at all. Try to work with buffers and PR
+  data without requiring a checkout.
+
 ==============================================================================
 REQUIREMENTS                                                *guh-requirements*
 

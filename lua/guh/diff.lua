@@ -79,15 +79,11 @@ local function view_diffview(pr)
   local progress = utils.new_progress_report('Loading PR diff', vim.fn.bufnr())
   comments.load_comments_only(pr.number, function()
     progress('success')
-    utils.get_git_merge_base(
-      pr.baseRefOid and pr.baseRefOid or pr.baseRefName,
-      pr.headRefOid,
-      function(mergeBaseOid)
-        vim.schedule(function()
-          vim.cmd(string.format('DiffviewOpen %s..%s', mergeBaseOid, pr.headRefOid))
-        end)
-      end
-    )
+    utils.get_git_merge_base(pr.baseRefOid and pr.baseRefOid or pr.baseRefName, pr.headRefOid, function(mergeBaseOid)
+      vim.schedule(function()
+        vim.cmd(string.format('DiffviewOpen %s..%s', mergeBaseOid, pr.headRefOid))
+      end)
+    end)
   end)
 end
 

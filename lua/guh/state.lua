@@ -5,9 +5,6 @@ local M = {}
 --- @type PullRequest|nil
 M.selected_PR = nil
 
---- @type table<string, GroupedComment[]>
-M.comments_list = {}
-
 --- @type integer|nil Diff view buffer id
 M.diff_buffer_id = nil
 
