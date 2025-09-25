@@ -34,8 +34,7 @@ Default config is below. You can change any of these options, or skip this if
 you don't want to change the defaults. >lua
 
   require('guh').setup({
-    debug = false, -- if set to true debugging information is written to ~/.guh.log file
-    open_command = 'open', -- open command to use, e.g. on Linux you might want to use xdg-open
+    debug = false, -- if set to true debugging information is written to stdpath(log)/.guh.log file
     merge = {
       approved = '--squash',
       nonapproved = '--auto --squash',
@@ -109,14 +108,16 @@ The "checkout" workflow:
 COMMANDS                                                        *guh-commands*
 
                                                                         *:Guh*
-:Guh [prnum]  Sets a PR as the "selected" PR, without performing a git
-              checkout in the workspace. >
+:Guh [pr-or-issue]
+              Views (or refreshes) the given PR or issue, or prompts to select
+              a PR. >
 
                 :Guh 123
 <
-              Shows PR information (`gh pr view`), or refreshes if it is
-              already open.
-
+              Related gh commands: >
+                gh pr view 42
+                gh issue view 42
+<
               Buffer-local key bindings:
               - `cA` to approve PR
               - `cM` to merge PR (see `GuhMerge` for details)
