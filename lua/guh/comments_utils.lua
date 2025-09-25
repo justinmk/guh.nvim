@@ -30,20 +30,20 @@ end
 
 --- @param comments Comment[]
 function M.prepare_content(comments)
-  local content = ''
+  local lines = {}
   if #comments > 0 and comments[1].start_line ~= vim.NIL and comments[1].start_line ~= comments[1].line then
-    content = string.format('📓 Comment on lines %d to %d\n\n', comments[1].start_line, comments[1].line)
+    table.insert(lines, ('📓 Comment on lines %d to %d\n\n'):format(comments[1].start_line, comments[1].line))
   end
 
   for _, comment in pairs(comments) do
-    content = content .. format_comment(comment)
+    table.insert(lines, format_comment(comment))
   end
 
   if #comments > 0 then
-    content = content .. '\n🪓 Diff hunk:\n' .. comments[1].diff_hunk .. '\n'
+    table.insert(lines, ('\n🪓 Diff hunk:\n%s\n'):format(comments[1].diff_hunk))
   end
 
-  return content
+  return table.concat(lines, '')
 end
 
 function M.group_comments(gh_comments, cb)

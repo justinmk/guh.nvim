@@ -296,8 +296,8 @@ local function validate_cur_filename(f)
     return false
   end
 
-  if f:match('guh://info/') then
-    utils.notify('This command is for file comments. Use :GuhComment for PR comments.', vim.log.levels.WARN)
+  if f:match('guh://pr/') or f:match('guh://issue/') then
+    utils.notify('This command is for file comments. Use :GuhComment for PR/issue comments.', vim.log.levels.WARN)
     return false
   end
 

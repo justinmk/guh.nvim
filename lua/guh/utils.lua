@@ -36,10 +36,7 @@ function M.filter_array(arr, condition)
 end
 
 function M.is_empty(value)
-  if value == nil or vim.fn.empty(value) == 1 then
-    return true
-  end
-  return false
+  return value == nil or value == '' or value == 0 or #value == 0
 end
 
 function M.get_git_root(cb)

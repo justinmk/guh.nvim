@@ -78,7 +78,7 @@ function M.get_issue(issue_num, cb)
   get_info(cmd, cb)
 end
 
-local function get_repo(cb)
+function M.get_repo(cb)
   utils.system_str('gh repo view --json nameWithOwner -q .nameWithOwner', function(result)
     if result ~= nil then
       cb(vim.split(result, '\n')[1])
@@ -86,30 +86,39 @@ local function get_repo(cb)
   end)
 end
 
---- @params pr_number number
-function M.load_comments(pr_number, cb)
+local function load_comments(type, number, cb)
   get_repo(function(repo)
     config.log('repo', repo)
-    utils.system_str(f('gh api repos/%s/pulls/%d/comments', repo, pr_number), function(comments_json)
+    utils.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, number), function(comments_json)
       local comments = parse_or_default(comments_json, {})
-      config.log('comments', comments)
+      config.log(('%s comments'):format(type), comments)
 
       local function is_valid_comment(comment)
         return comment.line ~= vim.NIL
       end
 
       comments = utils.filter_array(comments, is_valid_comment)
-      config.log('Valid comments count', #comments)
-      config.log('comments', comments)
+      config.log(('Valid %s comments count'):format(type), #comments)
+      config.log(('%s comments'):format(type), comments)
 
       comments_utils.group_comments(comments, function(grouped_comments)
-        config.log('Valid comments groups count:', #grouped_comments)
-        config.log('grouped comments', grouped_comments)
+        config.log(('Valid %s comments groups count:'):format(type), #grouped_comments)
+        config.log(('grouped %s comments'):format(type), grouped_comments)
 
         cb(grouped_comments)
       end)
     end)
   end)
+end
+
+--- @params pr_number number
+function M.load_comments(pr_number, cb)
+  load_comments('pulls', pr_number, cb)
+end
+
+--- @param issue_number number
+function M.load_issue_comments(issue_number, cb)
+  load_comments('issues', issue_number, cb)
 end
 
 function M.reply_to_comment(pr_number, body, reply_to, cb)

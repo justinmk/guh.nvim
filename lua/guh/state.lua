@@ -13,11 +13,13 @@ local bufs = {
   ---@type table<string, integer>
   diff = {},
   ---@type table<string, integer>
-  info = {},
+  pr = {},
+  ---@type table<string, integer>
+  issue = {},
 }
 
 --- Gets the buf for the given PR + feature, or creates a new one if not found.
---- @param feat 'diff'|'info'|'comment'
+--- @param feat 'diff'|'pr'|'issue'|'comment'
 --- @param prnum string|number
 function M.get_buf(feat, prnum)
   local prnumstr = tostring(prnum)
