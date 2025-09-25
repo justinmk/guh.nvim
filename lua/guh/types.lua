@@ -21,6 +21,17 @@
 --- @field [1] string filename
 --- @field [2] number line
 
+--- @class Issue
+--- @field author table
+--- @field body string
+--- @field createdAt string
+--- @field labels table
+--- @field number number
+--- @field state string
+--- @field title string
+--- @field updatedAt string
+--- @field url string
+
 --- @class PullRequest
 --- @field author table
 --- @field baseRefName string

@@ -27,3 +27,8 @@ See help file.
 ## Related
 
 - https://github.com/pwntester/octo.nvim
+
+## Credits
+
+guh.nvim was originally forked (and completely rewritten) from
+https://github.com/daliusd/ghlite.nvim by Dalius Dobravolskas.
