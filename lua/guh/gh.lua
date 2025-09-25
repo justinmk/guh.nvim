@@ -27,6 +27,18 @@ local pr_fields = {
   'url',
 }
 
+local issue_fields = {
+  'author',
+  'body',
+  'createdAt',
+  'labels',
+  'number',
+  'state',
+  'title',
+  'updatedAt',
+  'url',
+}
+
 local function parse_or_default(str, default)
   local success, result = pcall(vim.json.decode, str)
   if success then
@@ -36,22 +48,34 @@ local function parse_or_default(str, default)
   return default
 end
 
---- @param prnum string|number PR number, or empty for "current PR"
---- @param cb fun(pr?: PullRequest)
-function M.get_pr_info(prnum, cb)
-  local cmd = 'gh pr view %s --json ' .. table.concat(pr_fields, ',')
-  vim.schedule_wrap(utils.system_str)(f(cmd, prnum), function(result, stderr)
+--- Gets details for one "thing" from `gh` and parses the JSON response into an object.
+local function get_info(cmd, cb)
+  vim.schedule_wrap(utils.system_str)(cmd, function(result, stderr)
     if result == nil then
       cb(nil)
       return
     elseif stderr:match('Unknown JSON field') then
-      error(('Unknown JSON field (baseRefOid?): %s'):format(stderr))
+      error(('Unknown JSON field: %s'):format(stderr))
       cb(parse_or_default(result, nil))
     end
-    config.log('get_pr_info resp', result)
+    config.log('get_info resp', result)
 
     cb(parse_or_default(result, nil))
   end)
+end
+
+--- @param prnum string|number PR number, or empty for "current PR"
+--- @param cb fun(pr?: PullRequest)
+function M.get_pr_info(prnum, cb)
+  local cmd = f('gh pr view %s --json %s', prnum, table.concat(pr_fields, ','))
+  get_info(cmd, cb)
+end
+
+--- @param issue_num string|number Issue number
+--- @param cb fun(issue?: Issue)
+function M.get_issue(issue_num, cb)
+  local cmd = f('gh issue view %s --json %s', issue_num, table.concat(issue_fields, ','))
+  get_info(cmd, cb)
 end
 
 local function get_repo(cb)
