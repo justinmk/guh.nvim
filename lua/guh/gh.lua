@@ -87,7 +87,7 @@ function M.get_repo(cb)
 end
 
 local function load_comments(type, number, cb)
-  get_repo(function(repo)
+  M.get_repo(function(repo)
     config.log('repo', repo)
     utils.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, number), function(comments_json)
       local comments = parse_or_default(comments_json, {})
@@ -122,7 +122,7 @@ function M.load_issue_comments(issue_number, cb)
 end
 
 function M.reply_to_comment(pr_number, body, reply_to, cb)
-  get_repo(function(repo)
+  M.get_repo(function(repo)
     local request = {
       'gh',
       'api',
@@ -146,7 +146,7 @@ function M.reply_to_comment(pr_number, body, reply_to, cb)
 end
 
 function M.new_comment(pr, body, path, start_line, line, cb)
-  get_repo(function(repo)
+  M.get_repo(function(repo)
     local commit_id = assert(pr.headRefOid)
 
     local request = {
@@ -201,7 +201,7 @@ function M.new_pr_comment(pr, body, cb)
 end
 
 function M.update_comment(comment_id, body, cb)
-  get_repo(function(repo)
+  M.get_repo(function(repo)
     local request = {
       'gh',
       'api',
@@ -222,7 +222,7 @@ function M.update_comment(comment_id, body, cb)
 end
 
 function M.delete_comment(comment_id, cb)
-  get_repo(function(repo)
+  M.get_repo(function(repo)
     local request = {
       'gh',
       'api',
