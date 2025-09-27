@@ -843,20 +843,20 @@ do --- M.iter(), M.await_all(), M.await_any()
       task:wait(cb)
     end
 
-     --- @async
-     return gc_fun(function()
-       local r = queue:get()
-       if r then
-         local err = r[1]
-         if err then
-           -- -- Note: if the task was a child, then an error should have already been
-           -- -- raised in complete_task(). This should only trigger to detached tasks.
-           -- assert(assert(tasks[r[2]])._parent == nil)
-           error(('iter error[index:%d]: %s'):format(r[2], r[1]), 3)
-         end
-         return unpack_len(r, 2)
-       end
-     end, function()
+    --- @async
+    return gc_fun(function()
+      local r = queue:get()
+      if r then
+        local err = r[1]
+        if err then
+          -- -- Note: if the task was a child, then an error should have already been
+          -- -- raised in complete_task(). This should only trigger to detached tasks.
+          -- assert(assert(tasks[r[2]])._parent == nil)
+          error(('iter error[index:%d]: %s'):format(r[2], r[1]), 3)
+        end
+        return unpack_len(r, 2)
+      end
+    end, function()
       for t, tcb in pairs(task_cbs) do
         t:_unwait(tcb)
       end

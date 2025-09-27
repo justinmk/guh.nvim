@@ -96,17 +96,21 @@ local function main()
   async
     .run(function()
       for testname, ctx in vim.spairs(tasks) do
-        ctx.passed = ctx.task:pwait()
-        local name = ('%s%s'):format(testname, ctx.desc and (' %s'):format(ctx.desc)  or '')
+        local err
+        ctx.passed, err = ctx.task:pwait()
+        local name = ('%s%s'):format(testname, ctx.desc and (' %s'):format(ctx.desc) or '')
         print(('%s: %s'):format(ctx.passed and 'pass' or 'fail', name))
-        all_passed = all_passed and ctx.passed
+        if not ctx.passed and err then
+          print(vim.text.indent(2, err))
+        end
+        all_passed = all_passed and not not ctx.passed
       end
       print('')
     end)
     :wait()
-    if not all_passed then
-      os.exit(1)
-    end
+  if not all_passed then
+    os.exit(1)
+  end
 end
 
 main()
