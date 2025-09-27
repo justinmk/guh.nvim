@@ -1,99 +1,112 @@
+local async = require('async')
 local gh = require('guh.gh')
 local utils = require('guh.utils')
 
-local function run_test_asserts(assert_func)
-  local passed = true
-  local error_msg
-  local success, err = pcall(assert_func)
-  if not success then
-    passed = false
-    error_msg = err
-  end
-  return passed, error_msg
-end
+local system_str_async = async.wrap(2, utils.system_str)
+local get_pr_info_async = async.wrap(2, gh.get_pr_info)
+local get_issue_async = async.wrap(2, gh.get_issue)
 
-local function test_get_pr_info(cb)
-  -- Get a PR number
-  utils.system_str('gh pr list --json number', function(result)
+local tests = {}
+
+function tests.test_get_pr_info(ctx)
+  return async.run(function()
+    local result = system_str_async('gh pr list --json number')
     local pr_num = assert(vim.json.decode(assert(result))[1].number, 'failed to get a repo issue')
+    ctx.desc = ('(pr=%s)'):format(pr_num)
 
-    gh.get_pr_info(pr_num, function(pr)
-      local function run_asserts()
-        assert(pr, 'pr is nil')
-        assert(type(pr.number) == 'number', 'pr.number not number')
-        assert(type(pr.title) == 'string', 'pr.title not string')
-        assert(type(pr.author) == 'table', 'pr.author not table')
-      end
-      local passed, error_msg = run_test_asserts(run_asserts)
-      cb({ name = ('get_pr_info (pr=%s)'):format(pr_num), passed = passed, error = error_msg })
-    end)
+    local pr = get_pr_info_async(pr_num)
+    assert(pr, 'pr is nil')
+    assert(type(pr.number) == 'number', 'pr.number not number')
+    assert(type(pr.title) == 'string', 'pr.title not string')
+    assert(type(pr.author) == 'table', 'pr.author not table')
   end)
 end
 
-local function test_get_issue(cb)
-  -- Get an issue number
-  utils.system_str('gh issue list --json number', function(result)
+function tests.test_get_issue(ctx)
+  return async.run(function()
+    local result = system_str_async('gh issue list --json number')
     local issue_num = assert(vim.json.decode(assert(result))[1].number, 'failed to get a repo issue')
+    ctx.desc = ('(issue=%s)'):format(issue_num)
 
-    gh.get_issue(issue_num, function(issue)
-      local function run_asserts()
-        assert(issue, 'issue is nil')
-        assert(type(issue.number) == 'number', 'issue.number not number')
-        assert(type(issue.title) == 'string', 'issue.title not string')
-        assert(type(issue.author) == 'table', 'issue.author not table')
-      end
-      local passed, error_msg = run_test_asserts(run_asserts)
-      cb({ name = ('get_issue (issue=%s)'):format(issue_num), passed = passed, error = error_msg })
+    local issue = get_issue_async(issue_num)
+    assert(issue, 'issue is nil')
+    assert(type(issue.number) == 'number', 'issue.number not number')
+    assert(type(issue.title) == 'string', 'issue.title not string')
+    assert(type(issue.author) == 'table', 'issue.author not table')
+  end)
+end
+
+-- Tests that ":Guh 1" shows the issue in a buffer.
+function tests.test_Guh(ctx)
+  return async.run(function()
+    local result = system_str_async('gh issue list --json number')
+    local issue_num = assert(vim.json.decode(assert(result))[1].number, 'failed to get a repo issue')
+    ctx.desc = ('(issue=%s)'):format(issue_num)
+
+    return async.await(function(callback)
+      vim.schedule(function()
+        -- Run the command
+        vim.cmd(('Guh %d'):format(issue_num))
+
+        -- Wait for the buffer to be created
+        local ok, buf = vim.wait(5000, function()
+          local b = vim.fn.bufnr(('guh://issue/%d'):format(issue_num))
+          return b > 0, b
+        end)
+        assert(ok)
+
+        -- Check the buffer content
+        ---@diagnostic disable-next-line param-type-mismatch
+        local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        assert(#lines > 0, 'buffer is empty')
+        assert(lines[1]:match('#%d'), 'first line not issue title')
+        callback()
+      end)
     end)
   end)
 end
 
 local function main()
-  -- Check if CWD is a GitHub repo that gh can work with
-  local repo_checked = false
-  local is_repo = false
-  utils.system_str('gh repo view --json nameWithOwner', function(result)
-    is_repo = result ~= nil
-    repo_checked = true
-  end)
+  require('guh').setup({})
 
-  -- Wait for repo check
-  vim.wait(5000, function()
-    return repo_checked
-  end)
+  -- Check if CWD is a GitHub repo that gh can work with
+  local is_repo = async
+    .run(function()
+      return not not system_str_async('gh repo view --json nameWithOwner')
+    end)
+    :wait()
 
   if not is_repo then
     print('Not a GitHub repository or gh not configured')
     return
   end
 
-  local results = {}
-  local cb = function(res)
-    results[res.name] = res
+  ---@type table<string, { desc?: string, task?: any, passed?: boolean }>
+  local tasks = {}
+  for testname, _ in pairs(tests) do
+    tasks[testname] = {}
+  end
+  -- Start all tests as parallel tasks. Pass a context which they can augment.
+  for testname, testfn in vim.spairs(tests) do
+    local ctx = tasks[testname]
+    ctx.task = testfn(ctx)
   end
 
-  local expected_tests = 2
-  test_get_pr_info(cb)
-  test_get_issue(cb)
-
-  -- Wait for async operations to complete
-  vim.wait(10000, function()
-    return vim.tbl_count(results) >= expected_tests
-  end)
-
-  -- Print results in order
-  for name, res in vim.spairs(results) do
-    print(('%s: %s'):format(res.passed and 'pass' or 'fail', name))
-    if res.error then
-      print(res.error)
+  local all_passed = true
+  async
+    .run(function()
+      for testname, ctx in vim.spairs(tasks) do
+        ctx.passed = ctx.task:pwait()
+        local name = ('%s%s'):format(testname, ctx.desc and (' %s'):format(ctx.desc)  or '')
+        print(('%s: %s'):format(ctx.passed and 'pass' or 'fail', name))
+        all_passed = all_passed and ctx.passed
+      end
+      print('')
+    end)
+    :wait()
+    if not all_passed then
+      os.exit(1)
     end
-  end
-
-  if vim.iter(results):any(function(_, r)
-    return not r.passed
-  end) then
-    os.exit(1)
-  end
 end
 
 main()
