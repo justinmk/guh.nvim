@@ -122,4 +122,15 @@ function M.edit_comment(prnum, prompt, content, key_binding, callback)
   M.buf_keymap(buf, 'i', key_binding, '', capture_input_and_close)
 end
 
+--- Overwrites the current :terminal buffer with the given cmd.
+--- @param cmd string[]
+function M.run_term_cmd(cmd)
+  vim.schedule(function()
+    local isempty = 1 == vim.fn.line('$') and '' == vim.fn.getline(1)
+    assert(isempty or vim.o.buftype == 'terminal')
+    vim.o.modified = false
+    vim.fn.jobstart(cmd, {term=true})
+  end)
+end
+
 return M

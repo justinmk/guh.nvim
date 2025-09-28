@@ -264,9 +264,14 @@ local function show_issue_info(issue_info)
 end
 
 --- Shows one of:
+--- - Status (if no args given)
 --- - PR. Calls `show_pr_info`, which sets `b:guh_pr`.
 --- - Issue. Calls `show_issue_info`, which sets `b:guh_issue`.
 function M.select(opts)
+  if 0 == #((opts or {}).args or {}) then
+    gh.show_status()
+    return
+  end
   local repo
   gh.get_repo(function(repo_)
     repo = repo_
