@@ -2,12 +2,26 @@
 
 > W.I.P. Fork of https://github.com/daliusd/ghlite.nvim
 
-Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI tool and provides
-a very minimalist yet effective workflow.
+Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI with a minimalist yet
+effective workflow.
+
+## Usage
+
+Run `:Guh` to see status.
+
+    :Guh
+
+Run `:Guh 42` to view PR or issue 42.
+
+    :Guh 42
+
+See help file for details.
 
 ## Install
 
-    vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
+```lua
+vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
+```
 
 See help for default config.
 
@@ -20,9 +34,14 @@ Requirements:
   vim.cmd('FzfLua register_ui_select')
   ```
 
-## Usage
+## How it works
 
-See help file.
+1. Show `gh` output in a `:terminal` buffer.
+2. Set keymaps on the buffer.
+3. (TODO) Fetch the git data into `.git` (without doing a checkout).
+4. (TODO) When viewing the diff, user can navigate to the git object (file)
+   without doing a checkout.
+5. (TODO) PR comments will display on relevant git objects.
 
 ## Related
 

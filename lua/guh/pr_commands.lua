@@ -408,4 +408,17 @@ function M.show_pr(id)
   set_pr_view_keymaps(buf)
 end
 
+function M.show_pr_diff(opts)
+  local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
+
+  local buf = state.get_buf('diff', id)
+  state.show_buf(buf)
+  state.set_b_guh(buf, {
+    id = id,
+    feat = 'diff',
+  })
+  utils.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) })
+  set_pr_view_keymaps(buf)
+end
+
 return M

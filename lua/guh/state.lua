@@ -63,10 +63,17 @@ local function get_buf_name(feat, id)
   return ('guh://%s/%s'):format(feat, id)
 end
 
+--- Sets the buffer name to "guh://…/…" format.
 function M.set_buf_name(buf, feat, id)
   local bufname = get_buf_name(feat, id)
-  -- New buffer, set name and display in split
+
+  -- TODO: this leaves orphan "term://~/…:/usr/local/bin/gh" buffers.
+  -- Probably the builtin term:// autocmd is invoking "gh" (no args) in the discarded terminal 🤦‍♂️
   vim.api.nvim_buf_set_name(buf, bufname)
+  -- vim.api.nvim_buf_call(buf, function()
+  --   vim.cmd.file({ bufname, mods = { noautocmd = true } })
+  -- end)
+
   -- XXX fucking hack because Vim creates new buffer after (re)naming it.
   bufs[feat][tostring(id)] = buf
 end
