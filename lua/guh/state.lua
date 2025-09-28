@@ -21,7 +21,7 @@ local bufs = {
 }
 
 --- Gets the existing buf or creates a new one, for the given PR + feature.
---- @param feat 'diff'|'pr'|'issue'|'comment'|'status'
+--- @param feat Feat
 --- @param pr_or_issue string|number PR or issue number or 'none' for special cases (e.g. status).
 function M.get_buf(feat, pr_or_issue)
   local pr_or_issue_str = tostring(pr_or_issue)
@@ -47,19 +47,40 @@ function M.show_buf(buf)
   end
 end
 
-function M.try_set_buf_name(buf, feat, prnum)
-  local bufname = ('guh://%s/%s'):format(feat, prnum)
+--- Sets the `b:guh` buffer-local dict. `bufstate` is merged with existing state, if any.
+--- @param buf integer
+--- @param bufstate BufState
+function M.set_b_guh(buf, bufstate)
+  local b_guh = vim.b[buf].guh
+  if not b_guh then
+    vim.b[buf].guh = bufstate
+  else
+    vim.b[buf].guh = vim.tbl_extend('force', b_guh, bufstate)
+  end
+end
+
+local function get_buf_name(feat, id)
+  return ('guh://%s/%s'):format(feat, id)
+end
+
+function M.set_buf_name(buf, feat, id)
+  local bufname = get_buf_name(feat, id)
+  -- New buffer, set name and display in split
+  vim.api.nvim_buf_set_name(buf, bufname)
+  -- XXX fucking hack because Vim creates new buffer after (re)naming it.
+  bufs[feat][tostring(id)] = buf
+end
+
+function M.try_set_buf_name(buf, feat, id)
+  local bufname = get_buf_name(feat, id)
   local foundbuf = vim.fn.bufnr(bufname)
   if foundbuf > 0 and buf ~= foundbuf then
     M.show_buf(foundbuf)
     -- XXX fucking hack because Vim creates new buffer after (re)naming it.
-    bufs[feat][tostring(prnum)] = foundbuf
+    bufs[feat][tostring(id)] = foundbuf
     return foundbuf
   end
-  -- New buffer, set name and display in split
-  vim.api.nvim_buf_set_name(buf, bufname)
-  -- XXX fucking hack because Vim creates new buffer after (re)naming it.
-  bufs[feat][tostring(prnum)] = buf
+  M.set_buf_name(buf, feat, id)
   M.show_buf(buf)
   M.on_win_open()
   return buf

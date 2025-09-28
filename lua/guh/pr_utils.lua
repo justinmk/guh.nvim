@@ -17,20 +17,22 @@ local M = {}
 --- Fetchs `prnum`, or if not given, resolves in this order:
 ---
 --- 1. `b:guh_pr`
---- 2. XXX `state.selected_PR`
---- 3. XXX ?? `get_pr_info('')`
+--- 2. `b:guh.id`
+--- 3. XXX `state.selected_PR`
+--- 4. XXX ?? `get_pr_info('')`
 ---
 --- @overload fun(cb: fun(pr: PullRequest | nil))
 --- @overload fun(prnum: number | nil, cb: fun(pr: PullRequest | nil))
 function M.get_selected_pr(arg1, arg2)
   local cb = assert(type(arg2) == 'function' and arg2 or arg1)
-  local prnum = type(arg2) == 'function' and arg1 or nil
+  local prnum = type(arg2) == 'function' and arg1 or (vim.b.guh or {}).id
   if prnum then
     assert(type(prnum) == 'number')
     -- If user provided PR number as a command arg, fetch and set as "selected".
     gh.get_pr_info(prnum, function(pr)
       if pr then
-        cb(pr)
+        assert(type(cb) == 'function')
+        vim.schedule_wrap(cb)(pr)
       else
         utils.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
         cb(nil)

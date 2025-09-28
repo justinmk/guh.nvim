@@ -1,3 +1,10 @@
+--- @alias Feat 'diff'|'pr'|'issue'|'comment'|'status'
+
+--- @class BufState
+--- Buffer-local b:guh dict.
+--- @field id integer PR or issue number
+--- @field feat Feat Feature name
+
 --- @class Comment
 --- @field body string
 --- @field diff_hunk string

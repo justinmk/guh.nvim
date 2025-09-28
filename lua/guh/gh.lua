@@ -1,7 +1,8 @@
+local async = require('async')
 local comments_utils = require('guh.comments_utils')
 local config = require('guh.config')
-local utils = require('guh.utils')
 local state = require('guh.state')
+local utils = require('guh.utils')
 
 require('guh.types')
 
@@ -309,22 +310,6 @@ function M.get_user(cb)
   end)
 end
 
-function M.show_status()
-  local buf = state.get_buf('status', 'all')
-  state.show_buf(buf)
-  utils.run_term_cmd({ 'gh', 'status' })
-end
-
-function M.show_issue(id)
-  local buf = state.get_buf('issue', 'all')
-  state.show_buf(buf)
-  utils.run_term_cmd({ 'gh', 'status', 'view', tostring(id) })
-end
-
-function M.show_pr(id)
-  local buf = state.get_buf('pr', 'all')
-  state.show_buf(buf)
-  utils.run_term_cmd({ 'gh', 'pr', 'view', tostring(id) })
-end
+M.get_repo_async = async.wrap(1, M.get_repo)
 
 return M

@@ -124,12 +124,17 @@ end
 
 --- Overwrites the current :terminal buffer with the given cmd.
 --- @param cmd string[]
-function M.run_term_cmd(cmd)
+function M.run_term_cmd(buf, feat, id, cmd)
   vim.schedule(function()
     local isempty = 1 == vim.fn.line('$') and '' == vim.fn.getline(1)
     assert(isempty or vim.o.buftype == 'terminal')
     vim.o.modified = false
-    vim.fn.jobstart(cmd, {term=true})
+    vim.fn.jobstart(cmd, {
+      term = true,
+      on_exit = function()
+        state.set_buf_name(buf, feat, id)
+      end,
+    })
   end)
 end
 

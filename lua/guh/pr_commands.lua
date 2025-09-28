@@ -7,6 +7,20 @@ local utils = require('guh.utils')
 
 local M = {}
 
+--- @param buf integer
+local function set_pr_view_keymaps(buf)
+  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
+  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
+  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
+  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR', ':GuhComment<cr>')
+  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
+end
+
+--- @param buf integer
+local function set_issue_view_keymaps(buf)
+  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', ':GuhComment<cr>')
+end
+
 --- @param cb fun(pr: PullRequest)
 local function ui_selectPR(prompt, cb)
   local progress = utils.new_progress_report('Loading PR list...', vim.fn.bufnr())
@@ -163,11 +177,7 @@ local function show_pr_info(pr_info)
     vim.bo[buf].readonly = true
     vim.bo[buf].modifiable = false
 
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR', ':GuhComment<cr>')
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
+    set_pr_view_keymaps(buf)
   end)
 end
 
@@ -223,7 +233,7 @@ local function show_issue_info(issue_info)
     vim.bo[buf].readonly = true
     vim.bo[buf].modifiable = false
 
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', ':GuhComment<cr>')
+    set_issue_view_keymaps(buf)
 
     -- Load comments
     gh.load_issue_comments(issue_info.number, function(grouped_comments)
@@ -269,7 +279,7 @@ end
 --- - Issue. Calls `show_issue_info`, which sets `b:guh_issue`.
 function M.select(opts)
   if 0 == #((opts or {}).args or {}) then
-    gh.show_status()
+    M.show_status()
     return
   end
   local repo
@@ -286,12 +296,15 @@ function M.select(opts)
   local num = opts and opts.args and tonumber(opts.args)
   local test_cmd = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, num) }, { text = true }):wait()
   local is_pr = 0 == (test_cmd).code
-  if is_pr or not num then
+  if is_pr and num then
+    M.show_pr(num)
+  elseif is_pr or not num then
     on_pr_select(opts, function(pr)
       gh.get_pr_info(pr.number, show_pr_info)
     end)
   else
-    gh.get_issue(num, show_issue_info)
+    M.show_issue(num)
+    -- gh.get_issue(num, show_issue_info)
     -- TODO: issue selection?
   end
 end
@@ -360,6 +373,39 @@ function M.merge_pr()
       progress('success')
     end)
   end)
+end
+
+function M.show_status()
+  local buf = state.get_buf('status', 'all')
+  state.show_buf(buf)
+  state.set_b_guh(buf, {
+    id = 0,
+    feat = 'status',
+  })
+  utils.run_term_cmd(buf, 'status', 'all', { 'gh', 'status' })
+end
+
+--- @param id integer
+function M.show_issue(id)
+  local buf = state.get_buf('issue', id)
+  state.show_buf(buf)
+  state.set_b_guh(buf, {
+    id = id,
+    feat = 'issue',
+  })
+  utils.run_term_cmd(buf, 'issue', id, { 'gh', 'issue', 'view', tostring(id) })
+  set_issue_view_keymaps(buf)
+end
+
+function M.show_pr(id)
+  local buf = state.get_buf('pr', id)
+  state.show_buf(buf)
+  state.set_b_guh(buf, {
+    id = id,
+    feat = 'pr',
+  })
+  utils.run_term_cmd(buf, 'pr', id, { 'gh', 'pr', 'view', '--comments', tostring(id) })
+  set_pr_view_keymaps(buf)
 end
 
 return M
