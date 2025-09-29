@@ -125,14 +125,19 @@ end
 --- Overwrites the current :terminal buffer with the given cmd.
 --- @param cmd string[]
 function M.run_term_cmd(buf, feat, id, cmd)
+  local progress = M.new_progress_report('Loading...', buf)
+  progress('running')
   vim.schedule(function()
     local isempty = 1 == vim.fn.line('$') and '' == vim.fn.getline(1)
-    assert(isempty or vim.o.buftype == 'terminal')
+    assert(isempty or not vim.api.nvim_buf_is_loaded(buf) or (vim.o.buftype == 'terminal' and not not vim.b[buf].guh))
+    vim.o.modifiable = true
+    -- vim.api.nvim_buf_set_lines(buf, 1, 1, false, { 'Loading...' })
     vim.o.modified = false
     vim.fn.jobstart(cmd, {
       term = true,
       on_exit = function()
         state.set_buf_name(buf, feat, id)
+        progress('success')
       end,
     })
   end)

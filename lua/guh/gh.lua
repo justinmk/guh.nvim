@@ -81,9 +81,12 @@ function M.get_issue(issue_num, cb)
 end
 
 function M.get_repo(cb)
+  local progress = utils.new_progress_report('Loading...')
+  progress('running')
   utils.system_str('gh repo view --json nameWithOwner -q .nameWithOwner', function(result)
     if result ~= nil then
       cb(vim.split(result, '\n')[1])
+      progress('success')
     end
   end)
 end
