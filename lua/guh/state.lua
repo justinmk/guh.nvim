@@ -75,7 +75,8 @@ function M.set_buf_name(buf, feat, id)
   -- end)
 
   -- XXX fucking hack because Vim creates new buffer after (re)naming it.
-  bufs[feat][tostring(id)] = buf
+  local unwanted_alt_buf = vim.fn.bufnr('#')
+  vim.api.nvim_buf_delete(unwanted_alt_buf, {})
 end
 
 function M.try_set_buf_name(buf, feat, id)
@@ -83,8 +84,6 @@ function M.try_set_buf_name(buf, feat, id)
   local foundbuf = vim.fn.bufnr(bufname)
   if foundbuf > 0 and buf ~= foundbuf then
     M.show_buf(foundbuf)
-    -- XXX fucking hack because Vim creates new buffer after (re)naming it.
-    bufs[feat][tostring(id)] = foundbuf
     return foundbuf
   end
   M.set_buf_name(buf, feat, id)
