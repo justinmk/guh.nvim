@@ -1,7 +1,9 @@
+---@diagnostic disable: redundant-return-value
 local async = require('async')
 local gh = require('guh.gh')
+local pr_commands = require('guh.pr_commands')
 local utils = require('guh.utils')
-
+local state = require('guh.state')
 local system_str_async = async.wrap(2, utils.system_str)
 local get_pr_info_async = async.wrap(2, gh.get_pr_info)
 local get_issue_async = async.wrap(2, gh.get_issue)
@@ -33,6 +35,92 @@ function tests.test_get_issue(ctx)
     assert(type(issue.number) == 'number', 'issue.number not number')
     assert(type(issue.title) == 'string', 'issue.title not string')
     assert(type(issue.author) == 'table', 'issue.author not table')
+  end)
+end
+
+-- Tests hardcoded diff.
+function tests.test_get_prepare_comment(ctx)
+  local pr_id = 42
+  local buf = state.get_buf('diff', pr_id)
+  state.show_buf(buf)
+  state.set_b_guh(buf, {
+    id = pr_id,
+    feat = 'diff',
+  })
+
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+    "diff --git a/lua/guh/config.lua b/lua/guh/config.lua",
+    "index a573cc0..2cedcc0 100644",
+    "--- a/lua/guh/config.lua",
+    "+++ b/lua/guh/config.lua",
+    "@@ -13,6 +13,7 @@ M.s = {",
+    "   html_comments_command = { 'lynx', '-stdin', '-dump' },",
+    "   keymaps = {",
+    "     diff = {",
+    "+      comment = 'cc',",
+    "       open_file = 'gf',",
+  })
+  vim.api.nvim_win_set_cursor(0, {9, 0})  -- on "+      comment = 'cc',"
+
+  local info = pr_commands.prepare_to_comment(9, 9)
+  assert(info)
+  assert('lua/guh/config.lua' == info.file)
+  assert(15 == info.start_line, info.start_line)
+  assert(16 == info.end_line, info.end_line)
+  assert(pr_id == info.pr_id, info.pr_id)
+  assert(buf == info.buf, info.buf)
+end
+
+-- Tests real response from "gh pr diff".
+function tests.test_get_prepare_comment2(ctx)
+  return async.run(function()
+    local pr_id = 1
+    ctx.desc = ('(pr=%s)'):format(pr_id)
+
+    return async.await(function(callback)
+      vim.schedule(function()
+        vim.cmd(('GuhDiff %d'):format(pr_id))
+
+        -- Wait for the buffer to be created and have content
+        local ok, buf = vim.wait(5000, function()
+          local b = vim.fn.bufnr(('guh://diff/%d'):format(pr_id))
+          if b <= 0 then return false end
+          local lines = vim.api.nvim_buf_get_lines(b, 0, -1, false)
+          return #lines > 0, b
+        end)
+        assert(ok)
+
+        -- Set the current buffer
+        vim.api.nvim_set_current_buf(buf)
+
+        -- Find a line with a '+' (added line or +++ header)
+        local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        local target_line
+        for i, line in ipairs(lines) do
+          if line:match('^%+') and not line:match('^%+%+%+') then
+            target_line = i
+            break
+          end
+        end
+        assert(target_line, 'No added line (+) found in diff')
+
+        -- Move cursor to the found line
+        vim.api.nvim_win_set_cursor(0, {target_line, 0})
+
+        -- Call prepare_to_comment
+        local info = pr_commands.prepare_to_comment(target_line, target_line)
+
+        -- Assert the returned info
+        assert(info, 'prepare_to_comment returned nil')
+        assert(type(info.file) == 'string', 'file is not a string')
+        assert(15 == info.start_line)
+        assert(type(info.start_line) == 'number', 'start_line is not a number')
+        assert(type(info.end_line) == 'number', 'end_line is not a number')
+        assert(info.pr_id == pr_id, ('pr_id is not %s'):format(pr_id))
+
+        callback()
+      end)
+    end)
   end)
 end
 
@@ -68,18 +156,18 @@ end
 
 local function main()
   require('guh').setup({})
+  -- tests = { test_get_prepare_comment2 = tests.test_get_prepare_comment2 }
 
   -- Check if CWD is a GitHub repo that gh can work with
-  local is_repo = async
-    .run(function()
-      return not not system_str_async('gh repo view --json nameWithOwner')
-    end)
-    :wait()
-
-  if not is_repo then
-    print('Not a GitHub repository or gh not configured')
-    return
-  end
+  -- local is_repo = async
+  --   .run(function()
+  --     return not not system_str_async('gh repo view --json nameWithOwner')
+  --   end)
+  --   :wait()
+  -- if not is_repo then
+  --   print('Not a GitHub repository or gh not configured')
+  --   return
+  -- end
 
   ---@type table<string, { desc?: string, task?: any, passed?: boolean }>
   local tasks = {}
@@ -97,7 +185,12 @@ local function main()
     .run(function()
       for testname, ctx in vim.spairs(tasks) do
         local err
-        ctx.passed, err = ctx.task:pwait()
+        if type(ctx.task) == 'table' and ctx.task.pwait then
+          ctx.passed, err = ctx.task:pwait()
+        else
+          -- For non-async tests (which would have exited the process before now).
+          ctx.passed = true
+        end
         local name = ('%s%s'):format(testname, ctx.desc and (' %s'):format(ctx.desc) or '')
         print(('%s: %s'):format(ctx.passed and 'pass' or 'fail', name))
         if not ctx.passed and err then

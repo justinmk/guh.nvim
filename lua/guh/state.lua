@@ -67,8 +67,8 @@ end
 function M.set_buf_name(buf, feat, id)
   local bufname = get_buf_name(feat, id)
 
-  -- TODO: this leaves orphan "term://~/…:/usr/local/bin/gh" buffers.
-  -- Probably the builtin term:// autocmd is invoking "gh" (no args) in the discarded terminal 🤦‍♂️
+  -- NOTE: This leaves orphan "term://~/…:/usr/local/bin/gh" buffers.
+  --       Fixed upstream: https://github.com/neovim/neovim/pull/35951
   vim.api.nvim_buf_set_name(buf, bufname)
   -- vim.api.nvim_buf_call(buf, function()
   --   vim.cmd.file({ bufname, mods = { noautocmd = true } })
@@ -76,7 +76,9 @@ function M.set_buf_name(buf, feat, id)
 
   -- XXX fucking hack because Vim creates new buffer after (re)naming it.
   local unwanted_alt_buf = vim.fn.bufnr('#')
-  vim.api.nvim_buf_delete(unwanted_alt_buf, {})
+  if unwanted_alt_buf > 0 and unwanted_alt_buf ~= buf then
+    vim.api.nvim_buf_delete(unwanted_alt_buf, {})
+  end
 end
 
 function M.try_set_buf_name(buf, feat, id)

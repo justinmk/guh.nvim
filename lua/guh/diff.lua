@@ -72,20 +72,6 @@ local function open_file_from_diff()
   end
 end
 
---- Use the DiffView plugin to view a pr diff.
---- @param pr PullRequest
-local function view_diffview(pr)
-  local progress = utils.new_progress_report('Loading PR diff', vim.fn.bufnr())
-  comments.load_comments_only(pr.number, function()
-    progress('success')
-    utils.get_git_merge_base(pr.baseRefOid and pr.baseRefOid or pr.baseRefName, pr.headRefOid, function(mergeBaseOid)
-      vim.schedule(function()
-        vim.cmd(string.format('DiffviewOpen %s..%s', mergeBaseOid, pr.headRefOid))
-      end)
-    end)
-  end)
-end
-
 --- @param strategy? 'builtin'|'diffview' # Diff viewer
 function M.load_pr_diff(strategy)
   pr_utils.get_selected_pr(function(pr)
