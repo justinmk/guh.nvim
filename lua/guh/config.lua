@@ -6,7 +6,8 @@ M.s = {
     approved = '--squash',
     nonapproved = '--auto --squash',
   },
-  html_comments_command = { 'lynx', '-stdin', '-dump' },
+  -- TODO: this was used to format HTML content.
+  -- html_comments_command = { 'lynx', '-stdin', '-dump' },
   keymaps = {
     diff = {
       comment = 'cc',

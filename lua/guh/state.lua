@@ -2,10 +2,6 @@ require('guh.types')
 
 local M = {}
 
---- The current checked-out PR.
---- @type PullRequest|nil
-M.selected_PR = nil
-
 --- feat+prnum => bufnr
 local bufs = {
   ---@type table<string, integer>

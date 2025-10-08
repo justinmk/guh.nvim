@@ -1,7 +1,6 @@
 local async = require('async')
 local comments_utils = require('guh.comments_utils')
 local config = require('guh.config')
-local state = require('guh.state')
 local utils = require('guh.utils')
 
 require('guh.types')
@@ -91,6 +90,90 @@ function M.get_repo(cb)
   end)
 end
 
+--- @param comment Comment
+local function format_comment(comment)
+  return string.format(
+    '✍️ %s at %s:\n%s\n\n',
+    comment.user,
+    comment.updated_at,
+    string.gsub(comment.body, '\r', '')
+  )
+end
+
+--- @param comments Comment[]
+function prepare_content(comments)
+  local lines = {}
+  if #comments > 0 and comments[1].start_line ~= vim.NIL and comments[1].start_line ~= comments[1].line then
+    table.insert(lines, ('📓 Comment on lines %d to %d\n\n'):format(comments[1].start_line, comments[1].line))
+  end
+
+  for _, comment in pairs(comments) do
+    table.insert(lines, format_comment(comment))
+  end
+
+  if #comments > 0 then
+    table.insert(lines, ('\n🪓 Diff hunk:\n%s\n'):format(comments[1].diff_hunk))
+  end
+
+  return table.concat(lines, '')
+end
+
+--- @return Comment: extracted gh comment
+local function convert_comment(comment)
+  return {
+    id = comment.id,
+    url = comment.html_url,
+    path = comment.path,
+    line = comment.line,
+    start_line = comment.start_line,
+    user = comment.user.login,
+    body = comment.body,
+    updated_at = comment.updated_at,
+    diff_hunk = comment.diff_hunk,
+  }
+end
+
+local function group_comments(gh_comments, cb)
+  utils.get_git_root(function(git_root)
+    --- @type table<number, Comment[]>
+    local comment_groups = {}
+    local base = {}
+
+    for _, comment in pairs(gh_comments) do
+      if comment.in_reply_to_id == nil then
+        comment_groups[comment.id] = { convert_comment(comment) }
+        base[comment.id] = comment.id
+      else
+        table.insert(comment_groups[base[comment.in_reply_to_id]], convert_comment(comment))
+        base[comment.id] = base[comment.in_reply_to_id]
+      end
+    end
+
+    --- @type table<string, GroupedComment[]>
+    local result = {}
+    for _, comments in pairs(comment_groups) do
+      --- @type GroupedComment
+      local grouped_comments = {
+        id = comments[1].id,
+        line = comments[1].line,
+        start_line = comments[1].start_line,
+        url = comments[#comments].url,
+        content = prepare_content(comments),
+        comments = comments,
+      }
+
+      local full_path = git_root .. '/' .. comments[1].path
+      if result[full_path] == nil then
+        result[full_path] = { grouped_comments }
+      else
+        table.insert(result[full_path], grouped_comments)
+      end
+    end
+
+    cb(result)
+  end)
+end
+
 local function load_comments(type, number, cb)
   M.get_repo(function(repo)
     config.log('repo', repo)
@@ -106,7 +189,7 @@ local function load_comments(type, number, cb)
       config.log(('Valid %s comments count'):format(type), #comments)
       config.log(('%s comments'):format(type), comments)
 
-      comments_utils.group_comments(comments, function(grouped_comments)
+      group_comments(comments, function(grouped_comments)
         config.log(('Valid %s comments groups count:'):format(type), #grouped_comments)
         config.log(('grouped %s comments'):format(type), grouped_comments)
 
