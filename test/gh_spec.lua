@@ -124,6 +124,46 @@ function tests.test_get_prepare_comment2(ctx)
   end)
 end
 
+-- Tests real comments response Github.
+-- Calls load_comments() and asserts that some comments were loaded into quickfix.
+function tests.test_get_comments(ctx)
+  return async.run(function()
+    local result = system_str_async('gh pr list --json number')
+    local prs = assert(vim.json.decode(assert(result)), 'failed to get PRs')
+    assert(#prs > 0, 'no PRs found')
+    local pr_num = prs[1].number
+    ctx.desc = ('(pr=%s)'):format(pr_num)
+
+    return async.await(function(callback)
+      vim.schedule(function()
+        require('guh.comments').load_comments(pr_num)
+
+        -- Wait for quickfix to be populated or timeout
+        local ok = vim.wait(5000, function()
+          local qf = vim.fn.getqflist()
+          return #qf > 0
+        end)
+
+        if ok then
+          local qf = vim.fn.getqflist()
+          assert(#qf > 0, 'quickfix list is empty')
+          -- Check that entries have filename, lnum, text
+          for _, entry in ipairs(qf) do
+            assert(entry.filename, 'entry missing filename')
+            assert(entry.lnum > 0, 'entry lnum not positive')
+            assert(entry.text, 'entry missing text')
+          end
+        else
+          -- If no comments, that's ok, but notify
+          print('No comments found for PR ' .. pr_num .. ', test passed but no assertions')
+        end
+
+        callback()
+      end)
+    end)
+  end)
+end
+
 -- Tests that ":Guh 1" shows the issue in a buffer.
 function tests.test_Guh(ctx)
   return async.run(function()

@@ -69,6 +69,15 @@ function M.merge_pr()
   utils.notify('TODO')
 end
 
+function M.load_comments(opts)
+  local prnum = opts.args and tonumber(opts.args) or (vim.b.guh or {}).id
+  if not prnum then
+    utils.notify('No PR number provided', vim.log.levels.ERROR)
+    return
+  end
+  require('guh.comments').load_comments(prnum)
+end
+
 function M.show_status()
   local buf = state.get_buf('status', 'all')
   state.show_buf(buf)
