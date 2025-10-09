@@ -85,8 +85,8 @@ function M.try_set_buf_name(buf, feat, id)
     return foundbuf
   end
   M.set_buf_name(buf, feat, id)
-  M.show_buf(buf)
   M.on_win_open()
+  M.show_buf(buf)
   return buf
 end
 
