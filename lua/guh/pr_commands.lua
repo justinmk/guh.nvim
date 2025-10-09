@@ -1,7 +1,5 @@
-local comments = require('guh.comments')
 local config = require('guh.config')
 local gh = require('guh.gh')
-local pr_utils = require('guh.pr_utils')
 local state = require('guh.state')
 local utils = require('guh.utils')
 
@@ -12,11 +10,8 @@ local function set_pr_view_keymaps(buf)
   utils.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
   utils.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
   utils.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
-  if vim.b[buf].guh.feat == 'diff' then
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on diff line', M.comment)
-  else
-    utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR', ':GuhComment<cr>')
-  end
+  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR or diff', M.comment)
+  utils.buf_keymap(buf, 'x', 'c', 'Comment on PR or diff', M.comment)
   utils.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
 end
 
@@ -25,10 +20,10 @@ local function set_issue_view_keymaps(buf)
   utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', ':GuhComment<cr>')
 end
 
---- Shows one of:
+--- Shows...
 --- - Status (if no args given)
---- - PR info
---- - Issue info `b:guh_issue`.
+--- - PR detail
+--- - Issue detail
 function M.select(opts)
   if 0 == #((opts or {}).args or {}) then
     M.show_status()
@@ -122,15 +117,14 @@ end
 
 --- Comment on a PR (bang "!") or a diff line/range.
 M.comment = function(args)
+  assert(args and args.line1 and args.line2)
   if args.bang and args.range then
     return utils.notify('Cannot use bang and range together.', vim.log.levels.ERROR)
   end
   if args.bang then
     return utils.notify(':GuhComment! (bang) not implemented yet', vim.log.levels.ERROR)
   else
-    local line1 = (args or {}).line1 or vim.fn.line('.')
-    local line2 = (args or {}).line2 or vim.fn.line('.')
-    M.do_comment(line1, line2)
+    M.do_comment(args.line1, args.line2)
   end
 end
 

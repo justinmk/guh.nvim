@@ -1,5 +1,4 @@
 local async = require('async')
-local comments_utils = require('guh.comments_utils')
 local config = require('guh.config')
 local utils = require('guh.utils')
 

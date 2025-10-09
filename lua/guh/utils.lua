@@ -93,7 +93,22 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
     opts.noremap = opts.noremap == nil and true or opts.noremap
     opts.silent = opts.silent == nil and true or opts.silent
     opts.buffer = buf
-    vim.keymap.set(mode, lhs, rhs, opts)
+    local function wrap_rhs(args)
+      -- Fixup because apparently mappings don't get args?
+      if not args then
+        args = {}
+        if vim.api.nvim_get_mode().mode:find('[vV]') then
+          vim.fn.feedkeys(vim.keycode('<Esc>'), 'nx')
+          args.line1 = vim.fn.line("'<")
+          args.line2 = vim.fn.line("'>")
+        else
+          args.line1 = vim.fn.line('.')
+          args.line2 = vim.fn.line('.')
+        end
+      end
+      rhs(args)
+    end
+    vim.keymap.set(mode, lhs, type(rhs) == 'function' and wrap_rhs or rhs, opts)
   end
 end
 
