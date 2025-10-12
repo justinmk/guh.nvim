@@ -5,7 +5,7 @@
 # Run tests with "nvim -l" instead of "-ll", so tests can use the full "vim."
 # API from the Nvim test harness process itself.
 patch-runner:
-	sed -i '' 's/-ll /-l /' $(NEOVIM_PATH)/cmake/RunTests.cmake
+	sed -i.bak 's/-ll /-l /' $(NEOVIM_PATH)/cmake/RunTests.cmake && rm $(NEOVIM_PATH)/cmake/RunTests.cmake.bak
 
 test: patch-runner
 ifeq ($(NEOVIM_PATH),)
