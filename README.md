@@ -43,6 +43,16 @@ Requirements:
    without doing a checkout.
 5. (TODO) PR comments will display on relevant git objects.
 
+## Development
+
+Run the tests:
+
+    NEOVIM_PATH='/path/to/neovim/' make test
+
+Run specific tests:
+
+    NEOVIM_PATH='/path/to/neovim/' make test TEST_FILTER=load_comments
+
 ## Related
 
 - https://github.com/pwntester/octo.nvim

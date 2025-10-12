@@ -38,7 +38,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NEOVIM_PATH: ${{ github.workspace }}/neovim
         run: |
-          make patch-runner
+          # make patch-runner
           cd neovim
           TEST_FILE=test/functional/example_spec.lua make functionaltest
 
