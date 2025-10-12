@@ -10,6 +10,7 @@ function M.system_str(cmd, cb)
       if result.code ~= 0 and #result.stderr > 0 then
         config.log('system_str error', result.stderr)
         M.notify(result.stderr, vim.log.levels.ERROR)
+        error(result.stderr)
       end
 
       cb(result.stdout, result.stderr)

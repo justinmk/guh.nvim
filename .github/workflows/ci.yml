@@ -18,7 +18,7 @@ jobs:
       #     neovim: true
       #     version: nightly
 
-      # 2. Checkout Neovim source into a subdirectory
+      # 2. Checkout Neovim source into a subdirectory.
       - name: Checkout Neovim
         uses: actions/checkout@v4
         with:
@@ -26,19 +26,25 @@ jobs:
           path: neovim
           fetch-depth: 1
 
-      # 3. Install test dependencies (Neovim's framework needs them)
+      # 3. Install Neovim's test dependencies.
       - name: Install deps
         run: |
           # sudo apt-get update
           sudo apt-get install -y ninja-build gettext cmake curl build-essential git
 
-      # 4. Build Neovim’s test environment (no need to build the binary)
+      # 4. Build Neovim. Run a dummy test. This avoids build noise in the logs for the next step.
       - name: Setup Neovim test environment
-        run: make -C neovim deps
-
-      # 5. Run your plugin tests using Neovim’s framework
-      - name: Run plugin tests
-        run: make test
         env:
           GH_TOKEN: ${{ github.token }}
           NEOVIM_PATH: ${{ github.workspace }}/neovim
+        run: |
+          make patch-runner
+          cd neovim
+          TEST_FILE=test/functional/example_spec.lua make functionaltest
+
+      # 5. Run the plugin tests using Neovim’s framework.
+      - name: Run plugin tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEOVIM_PATH: ${{ github.workspace }}/neovim
+        run: make test
