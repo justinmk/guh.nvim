@@ -1,4 +1,14 @@
 ---@diagnostic disable: redundant-return-value
+
+-- TODO: do this in global test setup
+vim.opt.runtimepath:append{
+  vim.fn.getcwd() .. '/test/functional/guh.nvim/',
+}
+
+local t = require('test.testutil')
+local n = require('test.functional.testnvim')()
+local clear, eq, eval, command, feed, insert, wait = n.clear, t.eq, n.eval, n.command, n.feed, n.insert, n.wait
+
 local async = require('async')
 local gh = require('guh.gh')
 local pr_commands = require('guh.pr_commands')
@@ -194,6 +204,16 @@ function tests.test_Guh(ctx)
   end)
 end
 
+describe('guh.gh', function()
+  -- THIS IS AN EXAMPLE. DO NOT TOUCH. USE IT TO CREATE OTHER it() CASES.
+  it('get_pr_info', function()
+    local task = tests.test_get_pr_info()
+    local ok, rv = task:pwait()
+    assert(ok)
+  end)
+end)
+
+--[[
 local function main()
   require('guh').setup({})
   -- tests = { test_get_prepare_comment2 = tests.test_get_prepare_comment2 }
@@ -247,3 +267,4 @@ local function main()
 end
 
 main()
+--]]
