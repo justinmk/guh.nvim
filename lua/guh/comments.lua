@@ -40,7 +40,7 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
   local diff_buf = vim.api.nvim_win_get_buf(diff_win)
   local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
-  vim.cmd[[botright vertical split]]
+  vim.cmd [[botright vertical split]]
   local buf = state.init_buf('comments', id)
 
   local win = vim.api.nvim_get_current_win()
@@ -161,6 +161,9 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
   end
   -- error(vim.inspect(buf))
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
+
+  vim.cmd [[wincmd p]] -- Return to diff window.
+  util.show_info_overlay(buf, 'Empty line = no comment on that diff line')
 
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true

@@ -166,4 +166,46 @@ function M.run_term_cmd(buf, feat, id, cmd, on_done)
   end)
 end
 
+local overlay_win = -1
+
+--- Shows an info overlay message in the given buffer.
+--- Only one overlay is allowed globally.
+--- Pass `msg=nil` to delete the current overlay.
+---
+--- @param buf integer
+--- @param msg string? Message, or nil to delete the current overlay.
+function M.show_info_overlay(buf, msg)
+  local win = (vim.fn.win_findbuf(buf) or {})[1]
+  local winvalid = vim.api.nvim_win_is_valid
+  if not win then
+    return -- Buffer not currently visible in any window.
+  end
+  -- vim.api.nvim_buf_clear_namespace(buf, overlay_ns, 0, -1)
+  if not msg then
+    if winvalid(overlay_win) then
+      vim.api.nvim_win_close(overlay_win, true)
+    end
+    return -- If msg=nil, only clear the overlay.
+  end
+
+  local overlay_buf = vim.api.nvim_create_buf(false, true) -- Scratch buffer
+  vim.api.nvim_buf_set_lines(overlay_buf, 0, -1, false, { msg })
+
+  local winconfig = {
+    focusable = false,
+    hide = false,
+    relative = 'win', -- Anchor to window
+    win = win,
+    row = 0,
+    col = 2,
+    width = math.max(1, vim.api.nvim_win_get_width(win) - 2),
+    height = 1,
+    style = 'minimal',
+    border = 'none',
+  }
+  overlay_win = winvalid(overlay_win) and overlay_win or vim.api.nvim_open_win(overlay_buf, false, winconfig)
+  vim.api.nvim_win_set_config(overlay_win, winconfig)
+  vim.wo[overlay_win].winhighlight = 'Normal:Comment'
+end
+
 return M

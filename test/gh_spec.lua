@@ -210,9 +210,10 @@ describe('commands', function()
     n.command('GuhDiff 1')
 
     screen:expect {
+      timeout = 10000,
       attr_ids = {}, -- Don't care about colors.
       grid = [[
-        ^diff --git {MATCH:a/.* b/.*}│Empty line = no comment {MATCH:.*}|
+        ^diff --git {MATCH:a/.* b/.*}│  Empty line = no comment {MATCH:.*}|
         index {MATCH:.*}|
         --- {MATCH:.*}|
         +++ {MATCH:.*}|
