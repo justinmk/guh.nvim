@@ -1,6 +1,6 @@
 local async = require('async')
 local config = require('guh.config')
-local utils = require('guh.utils')
+local util = require('guh.util')
 
 require('guh.types')
 
@@ -50,7 +50,7 @@ end
 
 --- Gets details for one "thing" from `gh` and parses the JSON response into an object.
 local function get_info(cmd, cb)
-  vim.schedule_wrap(utils.system_str)(cmd, function(result, stderr)
+  vim.schedule_wrap(util.system_str)(cmd, function(result, stderr)
     if result == nil then
       cb(nil)
       return
@@ -79,9 +79,9 @@ function M.get_issue(issue_num, cb)
 end
 
 function M.get_repo(cb)
-  local progress = utils.new_progress_report('Loading...', 0)
+  local progress = util.new_progress_report('Loading...', 0)
   progress('running')
-  utils.system_str('gh repo view --json nameWithOwner -q .nameWithOwner', function(result)
+  util.system_str('gh repo view --json nameWithOwner -q .nameWithOwner', function(result)
     if result == nil then
       progress('failed')
     else
@@ -134,7 +134,7 @@ local function convert_comment(comment)
 end
 
 local function group_comments(gh_comments, cb)
-  utils.get_git_root(function(git_root)
+  util.get_git_root(function(git_root)
     --- @type table<number, Comment[]>
     local comment_groups = {}
     local base = {}
@@ -179,7 +179,7 @@ local function load_comments(type, number, cb)
   local log_type = type == 'pulls' and 'pr' or 'issue'
   M.get_repo(function(repo)
     config.log('repo', repo)
-    utils.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, number), function(comments_json)
+    util.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, number), function(comments_json)
       local comments = parse_or_default(comments_json, {})
       config.log(('%s comments'):format(log_type), comments)
 
@@ -187,7 +187,7 @@ local function load_comments(type, number, cb)
         return comment.line ~= vim.NIL
       end
 
-      comments = utils.filter_array(comments, is_valid_comment)
+      comments = util.filter_array(comments, is_valid_comment)
       config.log(('%s comments (total: %s)'):format(log_type, vim.tbl_count(comments)), comments)
 
       group_comments(comments, function(grouped)
@@ -223,7 +223,7 @@ function M.reply_to_comment(pr_number, body, reply_to, cb)
     }
     config.log('reply_to_comment request', request)
 
-    utils.system(request, function(result)
+    util.system(request, function(result)
       local resp = parse_or_default(result, { errors = {} })
 
       config.log('reply_to_comment resp', resp)
@@ -261,7 +261,7 @@ function M.new_comment(pr, body, path, start_line, line, cb)
 
     config.log('new_comment request', request)
 
-    utils.system(request, function(result)
+    util.system(request, function(result)
       local resp = parse_or_default(result, { errors = {} })
       config.log('new_comment resp', resp)
       cb(resp)
@@ -281,7 +281,7 @@ function M.new_pr_comment(pr, body, cb)
 
   config.log('new_pr_comment request', request)
 
-  local result = utils.system(request, function(result)
+  local result = util.system(request, function(result)
     config.log('new_pr_comment resp', result)
     cb(result)
   end)
@@ -300,7 +300,7 @@ function M.update_comment(comment_id, body, cb)
     }
     config.log('update_comment request', request)
 
-    utils.system(request, function(result)
+    util.system(request, function(result)
       local resp = parse_or_default(result, { errors = {} })
       config.log('update_comment resp', resp)
       cb(resp)
@@ -319,7 +319,7 @@ function M.delete_comment(comment_id, cb)
     }
     config.log('delete_comment request', request)
 
-    utils.system(request, function(resp)
+    util.system(request, function(resp)
       config.log('delete_comment resp', resp)
       cb(resp)
     end)
@@ -329,7 +329,7 @@ end
 --- @param cb fun(prs: PullRequest[])
 function M.get_pr_list(cb)
   local cmd = 'gh pr list --json ' .. table.concat(pr_fields, ',')
-  utils.system_str(cmd, function(resp, stderr)
+  util.system_str(cmd, function(resp, stderr)
     config.log('get_pr_list resp', resp)
     local prefix = 'Unknown JSON field'
     if string.sub(stderr, 1, #prefix) == prefix then
@@ -340,7 +340,7 @@ function M.get_pr_list(cb)
           return v ~= 'baseRefOid'
         end)
         :totable()
-      utils.system_str('gh pr list --json ' .. table.concat(fields, ','), function(resp2)
+      util.system_str('gh pr list --json ' .. table.concat(fields, ','), function(resp2)
         config.log('get_pr_list resp', resp2)
         cb(parse_or_default(resp2, {}))
       end)
@@ -353,11 +353,11 @@ end
 --- @param pr PullRequest
 function M.checkout_pr(pr, cb)
   local branch = ('pr%s-%s'):format(pr.number, pr.author.login):gsub(' ', '_')
-  utils.system_str(f('gh pr checkout --force --branch %s %d', branch, pr.number), cb)
+  util.system_str(f('gh pr checkout --force --branch %s %d', branch, pr.number), cb)
 end
 
 function M.approve_pr(number, cb)
-  utils.system_str(f('gh pr review %s -a', number), cb)
+  util.system_str(f('gh pr review %s -a', number), cb)
 end
 
 function M.request_changes_pr(number, body, cb)
@@ -373,22 +373,22 @@ function M.request_changes_pr(number, body, cb)
 
   config.log('request_changes_pr request', request)
 
-  local result = utils.system(request, function(result)
+  local result = util.system(request, function(result)
     config.log('request_changes_pr resp', result)
     cb(result)
   end)
 end
 
 function M.get_pr_diff(number, cb)
-  utils.system_str(f('gh pr diff %s', number), cb)
+  util.system_str(f('gh pr diff %s', number), cb)
 end
 
 function M.merge_pr(number, options, cb)
-  utils.system_str(f('gh pr merge %s %s', number, options), cb)
+  util.system_str(f('gh pr merge %s %s', number, options), cb)
 end
 
 function M.get_user(cb)
-  utils.system_str('gh api user -q .login', function(result)
+  util.system_str('gh api user -q .login', function(result)
     if result ~= nil then
       cb(vim.split(result, '\n')[1])
     end

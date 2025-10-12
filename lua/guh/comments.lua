@@ -1,6 +1,6 @@
 local config = require('guh.config')
 local gh = require('guh.gh')
-local utils = require('guh.utils')
+local util = require('guh.util')
 
 local M = {}
 
@@ -30,14 +30,14 @@ local function load_comments_to_quickfix_list(comments_list)
     vim.fn.setqflist(qf_entries, 'r')
     vim.cmd('cfirst')
   else
-    utils.notify('No GH comments loaded.')
+    util.notify('No GH comments loaded.')
   end
 end
 
 ---@param prnum integer
 ---@param cb? fun()
 function M.load_comments(prnum, bufnr)
-  local progress = utils.new_progress_report('Loading comments', vim.fn.bufnr())
+  local progress = util.new_progress_report('Loading comments', vim.fn.bufnr())
   assert(type(prnum) == 'number')
   gh.load_comments(
     prnum,
@@ -49,7 +49,7 @@ function M.load_comments(prnum, bufnr)
 end
 
 M.update_comment = function(opts)
-  utils.notify('TODO')
+  util.notify('TODO')
 end
 
 -- TODO: fix this, code is outdated after big refactor.
@@ -58,7 +58,7 @@ M.load_comments_into_diagnostics = function(bufnr, filename, comments_list)
   vim.schedule(function()
     config.log('load_comments_into_diagnostics:', filename)
     if not comments_list or comments_list[filename] == nil then
-      utils.notify(('comments_list[%s] is empty'):format(filename))
+      util.notify(('comments_list[%s] is empty'):format(filename))
     else
       local diagnostics = {}
       for _, comment in pairs(comments_list[filename]) do

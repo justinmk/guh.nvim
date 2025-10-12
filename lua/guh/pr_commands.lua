@@ -2,23 +2,23 @@ local comments = require('guh.comments')
 local config = require('guh.config')
 local gh = require('guh.gh')
 local state = require('guh.state')
-local utils = require('guh.utils')
+local util = require('guh.util')
 
 local M = {}
 
 --- @param buf integer
 local function set_pr_view_keymaps(buf)
-  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
-  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
-  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
-  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR or diff', M.comment)
-  utils.buf_keymap(buf, 'x', 'c', 'Comment on PR or diff', M.comment)
-  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
+  util.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
+  util.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
+  util.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
+  util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR or diff', M.comment)
+  util.buf_keymap(buf, 'x', 'c', 'Comment on PR or diff', M.comment)
+  util.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
 end
 
 --- @param buf integer
 local function set_issue_view_keymaps(buf)
-  utils.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', ':GuhComment<cr>')
+  util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', ':GuhComment<cr>')
 end
 
 --- Shows...
@@ -39,7 +39,7 @@ function M.select(opts)
     return not not repo
   end)
   if not repo then
-    utils.notify('Failed to get repo info', vim.log.levels.ERROR)
+    util.notify('Failed to get repo info', vim.log.levels.ERROR)
     return
   end
   local test_cmd = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, num) }, { text = true }):wait()
@@ -55,25 +55,25 @@ end
 
 --- Performs checkout. Shows PR info.
 function M.checkout(opts)
-  utils.notify('TODO')
+  util.notify('TODO')
 end
 
 function M.approve_pr()
-  utils.notify('TODO')
+  util.notify('TODO')
 end
 
 function M.request_changes_pr()
-  utils.notify('TODO')
+  util.notify('TODO')
 end
 
 function M.merge_pr()
-  utils.notify('TODO')
+  util.notify('TODO')
 end
 
 function M.load_comments(opts)
   local prnum = opts.args and tonumber(opts.args) or (vim.b.guh or {}).id
   if not prnum then
-    utils.notify('No PR number provided', vim.log.levels.ERROR)
+    util.notify('No PR number provided', vim.log.levels.ERROR)
     return
   end
   comments.load_comments(prnum)
@@ -86,7 +86,7 @@ function M.show_status()
     id = 0,
     feat = 'status',
   })
-  utils.run_term_cmd(buf, 'status', 'all', { 'gh', 'status' })
+  util.run_term_cmd(buf, 'status', 'all', { 'gh', 'status' })
 end
 
 --- @param id integer
@@ -97,7 +97,7 @@ function M.show_issue(id)
     id = id,
     feat = 'issue',
   })
-  utils.run_term_cmd(buf, 'issue', id, { 'gh', 'issue', 'view', tostring(id) })
+  util.run_term_cmd(buf, 'issue', id, { 'gh', 'issue', 'view', tostring(id) })
   set_issue_view_keymaps(buf)
 end
 
@@ -108,7 +108,7 @@ function M.show_pr(id)
     id = id,
     feat = 'pr',
   })
-  utils.run_term_cmd(buf, 'pr', id, { 'gh', 'pr', 'view', '--comments', tostring(id) })
+  util.run_term_cmd(buf, 'pr', id, { 'gh', 'pr', 'view', '--comments', tostring(id) })
   set_pr_view_keymaps(buf)
 end
 
@@ -121,7 +121,7 @@ function M.show_pr_diff(opts)
     id = id,
     feat = 'diff',
   })
-  utils.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) })
+  util.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) })
   set_pr_view_keymaps(buf)
 end
 
@@ -129,10 +129,10 @@ end
 M.comment = function(args)
   assert(args and args.line1 and args.line2)
   if args.bang and args.range then
-    return utils.notify('Cannot use bang and range together.', vim.log.levels.ERROR)
+    return util.notify('Cannot use bang and range together.', vim.log.levels.ERROR)
   end
   if args.bang then
-    return utils.notify(':GuhComment! (bang) not implemented yet', vim.log.levels.ERROR)
+    return util.notify(':GuhComment! (bang) not implemented yet', vim.log.levels.ERROR)
   else
     M.do_comment(args.line1, args.line2)
   end
@@ -256,12 +256,12 @@ function M.do_comment(line1, line2)
 
   gh.get_pr_info(info.pr_id, function(pr)
     if not pr then
-      return utils.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
+      return util.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
     end
     vim.schedule(function()
       local prompt = '<!-- Type your comment and press ' .. config.s.keymaps.comment.send_comment .. ' to comment: -->'
-      utils.edit_comment(info.pr_id, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
-        local progress = utils.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
+      util.edit_comment(info.pr_id, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
+        local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
