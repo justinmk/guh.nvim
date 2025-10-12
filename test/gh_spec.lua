@@ -206,19 +206,19 @@ describe('features', function()
 end)
 
 describe('commands', function()
-  it(':GuhDiff', function()
+  it(':GuhDiff loads PR diff + comments split window', function()
     n.command('GuhDiff 1')
 
     screen:expect {
       attr_ids = {}, -- Don't care about colors.
       grid = [[
-        ^diff --git {MATCH:a/.* b/.* +}|
+        ^diff --git {MATCH:a/.* b/.*}│Empty line = no comment {MATCH:.*}|
         index {MATCH:.*}|
         --- {MATCH:.*}|
         +++ {MATCH:.*}|
         @@ {MATCH:.*} @@ {MATCH:.*}|
         {MATCH:.*}|*3
-        {MATCH:guh://diff/1 .*}|
+        {MATCH:guh://diff/1 .* guh://comments/1 +}|
         {MATCH:.*}|
       ]],
     }

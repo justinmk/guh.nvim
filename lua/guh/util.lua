@@ -21,7 +21,7 @@ end
 function M.system(cmd, cb)
   vim.system(cmd, { text = true }, function(result)
     if type(cb) == 'function' then
-      cb(result.stdout)
+      vim.schedule_wrap(cb)(result.stdout)
     end
   end)
 end
@@ -81,7 +81,7 @@ function M.new_progress_report(action, buf)
     local msg = done and '' or ('%s %s'):format(action, (fmt or ''):format(...))
     progress.id = vim.api.nvim_echo({ { msg } }, status ~= 'running', progress)
 
-    if buf then
+    if buf and vim.api.nvim_buf_is_valid(buf) then
       vim.bo[buf].busy = math.max(0, vim.bo[buf].busy - 1)
     end
   end)
@@ -139,8 +139,12 @@ function M.edit_comment(prnum, prompt, content, key_binding, callback)
 end
 
 --- Overwrites the current :terminal buffer with the given cmd.
+--- @param buf integer
+--- @param feat Feat
+--- @param id any
 --- @param cmd string[]
-function M.run_term_cmd(buf, feat, id, cmd)
+--- @param on_done? fun()
+function M.run_term_cmd(buf, feat, id, cmd, on_done)
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
   vim.schedule(function()
@@ -153,6 +157,9 @@ function M.run_term_cmd(buf, feat, id, cmd)
       term = true,
       on_exit = function()
         state.set_buf_name(buf, feat, id)
+        if on_done then
+          on_done()
+        end
         progress('success')
       end,
     })

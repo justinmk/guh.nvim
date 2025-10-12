@@ -104,7 +104,7 @@ end
 --- Builds a markdown view of all comments associated with a diff-line.
 ---
 --- @param comments Comment[]
-function prepare_content(comments)
+local function prepare_content(comments)
   local lines = {}
   if #comments > 0 and comments[1].start_line ~= vim.NIL and comments[1].start_line ~= comments[1].line then
     table.insert(lines, ('📓 Comment on lines %d to %d\n\n'):format(comments[1].start_line, comments[1].line))
@@ -162,11 +162,11 @@ local function group_comments(gh_comments, cb)
         comments = comments,
       }
 
-      local full_path = git_root .. '/' .. comments[1].path
-      if result[full_path] == nil then
-        result[full_path] = { grouped_comments }
+      local filepath = comments[1].path -- Relative file path as given in the unified diff.
+      if result[filepath] == nil then
+        result[filepath] = { grouped_comments }
       else
-        table.insert(result[full_path], grouped_comments)
+        table.insert(result[filepath], grouped_comments)
       end
     end
 

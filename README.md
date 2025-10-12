@@ -28,20 +28,16 @@ See help for default config.
 Requirements:
 - nvim 0.12+
 - ["gh" (GitHub CLI)](https://cli.github.com/)
-- (Optional) [Diffview.nvim](https://github.com/sindrets/diffview.nvim)
-- (Optional) To override UI select for fzf-lua or telescope, use:
-  ```
-  vim.cmd('FzfLua register_ui_select')
-  ```
 
 ## How it works
 
 1. Show `gh` output in a `:terminal` buffer.
 2. Set keymaps on the buffer.
-3. (TODO) Fetch the git data into `.git` (without doing a checkout).
-4. (TODO) When viewing the diff, user can navigate to the git object (file)
+3. PR diff comments are loaded in a 'scrollbind' split window.
+4. (TODO) Fetch the git data into `.git` (without doing a checkout).
+5. (TODO) When viewing the diff, user can navigate to the git object (file)
    without doing a checkout.
-5. (TODO) PR comments will display on relevant git objects.
+6. (TODO) PR comments will display on relevant git objects.
 
 ## Development
 

@@ -71,7 +71,7 @@ function M.merge_pr()
 end
 
 function M.load_comments(opts)
-  local prnum = opts.args and tonumber(opts.args) or (vim.b.guh or {}).id
+  local prnum = opts and opts.args and tonumber(opts.args) or (vim.b.guh or {}).id
   if not prnum then
     util.notify('No PR number provided', vim.log.levels.ERROR)
     return
@@ -80,34 +80,19 @@ function M.load_comments(opts)
 end
 
 function M.show_status()
-  local buf = state.get_buf('status', 'all')
-  state.show_buf(buf)
-  state.set_b_guh(buf, {
-    id = 0,
-    feat = 'status',
-  })
+  local buf = state.init_buf('status', 'all')
   util.run_term_cmd(buf, 'status', 'all', { 'gh', 'status' })
 end
 
 --- @param id integer
 function M.show_issue(id)
-  local buf = state.get_buf('issue', id)
-  state.show_buf(buf)
-  state.set_b_guh(buf, {
-    id = id,
-    feat = 'issue',
-  })
+  local buf = state.init_buf('issue', id)
   util.run_term_cmd(buf, 'issue', id, { 'gh', 'issue', 'view', tostring(id) })
   set_issue_view_keymaps(buf)
 end
 
 function M.show_pr(id)
-  local buf = state.get_buf('pr', id)
-  state.show_buf(buf)
-  state.set_b_guh(buf, {
-    id = id,
-    feat = 'pr',
-  })
+  local buf = state.init_buf('pr', id)
   util.run_term_cmd(buf, 'pr', id, { 'gh', 'pr', 'view', '--comments', tostring(id) })
   set_pr_view_keymaps(buf)
 end
@@ -115,13 +100,10 @@ end
 function M.show_pr_diff(opts)
   local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
 
-  local buf = state.get_buf('diff', id)
-  state.show_buf(buf)
-  state.set_b_guh(buf, {
-    id = id,
-    feat = 'diff',
-  })
-  util.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) })
+  local buf = state.init_buf('diff', id)
+  util.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) }, function()
+    M.load_comments()
+  end)
   set_pr_view_keymaps(buf)
 end
 
@@ -265,8 +247,7 @@ function M.do_comment(line1, line2)
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
-            -- TODO this is broken. ignore it for now.
-            -- comments.load_comments_on_current_buffer()
+            M.load_comments() -- Reload comments.
           else
             progress('failed', nil, 'Failed to send comment.')
           end
