@@ -18,4 +18,5 @@ ifeq ($(NEOVIM_PATH),)
 	$(error NEOVIM_PATH is not set)
 endif
 	ln -sf $(shell pwd) $(NEOVIM_PATH)/test/functional/guh.nvim
-	cd $(NEOVIM_PATH) && TEST_FILE=test/functional/guh.nvim/test/gh_spec.lua make functionaltest
+	@cd $(NEOVIM_PATH) && env GH_TOKEN=$${GH_TOKEN:-$(shell gh auth token 2>/dev/null)} \
+		TEST_FILE=test/functional/guh.nvim/test/gh_spec.lua make functionaltest
