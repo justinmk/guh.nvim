@@ -1,3 +1,4 @@
+local comments = require('guh.comments')
 local config = require('guh.config')
 local gh = require('guh.gh')
 local state = require('guh.state')
@@ -75,7 +76,7 @@ function M.load_comments(opts)
     utils.notify('No PR number provided', vim.log.levels.ERROR)
     return
   end
-  require('guh.comments').load_comments(prnum)
+  comments.load_comments(prnum)
 end
 
 function M.show_status()

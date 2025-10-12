@@ -8,23 +8,19 @@ local severity = vim.diagnostic.severity
 
 local function load_comments_to_quickfix_list(comments_list)
   local qf_entries = {}
-  local filenames = {}
-  for fn in pairs(comments_list) do
-    table.insert(filenames, fn)
-  end
-  table.sort(filenames)
 
-  for _, filename in pairs(filenames) do
-    local comments_in_file = comments_list[filename]
+  for filename, comments_in_file in vim.spairs(comments_list) do
     table.sort(comments_in_file, function(a, b)
       return a.line < b.line
     end)
     for _, comment in pairs(comments_in_file) do
-      if #comment.comments > 0 then
+      local cs = comment.comments
+      if #cs > 0 then
         table.insert(qf_entries, {
           filename = filename,
           lnum = comment.line,
-          text = comment.content,
+          -- text = comment.content,
+          text = cs[1].body .. (cs[2] and (' (+%s more)'):format(vim.tbl_count(cs)) or ''),
         })
       end
     end
@@ -39,26 +35,17 @@ local function load_comments_to_quickfix_list(comments_list)
 end
 
 ---@param prnum integer
+---@param cb? fun()
 function M.load_comments(prnum, bufnr)
   local progress = utils.new_progress_report('Loading comments', vim.fn.bufnr())
   assert(type(prnum) == 'number')
-  gh.get_pr_info(prnum, function(pr)
-    if not pr then
-      utils.notify(('PR #%s not found'):format(prnum), vim.log.levels.ERROR)
-      progress('failed')
-      return
-    else
-      vim.schedule_wrap(function()
-        gh.load_comments(pr.number, function(comments_list)
-          vim.schedule(function()
-            load_comments_to_quickfix_list(comments_list)
-
-            progress('success')
-          end)
-        end)
-      end)
-    end
-  end)
+  gh.load_comments(
+    prnum,
+    vim.schedule_wrap(function(comments_list)
+      load_comments_to_quickfix_list(comments_list)
+      progress('success')
+    end)
+  )
 end
 
 M.update_comment = function(opts)

@@ -79,10 +79,12 @@ function M.get_issue(issue_num, cb)
 end
 
 function M.get_repo(cb)
-  local progress = utils.new_progress_report('Loading...')
+  local progress = utils.new_progress_report('Loading...', 0)
   progress('running')
   utils.system_str('gh repo view --json nameWithOwner -q .nameWithOwner', function(result)
-    if result ~= nil then
+    if result == nil then
+      progress('failed')
+    else
       cb(vim.split(result, '\n')[1])
       progress('success')
     end
@@ -99,6 +101,8 @@ local function format_comment(comment)
   )
 end
 
+--- Builds a markdown view of all comments associated with a diff-line.
+---
 --- @param comments Comment[]
 function prepare_content(comments)
   local lines = {}
@@ -117,19 +121,16 @@ function prepare_content(comments)
   return table.concat(lines, '')
 end
 
---- @return Comment: extracted gh comment
+--- Marshalls an API comment to local `Comment` type.
+---
+--- @return Comment extracted gh comment
 local function convert_comment(comment)
-  return {
-    id = comment.id,
-    url = comment.html_url,
-    path = comment.path,
-    line = comment.line,
-    start_line = comment.start_line,
-    user = comment.user.login,
-    body = comment.body,
-    updated_at = comment.updated_at,
-    diff_hunk = comment.diff_hunk,
-  }
+  local extended = vim.tbl_extend('force', {}, comment)
+  -- Aliases
+  extended.url = comment.html_url
+  -- XXX override
+  extended.user = comment.user.login
+  return extended
 end
 
 local function group_comments(gh_comments, cb)
@@ -173,26 +174,25 @@ local function group_comments(gh_comments, cb)
   end)
 end
 
+--- @param type 'pulls|'issues'
 local function load_comments(type, number, cb)
+  local log_type = type == 'pulls' and 'pr' or 'issue'
   M.get_repo(function(repo)
     config.log('repo', repo)
     utils.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, number), function(comments_json)
       local comments = parse_or_default(comments_json, {})
-      config.log(('%s comments'):format(type), comments)
+      config.log(('%s comments'):format(log_type), comments)
 
       local function is_valid_comment(comment)
         return comment.line ~= vim.NIL
       end
 
       comments = utils.filter_array(comments, is_valid_comment)
-      config.log(('Valid %s comments count'):format(type), #comments)
-      config.log(('%s comments'):format(type), comments)
+      config.log(('%s comments (total: %s)'):format(log_type, vim.tbl_count(comments)), comments)
 
-      group_comments(comments, function(grouped_comments)
-        config.log(('Valid %s comments groups count:'):format(type), #grouped_comments)
-        config.log(('grouped %s comments'):format(type), grouped_comments)
-
-        cb(grouped_comments)
+      group_comments(comments, function(grouped)
+        config.log(('grouped %s comments (total: %s)'):format(log_type, vim.tbl_count(grouped)), grouped)
+        cb(grouped)
       end)
     end)
   end)
