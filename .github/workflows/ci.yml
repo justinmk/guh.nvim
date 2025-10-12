@@ -9,16 +9,36 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      # 1. Checkout this plugin repo.
+      - uses: actions/checkout@v4
 
-    - uses: rhysd/action-setup-vim@v1
-      with:
-        neovim: true
-        version: nightly
+      # - uses: rhysd/action-setup-vim@v1
+      #   with:
+      #     neovim: true
+      #     version: nightly
 
-    - name: Run tests
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: make test
+      # 2. Checkout Neovim source into a subdirectory
+      - name: Checkout Neovim
+        uses: actions/checkout@v4
+        with:
+          repository: neovim/neovim
+          path: neovim
+          fetch-depth: 1
+
+      # 3. Install test dependencies (Neovim's framework needs them)
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build gettext libtool libtool-bin autoconf automake cmake g++ pkg-config unzip curl
+
+      # 4. Build Neovim’s test environment (no need to build the binary)
+      - name: Setup Neovim test environment
+        run: make -C neovim deps
+
+      # 5. Run your plugin tests using Neovim’s framework
+      - name: Run plugin tests
+        run: make test
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEOVIM_PATH: ${{ github.workspace }}/neovim
