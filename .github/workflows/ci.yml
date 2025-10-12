@@ -29,8 +29,8 @@ jobs:
       # 3. Install test dependencies (Neovim's framework needs them)
       - name: Install deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build gettext libtool libtool-bin autoconf automake cmake g++ pkg-config unzip curl
+          # sudo apt-get update
+          sudo apt-get install -y ninja-build gettext cmake curl build-essential git
 
       # 4. Build Neovim’s test environment (no need to build the binary)
       - name: Setup Neovim test environment
