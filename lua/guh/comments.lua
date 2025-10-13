@@ -138,8 +138,10 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
           )
         end
         if body and body ~= '' then
-          local prefix = ('# %s:%d'):format(filename, gh_line)
-          lines[idx] = (lines[idx] ~= '' and lines[idx] .. '\n' or '') .. prefix .. '\n> ' .. body:gsub('\n', '\n> ')
+          local author = comment.user or comment.comments[1].user
+          local date = comment.updated_at or comment.comments[1].updated_at
+          local prefix = ('%s %s `%s:%d`\n'):format(author, date, filename, gh_line)
+          lines[idx] = (lines[idx] ~= '' and lines[idx] .. '\n' or '') .. prefix .. body
         end
       end
     end
@@ -169,6 +171,7 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
 
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true
+  vim.bo[buf].filetype = 'markdown'
 end
 
 ---@param prnum integer
@@ -337,8 +340,7 @@ function M.do_comment(line1, line2)
       return util.notify(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
     end
     vim.schedule(function()
-      local prompt = '<!-- Type your comment and press ' .. config.s.keymaps.comment.send_comment .. ' to comment: -->'
-      M.edit_comment(info.pr_id, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
+      M.edit_comment(info.pr_id, { '' }, config.s.keymaps.comment.send_comment, function(input)
         local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, function(resp)
           if resp['errors'] == nil then
@@ -353,11 +355,19 @@ function M.do_comment(line1, line2)
   end)
 end
 
-function M.edit_comment(prnum, prompt, content, key_binding, callback)
+function M.edit_comment(prnum, content, keymap, callback)
   if not state.try_show('comment', prnum) then
-    state.on_win_open()
+    vim.cmd [[
+       split
+     ]]
   end
   local buf = state.init_buf('comment', prnum)
+  vim._with({ buf = buf }, function()
+     vim.cmd[[set wrap breakindent nonumber norelativenumber nolist]]
+  end)
+
+  local infomsg = ('Type your comment, then press %s to post it.'):format(keymap)
+  util.show_info_overlay(buf, infomsg)
 
   vim.bo[buf].buftype = 'nofile'
   vim.bo[buf].filetype = 'markdown'
@@ -368,17 +378,20 @@ function M.edit_comment(prnum, prompt, content, key_binding, callback)
 
   local function capture_input_and_close()
     local input_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    if prompt ~= nil and input_lines[1] == prompt then
-      table.remove(input_lines, 1)
-    end
     local input = table.concat(input_lines, '\n')
 
     vim.cmd('bdelete')
     callback(input)
   end
 
-  util.buf_keymap(buf, 'n', key_binding, '', capture_input_and_close)
-  util.buf_keymap(buf, 'i', key_binding, '', capture_input_and_close)
+  util.buf_keymap(buf, 'n', keymap, '', capture_input_and_close)
+  vim.api.nvim_create_autocmd('InsertEnter', {
+    once = true,
+    buffer = buf,
+    callback = function()
+      util.show_info_overlay(buf, nil) -- Clear overlay.
+    end,
+  })
 end
 
 return M

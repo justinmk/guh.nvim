@@ -117,7 +117,7 @@ local function format_comment(comment)
     '✍️ %s at %s:\n%s\n\n',
     comment.user,
     comment.updated_at,
-    string.gsub(comment.body, '\r', '')
+    comment.body
   )
 end
 
@@ -150,6 +150,8 @@ local function convert_comment(comment)
   extended.url = comment.html_url
   -- XXX override
   extended.user = comment.user.login
+  -- Remove CR chars.
+  extended.body = string.gsub(comment.body, '\r', '')
   return extended
 end
 
@@ -194,7 +196,7 @@ local function group_comments(gh_comments, cb)
   end)
 end
 
---- @param type 'pulls|'issues'
+--- @param type 'pulls'|'issues'
 local function load_comments(type, number, cb)
   local log_type = type == 'pulls' and 'pr' or 'issue'
   M.get_repo(function(repo)

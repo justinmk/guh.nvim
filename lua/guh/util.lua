@@ -142,6 +142,7 @@ function M.run_term_cmd(buf, feat, id, cmd, on_done)
 end
 
 local overlay_win = -1
+local overlay_buf = -1
 
 --- Shows an info overlay message in the given buffer.
 --- Only one overlay is allowed globally.
@@ -163,7 +164,8 @@ function M.show_info_overlay(buf, msg)
     return -- If msg=nil, only clear the overlay.
   end
 
-  local overlay_buf = vim.api.nvim_create_buf(false, true) -- Scratch buffer
+  -- Scratch buffer
+  overlay_buf = vim.api.nvim_buf_is_valid(overlay_buf) and overlay_buf or vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(overlay_buf, 0, -1, false, { msg })
 
   local winconfig = {
