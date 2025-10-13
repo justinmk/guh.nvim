@@ -113,31 +113,6 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
   end
 end
 
-function M.edit_comment(prnum, prompt, content, key_binding, callback)
-  local buf = state.get_buf('comment', prnum)
-  state.try_set_buf_name(buf, 'comment', prnum)
-  vim.bo[buf].buftype = 'nofile'
-  vim.bo[buf].filetype = 'markdown'
-  vim.bo[buf].modifiable = true
-
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
-  vim.cmd [[normal! G]]
-
-  local function capture_input_and_close()
-    local input_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    if prompt ~= nil and input_lines[1] == prompt then
-      table.remove(input_lines, 1)
-    end
-    local input = table.concat(input_lines, '\n')
-
-    vim.cmd('bdelete')
-    callback(input)
-  end
-
-  M.buf_keymap(buf, 'n', key_binding, '', capture_input_and_close)
-  M.buf_keymap(buf, 'i', key_binding, '', capture_input_and_close)
-end
-
 --- Overwrites the current :terminal buffer with the given cmd.
 --- @param buf integer
 --- @param feat Feat

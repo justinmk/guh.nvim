@@ -39,7 +39,7 @@ describe('guh.gh', function()
       local get_pr_info_async = async.wrap(2, gh.get_pr_info)
 
       local function test_get_pr_info()
-        return async.run(function()
+        return async.run(vim.schedule_wrap(function()
           local result = assert(system_str_async('gh pr list --json number'))
           local pr_num = assert(vim.json.decode(result)[1].number, 'failed to get a repo issue')
 
@@ -48,7 +48,7 @@ describe('guh.gh', function()
           assert(type(pr.number) == 'number', 'pr.number not number')
           assert(type(pr.title) == 'string', 'pr.title not string')
           assert(type(pr.author) == 'table', 'pr.author not table')
-        end)
+        end))
       end
       local task = test_get_pr_info()
       task:wait(5000)
@@ -64,7 +64,7 @@ describe('guh.gh', function()
       local get_issue_async = async.wrap(2, gh.get_issue)
 
       local function test_get_issue()
-        return async.run(function()
+        return async.run(vim.schedule_wrap(function()
           local result = system_str_async('gh issue list --json number')
           local issue_num = assert(vim.json.decode(assert(result))[1].number, 'failed to get a repo issue')
 
@@ -73,7 +73,7 @@ describe('guh.gh', function()
           assert(type(issue.number) == 'number', 'issue.number not number')
           assert(type(issue.title) == 'string', 'issue.title not string')
           assert(type(issue.author) == 'table', 'issue.author not table')
-        end)
+        end))
       end
 
       local task = test_get_issue()

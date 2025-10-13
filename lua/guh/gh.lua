@@ -1,5 +1,6 @@
 local async = require('async')
 local config = require('guh.config')
+local state = require('guh.state')
 local util = require('guh.util')
 
 require('guh.types')
@@ -49,33 +50,52 @@ local function parse_or_default(str, default)
 end
 
 --- Gets details for one "thing" from `gh` and parses the JSON response into an object.
-local function get_info(cmd, cb)
+---
+--- @param cmd string gh command
+--- @param b_field string b:guh field to check for (and store) cached data.
+local function get_info(cmd, b_field, cb)
+  -- Use b:guh cache on the current buffer, if available.
+  local b_guh = vim.b.guh
+  if b_guh and b_guh[b_field] then
+    cb(b_guh[b_field])
+    return
+  end
+
+  local buf = vim.api.nvim_get_current_buf()
   vim.schedule_wrap(util.system_str)(cmd, function(result, stderr)
     if result == nil then
       cb(nil)
       return
     elseif stderr:match('Unknown JSON field') then
       error(('Unknown JSON field: %s'):format(stderr))
-      cb(parse_or_default(result, nil))
+      local r = parse_or_default(result, nil)
+      ---@diagnostic disable-next-line: missing-fields
+      state.set_b_guh(buf, { [b_field] = r })
+      cb(r)
     end
     config.log('get_info resp', result)
 
-    cb(parse_or_default(result, nil))
+    local r = parse_or_default(result, nil)
+    ---@diagnostic disable-next-line: missing-fields
+    state.set_b_guh(buf, { [b_field] = r })
+    cb(r)
   end)
 end
 
+--- Gets PR data from b:guh, or requests it from the API.
+---
 --- @param prnum string|number PR number, or empty for "current PR"
 --- @param cb fun(pr?: PullRequest)
 function M.get_pr_info(prnum, cb)
   local cmd = f('gh pr view %s --json %s', prnum, table.concat(pr_fields, ','))
-  get_info(cmd, cb)
+  get_info(cmd, 'pr_data', cb)
 end
 
 --- @param issue_num string|number Issue number
 --- @param cb fun(issue?: Issue)
 function M.get_issue(issue_num, cb)
   local cmd = f('gh issue view %s --json %s', issue_num, table.concat(issue_fields, ','))
-  get_info(cmd, cb)
+  get_info(cmd, 'issue_data', cb)
 end
 
 function M.get_repo(cb)

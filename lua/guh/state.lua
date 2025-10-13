@@ -45,6 +45,22 @@ function M.show_buf(buf)
   end
 end
 
+--- Tries to resolve the feat+id buffer and navigate to it, else returns false.
+---
+--- @param feat Feat
+--- @param pr_or_issue string|number PR or issue number or "all" for special cases (e.g. status).
+--- @return boolean true if the feat+id buffer exists and was focused, else false.
+function M.try_show(feat, pr_or_issue)
+  local buf = M.get_buf(feat, pr_or_issue)
+  local wins = vim.fn.win_findbuf(buf)
+  if #wins > 0 then
+    -- Already displayed elsewhere, focus it.
+    vim.api.nvim_set_current_win(wins[1])
+    return true
+  end
+  return false
+end
+
 --- Sets the `b:guh` buffer-local dict. `bufstate` is merged with existing state, if any.
 --- @param buf integer
 --- @param bufstate BufState
@@ -96,19 +112,6 @@ function M.set_buf_name(buf, feat, id)
   if prev_altbuf ~= unwanted_altbuf and unwanted_altbuf > 0 and unwanted_altbuf ~= buf then
     vim.api.nvim_buf_delete(unwanted_altbuf, {})
   end
-end
-
-function M.try_set_buf_name(buf, feat, id)
-  local bufname = get_buf_name(feat, id)
-  local foundbuf = vim.fn.bufnr(bufname)
-  if foundbuf > 0 and buf ~= foundbuf then
-    M.show_buf(foundbuf)
-    return foundbuf
-  end
-  M.set_buf_name(buf, feat, id)
-  M.on_win_open()
-  M.show_buf(buf)
-  return buf
 end
 
 M.on_win_open = function()
