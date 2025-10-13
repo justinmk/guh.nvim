@@ -169,7 +169,7 @@ end)
 describe('features', function()
   it('prepare_to_comment (hardcoded diff)', function()
     n.exec_lua(function()
-      local pr_commands = require('guh.pr_commands')
+      local comments = require('guh.comments')
       local state = require('guh.state')
 
       local pr_id = 42
@@ -194,7 +194,7 @@ describe('features', function()
       })
       vim.api.nvim_win_set_cursor(0, { 9, 0 }) -- on "+      comment = 'cc',"
 
-      local info = pr_commands.prepare_to_comment(9, 9)
+      local info = comments.prepare_to_comment(9, 9)
       assert(info)
       assert('lua/guh/config.lua' == info.file)
       assert(16 == info.start_line, info.start_line)

@@ -170,7 +170,7 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
 end
 
 ---@param prnum integer
-function M.load_comments(prnum, bufnr)
+function M.load_comments(prnum)
   local progress = util.new_progress_report('Loading comments', vim.fn.bufnr())
   assert(type(prnum) == 'number')
   gh.load_comments(
@@ -211,6 +211,143 @@ M.load_comments_into_diagnostics = function(bufnr, filename, comments_list)
 
       vim.diagnostic.set(vim.api.nvim_create_namespace('guh.comments'), bufnr, diagnostics, {})
     end
+  end)
+end
+
+--- Prepare info for commenting on a range in the current diff.
+--- This does not make a network request; it just returns metadata.
+---
+--- @param line1 integer 1-indexed start line
+--- @param line2 integer 1-indexed end line (inclusive)
+--- @return table|nil info { buf, pr_id, file, start_line, end_line }
+function M.prepare_to_comment(line1, line2)
+  local buf = vim.api.nvim_get_current_buf()
+  local prnum = assert(vim.b.guh.id)
+  if not prnum then
+    vim.notify('Not a PR diff buffer', vim.log.levels.WARN)
+    return nil
+  end
+
+  line1 = math.max(1, line1)
+  line2 = math.max(line1, line2 or line1)
+  local lines = vim.api.nvim_buf_get_lines(buf, line1 - 1, line2, false)
+  if vim.tbl_isempty(lines) then
+    vim.notify('Empty selection', vim.log.levels.WARN)
+    return nil
+  end
+
+  ---------------------------------------------------------------------------
+  -- Step 1: Determine the file path at the start of the selection
+  ---------------------------------------------------------------------------
+  local file
+  for i = line1, 1, -1 do
+    local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
+    local m = l and l:match('^%+%+%+ b/(.+)$')
+    if m then
+      file = m
+      break
+    end
+  end
+  if not file then
+    vim.notify('Could not determine file from diff', vim.log.levels.WARN)
+    return nil
+  end
+
+  ---------------------------------------------------------------------------
+  -- Step 2: Validate that the range does not cross into another file section
+  ---------------------------------------------------------------------------
+  for i = line1, line2 do
+    local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
+    if l and l:match('^%+%+%+ b/(.+)$') and not l:match('^%+%+%+ b/' .. vim.pesc(file) .. '$') then
+      vim.notify('Cannot comment across multiple files in a diff', vim.log.levels.ERROR)
+      return nil
+    end
+  end
+
+  ---------------------------------------------------------------------------
+  -- Step 3: Find nearest hunk header (if any)
+  ---------------------------------------------------------------------------
+  local hunk_start, new_start
+  for i = line1, 1, -1 do
+    local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
+    local start_new = l and l:match('^@@ [^+]+%+(%d+)')
+    if start_new then
+      hunk_start = i
+      new_start = tonumber(start_new)
+      break
+    end
+  end
+
+  -- No hunk found → treat as file-level comment
+  if not new_start then
+    return {
+      buf = buf,
+      pr_id = tonumber(prnum),
+      file = file,
+      line_start = nil,
+      line_end = nil,
+    }
+  end
+
+  ---------------------------------------------------------------------------
+  -- Step 4: Compute new-file line numbers for range
+  ---------------------------------------------------------------------------
+  local function compute_new_line(idx)
+    local line_num = new_start
+    for i = hunk_start + 1, idx - 1 do
+      local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
+      local c = l:sub(1, 1)
+      if c ~= '-' then
+        line_num = line_num + 1
+      end
+    end
+    return line_num
+  end
+
+  local line_start = compute_new_line(line1)
+  local line_end = compute_new_line(line2)
+
+  ---------------------------------------------------------------------------
+  -- Step 5: Return structured info
+  ---------------------------------------------------------------------------
+  return {
+    buf = buf,
+    pr_id = tonumber(prnum),
+    file = file,
+    -- GH expects 0-indexed lines, end-EXclusive.
+    start_line = line_start,
+    end_line = line_end,
+  }
+end
+
+--- Posts a file comment on the line at cursor.
+---
+--- @param line1 integer 1-indexed line
+--- @param line2 integer 1-indexed line
+function M.do_comment(line1, line2)
+  local info = M.prepare_to_comment(line1, line2)
+  if not info then
+    return
+  end
+
+  gh.get_pr_info(info.pr_id, function(pr)
+    if not pr then
+      return util.notify(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
+    end
+    vim.schedule(function()
+      local prompt = '<!-- Type your comment and press ' .. config.s.keymaps.comment.send_comment .. ' to comment: -->'
+      util.edit_comment(info.pr_id, prompt, { prompt, '' }, config.s.keymaps.comment.send_comment, function(input)
+        local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
+        gh.new_comment(pr, input, info.file, info.start_line, info.end_line, function(resp)
+          if resp['errors'] == nil then
+            progress('success', nil, 'Comment sent.')
+            M.load_comments(info.pr_id) -- Reload comments.
+          else
+            progress('failed', nil, 'Failed to send comment.')
+          end
+        end)
+      end)
+    end)
   end)
 end
 
