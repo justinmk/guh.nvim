@@ -32,74 +32,22 @@ you don't want to change the defaults. >lua
 
   require('guh').setup({
     debug = false, -- if set to true debugging information is written to stdpath(log)/.guh.log file
-    merge = {
-      approved = '--squash',
-      nonapproved = '--auto --squash',
-    },
-    html_comments_command = { 'lynx', '-stdin', '-dump' }, -- command to render HTML comments in PR view
-    -- override default keymaps with the ones you prefer
-    -- set keymap to false or '' to disable it
-    keymaps = {
-      diff = {
-        open_file = 'gf',
-        open_file_tab = '',
-        open_file_split = 'o',
-        open_file_vsplit = 'O',
-        approve = 'cA',
-        request_changes = 'cR',
-      },
-      comment = {
-        send_comment = 'c<CR>' -- this one cannot be disabled
-      },
-      pr = {
-        approve = 'cA',
-        request_changes = 'cR',
-        merge = 'cM',
-        comment = 'ca',
-        diff = 'cp',
-      },
-    },
   })
 <
 
 ==============================================================================
-WORKFLOWS
-
-==============================================================================
-Quick PR Review                                           *guh-basic-workflow*
+WORKFLOW                                                        *guh-workflow*
 
 To review a PR without doing a checkout in your repo:
 
 - Run `:Guh` to select and view a PR.
   - Run it anytime later to refresh/reopen the PR view.
-- Run `:GuhDiff` to see the diff. Comments on the diff are loaded.
-  - Navigate comments using `vim.diagnostic.jump` (|]d| |[d|).
-  - See comment details using `<C-w>d` |CTRL-W_d-default|
-- Run `:GuhComment` to comment in existing conversations or start the
-  new one directly in diff view. Alternatively you can use `:GuhWeb` to open
-  comments in browser.
-- Run `:GuhApprove` to approve PR if everything is OK. you can use
-  `ca` in diff and pr views.
-- Run `:GuhRequestChanges` to request changes on PR if something is
-  wrong. you can use `cr` in diff and pr views.
-
-==============================================================================
-The checkout workflow                                  *guh-checkout-workflow*
-
-The "checkout" workflow:
-
-- Run `:GuhDiff` to see the diff of the current PR. Use `gf` in this
-  buffer to go to a file and line if you want to see more context. Comments
-  will be shown as diagnostics in the opened file.
-- Run `:GuhLoadComments` to review all comments in the code if diff view
-  is not enough. List of comments is loaded to quickfix and shown in file as
-  diagnostic messages.
-- Run `:GuhComment` to comment in a conversation or a diff line/range.
-  Or use `:GuhWeb` to open the web UI.
-- Run `:GuhApprove` to approve PR if everything is OK. you can use
-  `ca` in diff and pr views.
-- Run `:GuhRequestChanges` to request changes on PR if something is
-  wrong. you can use `cr` in diff and pr views.
+- Run `:GuhDiff` to see the diff. PR comments are loaded:
+  - in the quickfix buffer (use |]q| to navigate).
+  - in a 'scrollbind' split window next to the diff window (if the
+    scrollbind gets out of sync, try |:syncbind|).
+  - (TODO) as diagnostics
+- Type `cc` or `:GuhComment` to comment on a diff line.
 
 ==============================================================================
 COMMANDS                                                        *guh-commands*
@@ -137,10 +85,15 @@ COMMANDS                                                        *guh-commands*
               split window.
 
                                                                     *:GuhDiff*
-:GuhDiff      Loads PR diff that you can review. Shows diff of selected PR. If
-              no PR is selected then PR number is resolved from git branch
-              associated with PR. Comments are loaded and shown as diagnostics
-              in this view as well.
+:GuhDiff      Shows PR diff and its comments.
+
+              PR comments are loaded:
+              - in the quickfix buffer (use |]q| to navigate).
+              - in a 'scrollbind' split window next to the diff window (if the
+                scrollbind gets out of sync, try |:syncbind|).
+              - (TODO) as diagnostics
+                - Navigate using `vim.diagnostic.jump` (|]d| |[d|).
+                - See comment details using `<C-w>d` |CTRL-W_d-default|
 
               Buffer-local key bindings:
               - `gf` go to file from PR diff. `gf` command will not work if

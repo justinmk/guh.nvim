@@ -1,5 +1,6 @@
 local M = {}
 
+-- Default config.
 M.s = {
   debug = false,
   merge = {

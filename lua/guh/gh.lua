@@ -113,12 +113,7 @@ end
 
 --- @param comment Comment
 local function format_comment(comment)
-  return string.format(
-    '✍️ %s at %s:\n%s\n\n',
-    comment.user,
-    comment.updated_at,
-    comment.body
-  )
+  return string.format('✍️ %s at %s:\n%s\n\n', comment.user, comment.updated_at, comment.body)
 end
 
 --- Builds a markdown view of all comments associated with a diff-line.

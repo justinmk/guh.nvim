@@ -53,14 +53,6 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
   vim.wo.number = false
   vim.wo.relativenumber = false
   vim.wo.list = false
-  vim.wo.scrollbind = true
-
-  -- also scrollbind diff window
-  local prev = diff_win
-  local cur = vim.api.nvim_get_current_win()
-  vim.api.nvim_set_current_win(prev)
-  vim.wo.scrollbind = true
-  vim.api.nvim_set_current_win(cur)
 
   ---------------------------------------------------------------------------
   -- Step 1: Parse diff → map each *visible line* to its file + "new" line num
@@ -172,6 +164,10 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true
   vim.bo[buf].filetype = 'markdown'
+
+  -- Set scrollbind on both windows *after* writing the buffer content.
+  vim.wo[diff_win].scrollbind = true
+  vim.wo[win].scrollbind = true
 end
 
 ---@param prnum integer
@@ -363,7 +359,7 @@ function M.edit_comment(prnum, content, keymap, callback)
   end
   local buf = state.init_buf('comment', prnum)
   vim._with({ buf = buf }, function()
-     vim.cmd[[set wrap breakindent nonumber norelativenumber nolist]]
+    vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
   local infomsg = ('Type your comment, then press %s to post it.'):format(keymap)
@@ -372,6 +368,7 @@ function M.edit_comment(prnum, content, keymap, callback)
   vim.bo[buf].buftype = 'nofile'
   vim.bo[buf].filetype = 'markdown'
   vim.bo[buf].modifiable = true
+  vim.bo[buf].textwidth = 0
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
   vim.cmd [[normal! G]]
