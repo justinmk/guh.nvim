@@ -8,11 +8,11 @@ local test_cwd = assert(os.getenv('TEST_CWD'))
 
 local screen
 before_each(function()
-  n.clear{
+  n.clear {
     args = {
       '-c',
-      ("cd '%s'"):format(test_cwd)
-    }
+      ("cd '%s'"):format(test_cwd),
+    },
   }
   n.exec [[
     set laststatus=2
@@ -21,7 +21,7 @@ before_each(function()
   n.exec_lua(function(cwd_)
     vim.cmd.cd(cwd_)
     -- TODO: do this in global test setup
-    vim.opt.runtimepath:append{
+    vim.opt.runtimepath:append {
       cwd_,
       -- vim.fn.getcwd() .. '/test/functional/guh.nvim/',
     }
@@ -34,12 +34,12 @@ describe('guh.gh', function()
     n.exec_lua(function()
       local async = require('async')
       local gh = require('guh.gh')
-      local utils = require('guh.utils')
-      local system_str_async = async.wrap(2, utils.system_str)
+      local util = require('guh.util')
+      local system_str_async = async.wrap(2, util.system_str)
       local get_pr_info_async = async.wrap(2, gh.get_pr_info)
 
       local function test_get_pr_info()
-        return async.run(function()
+        return async.run(vim.schedule_wrap(function()
           local result = assert(system_str_async('gh pr list --json number'))
           local pr_num = assert(vim.json.decode(result)[1].number, 'failed to get a repo issue')
 
@@ -48,7 +48,7 @@ describe('guh.gh', function()
           assert(type(pr.number) == 'number', 'pr.number not number')
           assert(type(pr.title) == 'string', 'pr.title not string')
           assert(type(pr.author) == 'table', 'pr.author not table')
-        end)
+        end))
       end
       local task = test_get_pr_info()
       task:wait(5000)
@@ -59,12 +59,12 @@ describe('guh.gh', function()
     n.exec_lua(function()
       local async = require('async')
       local gh = require('guh.gh')
-      local utils = require('guh.utils')
-      local system_str_async = async.wrap(2, utils.system_str)
+      local util = require('guh.util')
+      local system_str_async = async.wrap(2, util.system_str)
       local get_issue_async = async.wrap(2, gh.get_issue)
 
       local function test_get_issue()
-        return async.run(function()
+        return async.run(vim.schedule_wrap(function()
           local result = system_str_async('gh issue list --json number')
           local issue_num = assert(vim.json.decode(assert(result))[1].number, 'failed to get a repo issue')
 
@@ -73,7 +73,7 @@ describe('guh.gh', function()
           assert(type(issue.number) == 'number', 'issue.number not number')
           assert(type(issue.title) == 'string', 'issue.title not string')
           assert(type(issue.author) == 'table', 'issue.author not table')
-        end)
+        end))
       end
 
       local task = test_get_issue()
@@ -93,7 +93,39 @@ describe('guh.gh', function()
           local comments = load_comments_async(pr_id)
           assert(comments)
           assert(vim.tbl_count(comments) > 0)
-          -- error(vim.tbl_keys(comments)[1])
+
+          -- Check structure: comments is table<string, GroupedComment[]>
+          for path, grouped_comments in pairs(comments) do
+            assert(type(path) == 'string', 'path should be string')
+            assert(type(grouped_comments) == 'table', 'grouped_comments should be table')
+            assert(#grouped_comments > 0, 'grouped_comments should not be empty')
+            for _, grouped in ipairs(grouped_comments) do
+              assert(grouped.id, 'grouped.id missing')
+              assert(type(grouped.line) == 'number', 'grouped.line should be number')
+              assert(
+                type(grouped.start_line) == 'number' or grouped.start_line == vim.NIL,
+                'grouped.start_line should be number or nil'
+              )
+              assert(type(grouped.url) == 'string', 'grouped.url should be string')
+              assert(type(grouped.content) == 'string', 'grouped.content should be string')
+              assert(type(grouped.comments) == 'table', 'grouped.comments should be table')
+              assert(#grouped.comments > 0, 'grouped.comments should not be empty')
+              for _, comment in ipairs(grouped.comments) do
+                assert(comment.id, 'comment.id missing')
+                assert(type(comment.url) == 'string', 'comment.url should be string')
+                assert(type(comment.path) == 'string', 'comment.path should be string')
+                assert(type(comment.line) == 'number', 'comment.line should be number')
+                assert(
+                  type(comment.start_line) == 'number' or comment.start_line == vim.NIL,
+                  'comment.start_line should be number or nil'
+                )
+                assert(type(comment.user) == 'string', 'comment.user should be string')
+                assert(type(comment.body) == 'string', 'comment.body should be string')
+                assert(type(comment.updated_at) == 'string', 'comment.updated_at should be string')
+                assert(type(comment.diff_hunk) == 'string', 'comment.diff_hunk should be string')
+              end
+            end
+          end
         end)
       end
 
@@ -104,45 +136,32 @@ describe('guh.gh', function()
 end)
 
 describe('comments', function()
-  pending('load_comments', function()
+  it('load_comments', function()
     n.exec_lua(function()
-      local async = require('async')
-
       -- Tests real comments response Github.
       -- Calls load_comments() and asserts that some comments were loaded into quickfix.
       local function test_load_comments()
-        return async.run(function()
-          -- local result = system_str_async('gh pr list --json number')
-          -- local prs = assert(vim.json.decode(assert(result)), 'failed to get PRs')
-          -- assert(#prs > 0, 'no PRs found')
-          local pr_num = 2
+        -- local result = system_str_async('gh pr list --json number')
+        -- local prs = assert(vim.json.decode(assert(result)), 'failed to get PRs')
+        -- assert(#prs > 0, 'no PRs found')
+        local pr_num = 2
+        require('guh.comments').load_comments(pr_num, nil)
 
-          require('guh.comments').load_comments(pr_num)
-
-          -- Wait for quickfix to be populated or timeout
-          local ok = vim.wait(5000, function()
-            local qf = vim.fn.getqflist()
-            return #qf > 0
-          end)
-
-          if ok then
-            local qf = vim.fn.getqflist()
-            assert(#qf > 0, 'quickfix list is empty')
-            -- Check that entries have filename, lnum, text
-            for _, entry in ipairs(qf) do
-              assert(entry.filename, 'entry missing filename')
-              assert(entry.lnum > 0, 'entry lnum not positive')
-              assert(entry.text, 'entry missing text')
-            end
-          else
-            error('No comments found for PR ' .. pr_num)
-          end
+        -- Wait for quickfix to be populated or timeout
+        local ok, qf = vim.wait(5000, function()
+          local qf = vim.fn.getqflist()
+          return #qf > 0, qf
         end)
+
+        assert(ok and #qf > 0, 'load_comments did not set quickfix list')
+        -- Check that entries have filename, lnum, text
+        for _, entry in ipairs(qf) do
+          assert(entry.lnum > 0, ('entry lnum not positive: %s'):format(vim.inspect(entry)))
+          assert(entry.text, ('entry missing text: %s'):format(vim.inspect(entry)))
+        end
       end
 
-      local task = test_load_comments()
-      local ok, err = task:wait(5000)
-      assert(ok, err or 'test_load_comments failed')
+      test_load_comments()
     end)
   end)
 end)
@@ -150,7 +169,7 @@ end)
 describe('features', function()
   it('prepare_to_comment (hardcoded diff)', function()
     n.exec_lua(function()
-      local pr_commands = require('guh.pr_commands')
+      local comments = require('guh.comments')
       local state = require('guh.state')
 
       local pr_id = 42
@@ -175,7 +194,7 @@ describe('features', function()
       })
       vim.api.nvim_win_set_cursor(0, { 9, 0 }) -- on "+      comment = 'cc',"
 
-      local info = pr_commands.prepare_to_comment(9, 9)
+      local info = comments.prepare_to_comment(9, 9)
       assert(info)
       assert('lua/guh/config.lua' == info.file)
       assert(16 == info.start_line, info.start_line)
@@ -187,19 +206,20 @@ describe('features', function()
 end)
 
 describe('commands', function()
-  it(':GuhDiff', function()
+  it(':GuhDiff loads PR diff + comments split window', function()
     n.command('GuhDiff 1')
 
     screen:expect {
+      timeout = 10000,
       attr_ids = {}, -- Don't care about colors.
       grid = [[
-        ^diff --git {MATCH:a/.* b/.* +}|
+        ^diff --git {MATCH:a/.* b/.*}│  Empty line = no comment {MATCH:.*}|
         index {MATCH:.*}|
         --- {MATCH:.*}|
         +++ {MATCH:.*}|
         @@ {MATCH:.*} @@ {MATCH:.*}|
         {MATCH:.*}|*3
-        {MATCH:guh://diff/1 .*}|
+        {MATCH:guh://diff/1 .* guh://comments/1 +}|
         {MATCH:.*}|
       ]],
     }

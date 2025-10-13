@@ -21,7 +21,7 @@ end
 function M.system(cmd, cb)
   vim.system(cmd, { text = true }, function(result)
     if type(cb) == 'function' then
-      cb(result.stdout)
+      vim.schedule_wrap(cb)(result.stdout)
     end
   end)
 end
@@ -81,7 +81,7 @@ function M.new_progress_report(action, buf)
     local msg = done and '' or ('%s %s'):format(action, (fmt or ''):format(...))
     progress.id = vim.api.nvim_echo({ { msg } }, status ~= 'running', progress)
 
-    if buf then
+    if buf and vim.api.nvim_buf_is_valid(buf) then
       vim.bo[buf].busy = math.max(0, vim.bo[buf].busy - 1)
     end
   end)
@@ -113,34 +113,13 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
   end
 end
 
-function M.edit_comment(prnum, prompt, content, key_binding, callback)
-  local buf = state.get_buf('comment', prnum)
-  state.try_set_buf_name(buf, 'comment', prnum)
-  vim.bo[buf].buftype = 'nofile'
-  vim.bo[buf].filetype = 'markdown'
-  vim.bo[buf].modifiable = true
-
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
-  vim.cmd [[normal! G]]
-
-  local function capture_input_and_close()
-    local input_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    if prompt ~= nil and input_lines[1] == prompt then
-      table.remove(input_lines, 1)
-    end
-    local input = table.concat(input_lines, '\n')
-
-    vim.cmd('bdelete')
-    callback(input)
-  end
-
-  M.buf_keymap(buf, 'n', key_binding, '', capture_input_and_close)
-  M.buf_keymap(buf, 'i', key_binding, '', capture_input_and_close)
-end
-
 --- Overwrites the current :terminal buffer with the given cmd.
+--- @param buf integer
+--- @param feat Feat
+--- @param id any
 --- @param cmd string[]
-function M.run_term_cmd(buf, feat, id, cmd)
+--- @param on_done? fun()
+function M.run_term_cmd(buf, feat, id, cmd, on_done)
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
   vim.schedule(function()
@@ -153,10 +132,57 @@ function M.run_term_cmd(buf, feat, id, cmd)
       term = true,
       on_exit = function()
         state.set_buf_name(buf, feat, id)
+        if on_done then
+          on_done()
+        end
         progress('success')
       end,
     })
   end)
+end
+
+local overlay_win = -1
+local overlay_buf = -1
+
+--- Shows an info overlay message in the given buffer.
+--- Only one overlay is allowed globally.
+--- Pass `msg=nil` to delete the current overlay.
+---
+--- @param buf integer
+--- @param msg string? Message, or nil to delete the current overlay.
+function M.show_info_overlay(buf, msg)
+  local win = (vim.fn.win_findbuf(buf) or {})[1]
+  local winvalid = vim.api.nvim_win_is_valid
+  if not win then
+    return -- Buffer not currently visible in any window.
+  end
+  -- vim.api.nvim_buf_clear_namespace(buf, overlay_ns, 0, -1)
+  if not msg then
+    if winvalid(overlay_win) then
+      vim.api.nvim_win_close(overlay_win, true)
+    end
+    return -- If msg=nil, only clear the overlay.
+  end
+
+  -- Scratch buffer
+  overlay_buf = vim.api.nvim_buf_is_valid(overlay_buf) and overlay_buf or vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(overlay_buf, 0, -1, false, { msg })
+
+  local winconfig = {
+    focusable = false,
+    hide = false,
+    relative = 'win', -- Anchor to window
+    win = win,
+    row = 0,
+    col = 2,
+    width = math.max(1, vim.api.nvim_win_get_width(win) - 2),
+    height = 1,
+    style = 'minimal',
+    border = 'none',
+  }
+  overlay_win = winvalid(overlay_win) and overlay_win or vim.api.nvim_open_win(overlay_buf, false, winconfig)
+  vim.api.nvim_win_set_config(overlay_win, winconfig)
+  vim.wo[overlay_win].winhighlight = 'Normal:Comment'
 end
 
 return M
