@@ -80,64 +80,48 @@ describe('guh.gh', function()
       task:wait(5000)
     end)
   end)
-
-  it('load_comments', function()
-    n.exec_lua(function()
-      local async = require('async')
-      local gh = require('guh.gh')
-      local load_comments_async = async.wrap(2, gh.load_comments)
-
-      local function test_get_issue()
-        return async.run(function()
-          local pr_id = 1
-          local comments = load_comments_async(pr_id)
-          assert(comments)
-          assert(vim.tbl_count(comments) > 0)
-
-          -- Check structure: comments is table<string, GroupedComment[]>
-          for path, grouped_comments in pairs(comments) do
-            assert(type(path) == 'string', 'path should be string')
-            assert(type(grouped_comments) == 'table', 'grouped_comments should be table')
-            assert(#grouped_comments > 0, 'grouped_comments should not be empty')
-            for _, grouped in ipairs(grouped_comments) do
-              assert(grouped.id, 'grouped.id missing')
-              assert(type(grouped.line) == 'number', 'grouped.line should be number')
-              assert(
-                type(grouped.start_line) == 'number' or grouped.start_line == vim.NIL,
-                'grouped.start_line should be number or nil'
-              )
-              assert(type(grouped.url) == 'string', 'grouped.url should be string')
-              assert(type(grouped.content) == 'string', 'grouped.content should be string')
-              assert(type(grouped.comments) == 'table', 'grouped.comments should be table')
-              assert(#grouped.comments > 0, 'grouped.comments should not be empty')
-              for _, comment in ipairs(grouped.comments) do
-                assert(comment.id, 'comment.id missing')
-                assert(type(comment.url) == 'string', 'comment.url should be string')
-                assert(type(comment.path) == 'string', 'comment.path should be string')
-                assert(type(comment.line) == 'number', 'comment.line should be number')
-                assert(
-                  type(comment.start_line) == 'number' or comment.start_line == vim.NIL,
-                  'comment.start_line should be number or nil'
-                )
-                assert(type(comment.user) == 'string', 'comment.user should be string')
-                assert(type(comment.body) == 'string', 'comment.body should be string')
-                assert(type(comment.updated_at) == 'string', 'comment.updated_at should be string')
-                assert(type(comment.diff_hunk) == 'string', 'comment.diff_hunk should be string')
-              end
-            end
-          end
-        end)
-      end
-
-      local task = test_get_issue()
-      task:wait(5000)
-    end)
-  end)
 end)
 
 describe('comments', function()
   it('load_comments', function()
     n.exec_lua(function()
+      local function assert_comments(comments)
+        assert(comments and vim.tbl_count(comments) > 0)
+
+        -- Check structure: comments is table<string, GroupedComment[]>
+        for path, grouped_comments in pairs(comments) do
+          assert(type(path) == 'string', 'path should be string')
+          assert(type(grouped_comments) == 'table', 'grouped_comments should be table')
+          assert(#grouped_comments > 0, 'grouped_comments should not be empty')
+          for _, grouped in ipairs(grouped_comments) do
+            assert(grouped.id, 'grouped.id missing')
+            assert(type(grouped.line) == 'number', 'grouped.line should be number')
+            assert(
+              type(grouped.start_line) == 'number' or grouped.start_line == vim.NIL,
+              'grouped.start_line should be number or nil'
+            )
+            assert(type(grouped.url) == 'string', 'grouped.url should be string')
+            assert(type(grouped.content) == 'string', 'grouped.content should be string')
+            assert(type(grouped.comments) == 'table', 'grouped.comments should be table')
+            assert(#grouped.comments > 0, 'grouped.comments should not be empty')
+            for _, comment in ipairs(grouped.comments) do
+              assert(comment.id, 'comment.id missing')
+              assert(type(comment.url) == 'string', 'comment.url should be string')
+              assert(type(comment.path) == 'string', 'comment.path should be string')
+              assert(type(comment.line) == 'number', 'comment.line should be number')
+              assert(
+                type(comment.start_line) == 'number' or comment.start_line == vim.NIL,
+                'comment.start_line should be number or nil'
+              )
+              assert(type(comment.user) == 'string', 'comment.user should be string')
+              assert(type(comment.body) == 'string', 'comment.body should be string')
+              assert(type(comment.updated_at) == 'string', 'comment.updated_at should be string')
+              assert(type(comment.diff_hunk) == 'string', 'comment.diff_hunk should be string')
+            end
+          end
+        end
+      end
+
       -- Tests real comments response Github.
       -- Calls load_comments() and asserts that some comments were loaded into quickfix.
       local function test_load_comments()
@@ -145,7 +129,7 @@ describe('comments', function()
         -- local prs = assert(vim.json.decode(assert(result)), 'failed to get PRs')
         -- assert(#prs > 0, 'no PRs found')
         local pr_num = 2
-        require('guh.comments').load_comments(pr_num, nil)
+        require('guh.comments').load_comments(pr_num, assert_comments)
 
         -- Wait for quickfix to be populated or timeout
         local ok, qf = vim.wait(5000, function()

@@ -170,18 +170,108 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
   vim.wo[win].scrollbind = true
 end
 
+--- @param comment Comment
+local function format_comment(comment)
+  return string.format('✍️ %s at %s:\n%s\n\n', comment.user, comment.updated_at, comment.body)
+end
+
+--- Builds a markdown view of all comments associated with a diff-line.
+---
+--- @param comments Comment[]
+local function prepare_content(comments)
+  local lines = {}
+  if #comments > 0 and comments[1].start_line ~= vim.NIL and comments[1].start_line ~= comments[1].line then
+    table.insert(lines, ('📓 Comment on lines %d to %d\n\n'):format(comments[1].start_line, comments[1].line))
+  end
+
+  for _, comment in pairs(comments) do
+    table.insert(lines, format_comment(comment))
+  end
+
+  if #comments > 0 then
+    table.insert(lines, ('\n🪓 Diff hunk:\n%s\n'):format(comments[1].diff_hunk))
+  end
+
+  return table.concat(lines, '')
+end
+
+--- Marshalls an API comment to local `Comment` type.
+---
+--- @return Comment extracted gh comment
+local function convert_comment(comment)
+  local extended = vim.tbl_extend('force', {}, comment)
+  -- Aliases
+  extended.url = comment.html_url
+  -- XXX override
+  extended.user = comment.user.login
+  -- Remove CR chars.
+  extended.body = string.gsub(comment.body, '\r', '')
+  return extended
+end
+
+local function group_comments(gh_comments, cb)
+  util.get_git_root(function(git_root)
+    --- @type table<number, Comment[]>
+    local comment_groups = {}
+    local base = {}
+
+    for _, comment in pairs(gh_comments) do
+      if comment.in_reply_to_id == nil then
+        comment_groups[comment.id] = { convert_comment(comment) }
+        base[comment.id] = comment.id
+      else
+        table.insert(comment_groups[base[comment.in_reply_to_id]], convert_comment(comment))
+        base[comment.id] = base[comment.in_reply_to_id]
+      end
+    end
+
+    --- @type table<string, GroupedComment[]>
+    local result = {}
+    for _, comments in pairs(comment_groups) do
+      --- @type GroupedComment
+      local grouped_comments = {
+        id = comments[1].id,
+        line = comments[1].line,
+        start_line = comments[1].start_line,
+        url = comments[#comments].url,
+        content = prepare_content(comments),
+        comments = comments,
+      }
+
+      local filepath = comments[1].path -- Relative file path as given in the unified diff.
+      if result[filepath] == nil then
+        result[filepath] = { grouped_comments }
+      else
+        table.insert(result[filepath], grouped_comments)
+      end
+    end
+
+    cb(result)
+  end)
+end
+
 ---@param prnum integer
-function M.load_comments(prnum)
+---@param cb? function
+function M.load_comments(prnum, cb)
   local progress = util.new_progress_report('Loading comments', vim.fn.bufnr())
   assert(type(prnum) == 'number')
-  gh.load_comments(
-    prnum,
-    vim.schedule_wrap(function(comments_list)
-      load_comments_to_quickfix_list(comments_list)
-      show_comments_in_scrollbind_win(prnum, vim.api.nvim_get_current_win(), comments_list)
-      progress('success')
-    end)
-  )
+  local resource = 'pulls' -- TODO: support 'issues'
+  local log_type = resource == 'pulls' and 'pr' or 'issue'
+  gh.load_comments(resource, prnum, function(comments)
+    group_comments(
+      comments,
+      vim.schedule_wrap(function(grouped)
+        config.log(('grouped %s comments (total: %s)'):format(log_type, vim.tbl_count(grouped)), grouped)
+
+        if cb then
+          cb(grouped)
+        end
+        load_comments_to_quickfix_list(grouped)
+        show_comments_in_scrollbind_win(prnum, vim.api.nvim_get_current_win(), grouped)
+        progress('success')
+      end)
+    )
+  end)
 end
 
 M.update_comment = function(opts)

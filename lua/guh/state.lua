@@ -75,7 +75,7 @@ end
 
 --- @param feat Feat
 --- @param pr_or_issue string|number PR or issue number or "all" for special cases (e.g. status).
---- @param bufstate table?
+--- @param bufstate? BufState
 function M.init_buf(feat, pr_or_issue, bufstate)
   bufstate = bufstate or {}
   local buf = M.get_buf(feat, pr_or_issue)

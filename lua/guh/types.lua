@@ -2,9 +2,9 @@
 
 --- @class BufState
 --- Buffer-local b:guh dict.
---- @field id integer PR or issue number
---- @field feat Feat Feature name
---- @field pr_data PullRequest
+--- @field id? integer PR or issue number
+--- @field feat? Feat Feature name
+--- @field pr_data? PullRequest
 
 --- @class Comment
 --- @field body string
