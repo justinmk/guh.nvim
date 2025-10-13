@@ -117,14 +117,16 @@ function M.load_comments(type, number, cb)
     config.log('repo', repo)
     util.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, number), function(comments_json)
       local comments = parse_or_default(comments_json, {})
-      config.log(('%s comments'):format(log_type), comments)
-
       local function is_valid_comment(comment)
         return comment.line ~= vim.NIL
       end
 
+      local nr_before = #comments
       comments = util.filter_array(comments, is_valid_comment)
-      config.log(('%s comments (total: %s)'):format(log_type, vim.tbl_count(comments)), comments)
+      config.log(
+        ('%s comments (valid: %s, discarded: %s)'):format(log_type, #comments, nr_before - #comments),
+        comments
+      )
 
       cb(comments)
     end)
