@@ -98,14 +98,14 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
       -- Fixup because apparently mappings don't get args?
       if not args then
         args = {}
-        if vim.api.nvim_get_mode().mode:find('[vV]') then
-          vim.fn.feedkeys(vim.keycode('<Esc>'), 'nx')
-          args.line1 = vim.fn.line("'<")
-          args.line2 = vim.fn.line("'>")
-        else
-          args.line1 = vim.fn.line('.')
-          args.line2 = vim.fn.line('.')
-        end
+        local region = vim.fn.getregionpos(vim.fn.getpos('v'), vim.fn.getpos('.'), {
+          type = 'v',
+          exclusive = false,
+          eol = false,
+        })
+        args.line1 = region[1][1][2]
+        args.line2 = region[#region][1][2]
+        -- vim.fn.feedkeys(vim.keycode('<Esc>'), 'nx')
       end
       rhs(args)
     end
