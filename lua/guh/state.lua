@@ -11,6 +11,8 @@ local bufs = {
   ---@type table<string, integer>
   diff = {},
   ---@type table<string, integer>
+  logs = {},
+  ---@type table<string, integer>
   pr = {},
   ---@type table<string, integer>
   issue = {},

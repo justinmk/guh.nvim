@@ -55,6 +55,49 @@ describe('guh.gh', function()
     end)
   end)
 
+  it('get_pr_ci_logs', function()
+    n.exec_lua(function()
+      local gh = require('guh.gh')
+      local util = require('guh.util')
+
+      local done = false
+      local logs = nil
+      local err = nil
+
+      util.system_str('gh pr view 9 --json number,headRefOid', function(result)
+        if not result then
+          err = 'failed to get PR'
+          done = true
+          return
+        end
+
+        local pr = vim.json.decode(result)
+        if not pr then
+          err = 'failed to parse PR'
+          done = true
+          return
+        end
+
+        -- Test get_pr_ci_logs with the PR
+        gh.get_pr_ci_logs(pr, function(job_logs, job_err)
+          logs = job_logs
+          err = job_err
+          done = true
+        end)
+      end)
+
+      -- Wait for the callbacks to complete
+      local ok = vim.wait(10000, function()
+        return done
+      end)
+      assert(ok, 'get_pr_ci_logs timed out')
+
+      -- Either logs should exist or an error message should exist
+      assert(not err, ('error: %s'):format(err))
+      assert(logs, 'no logs or error returned')
+    end)
+  end)
+
   it('get_issue', function()
     n.exec_lua(function()
       local async = require('async')

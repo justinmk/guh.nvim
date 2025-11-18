@@ -320,6 +320,61 @@ function M.get_user(cb)
   end)
 end
 
+--- Gets CI logs for the latest commit in the PR.
+---
+--- @param pr PullRequest
+--- @param cb fun(logs?: string, error?: string)
+function M.get_pr_ci_logs(pr, cb)
+  local head_sha = pr.headRefOid
+
+  -- Get the most recent workflow run for this commit
+  local run_request = {
+    'gh',
+    'api',
+    'repos/:owner/:repo/actions/runs',
+    '-q',
+    '.workflow_runs | map(select(.head_sha == "' .. head_sha .. '")) | sort_by(.created_at) | reverse | .[0].id',
+  }
+
+  util.system(run_request, function(run_id)
+    run_id = vim.trim(run_id or '')
+    if run_id == '' or run_id == 'null' then
+      cb(nil, f('No workflow runs found for PR #%s', pr.number))
+      return
+    end
+
+    -- Get the most recent job in that workflow run
+    local job_request = {
+      'gh',
+      'api',
+      f('repos/:owner/:repo/actions/runs/%s/jobs', run_id),
+      '-q',
+      '.jobs | sort_by(.started_at) | reverse | .[0].id',
+    }
+
+    util.system(job_request, function(job_id)
+      job_id = vim.trim(job_id or '')
+      if job_id == '' or job_id == 'null' then
+        cb(nil, f('No jobs found in workflow run %s', run_id))
+        return
+      end
+
+      -- Get logs for that job
+      local logs_request = {
+        'gh',
+        'run',
+        'view',
+        run_id,
+        '--job',
+        job_id,
+        '--log',
+      }
+
+      util.system(logs_request, cb)
+    end)
+  end)
+end
+
 M.get_repo_async = async.wrap(1, M.get_repo)
 
 return M

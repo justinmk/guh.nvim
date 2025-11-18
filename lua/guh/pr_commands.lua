@@ -13,12 +13,13 @@ local function set_pr_view_keymaps(buf)
   util.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
   util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR or diff', M.comment)
   util.buf_keymap(buf, 'x', 'c', 'Comment on PR or diff', M.comment)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', ':GuhDiff<cr>')
+  util.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', '<cmd>GuhDiff<cr>')
+  util.buf_keymap(buf, 'n', 'cL', 'View the CI logs for this PR', M.show_ci_logs)
 end
 
 --- @param buf integer
 local function set_issue_view_keymaps(buf)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', ':GuhComment<cr>')
+  util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', '<cmd>GuhComment<cr>')
 end
 
 --- Shows...
@@ -118,6 +119,21 @@ M.comment = function(args)
   else
     comments.do_comment(args.line1, args.line2)
   end
+end
+
+function M.show_ci_logs(opts)
+  local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
+  gh.get_pr_info(id, function(pr)
+    if not pr then
+      return util.notify(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+    end
+    gh.get_pr_ci_logs(pr, function(logs)
+      local buf = state.init_buf('logs', id)
+      vim.cmd.buffer(buf)
+      assert(logs, 'failed to get CI logs')
+      vim.api.nvim_paste(logs, false, -1)
+    end)
+  end)
 end
 
 return M

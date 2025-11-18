@@ -68,6 +68,7 @@ COMMANDS                                                        *guh-commands*
               - `cM` to merge PR (see `GuhMerge` for details)
               - `ca` to write top level PR comment
               - `cp` to open diff view
+              - `cL` view the most recent CI logs
 
               HTML comments is the thing too and they look bad in text. To
               render HTML as text `html_comments_command` settings can be used
@@ -115,4 +116,4 @@ COMMANDS                                                        *guh-commands*
 
 
 ------------------------------------------------------------------------------
-vim:tw=78:ts=8:ft=help:norl:
+vim:tw=78:ts=8:sw=4:et:ft=help:norl:

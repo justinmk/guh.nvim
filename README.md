@@ -34,10 +34,11 @@ Requirements:
 1. Show `gh` output in a `:terminal` buffer.
 2. Set keymaps on the buffer.
 3. PR diff comments are loaded in a 'scrollbind' split window.
-4. (TODO) Fetch the git data into `.git` (without doing a checkout).
-5. (TODO) When viewing the diff, user can navigate to the git object (file)
+4. View CI logs.
+5. (TODO) Fetch the git data into `.git` (without doing a checkout).
+6. (TODO) When viewing the diff, user can navigate to the git object (file)
    without doing a checkout.
-6. (TODO) PR comments will display on relevant git objects.
+7. (TODO) PR comments will display on relevant git objects.
 
 ## Development
 
