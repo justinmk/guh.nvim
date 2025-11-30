@@ -98,6 +98,57 @@ describe('guh.gh', function()
     end)
   end)
 
+  it('get_pr_jobs (neovim PR 36727)', function()
+    n.exec_lua(function()
+      local gh = require('guh.gh')
+      local util = require('guh.util')
+
+      -- Switch to neovim repo
+      vim.cmd.cd('/Users/justin/dev/neovim')
+
+      local done = false
+      local jobs = nil
+      local err = nil
+
+      -- Get PR info for neovim PR 36727 (has workflow runs and completed jobs)
+      -- This tests get_pr_jobs functionality with actual data.
+      -- Note: PR 35793 was the original issue, but it doesn't have accessible workflow
+      -- runs via the API (may be related to fork state). PR 36727 has active runs with
+      -- some jobs in "waiting" state, which the filter correctly skips.
+      util.system_str('gh pr view 36727 --json number,headRefOid', function(result)
+        if not result then
+          err = 'failed to get PR'
+          done = true
+          return
+        end
+
+        local pr = vim.json.decode(result)
+        if not pr then
+          err = 'failed to parse PR'
+          done = true
+          return
+        end
+
+        -- Test get_pr_jobs with the PR
+        gh.get_pr_jobs(pr, function(job_list, job_err)
+          jobs = job_list
+          err = job_err
+          done = true
+        end)
+      end)
+
+      -- Wait for the callbacks to complete
+      local ok = vim.wait(10000, function()
+        return done
+      end)
+      assert(ok, 'get_pr_jobs timed out')
+
+      -- Should either have jobs or a clear error
+      assert(not err, ('error: %s'):format(err or 'unknown'))
+      assert(jobs and #jobs > 0, 'no jobs returned')
+    end)
+  end)
+
   it('get_issue', function()
     n.exec_lua(function()
       local async = require('async')

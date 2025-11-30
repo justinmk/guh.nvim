@@ -136,4 +136,34 @@ function M.show_ci_logs(opts)
   end)
 end
 
+-- Show fuzzy picker.
+function M.select_pr_job(opts)
+  local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
+  gh.get_pr_info(id, function(pr)
+    if not pr then
+      return util.notify(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+    end
+    gh.get_pr_jobs(pr, function(jobs, err)
+      if err then
+        vim.notify(err, vim.log.levels.ERROR)
+        return
+      end
+
+      -- Extract just the job names
+      local job_names = vim.tbl_map(function(job)
+        return job.name .. ' (' .. job.status .. ')'
+      end, jobs)
+
+      require('fzf-lua').fzf_exec(job_names, {
+        prompt = 'Jobs> ',
+        actions = {
+          ['default'] = function(selected)
+            vim.notify('Selected: ' .. selected[1])
+          end,
+        },
+      })
+    end)
+  end)
+end
+
 return M
