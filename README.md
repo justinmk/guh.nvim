@@ -1,6 +1,8 @@
 # guh.nvim (ghlite.nvim fork)
 
-> W.I.P. Fork of https://github.com/daliusd/ghlite.nvim
+> [!WARNING]
+> This plugin is buns (aka not working, aka "WIP").
+> It is just a pre-alpha currently. PRs welcome!
 
 Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI with a minimalist yet
 effective workflow.
