@@ -75,6 +75,7 @@ function M.new_progress_report(action, buf)
 
   return vim.schedule_wrap(function(status, percent, fmt, ...)
     local done = (status == 'failed' or status == 'success')
+    progress.source = 'guh.nvim'
     progress.status = status
     progress.percent = not done and percent or nil
     progress.title = not done and progress.title or nil
