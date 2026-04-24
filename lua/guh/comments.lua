@@ -166,8 +166,12 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
   vim.bo[buf].filetype = 'markdown'
 
   -- Set scrollbind on both windows *after* writing the buffer content.
-  vim.wo[diff_win].scrollbind = true
-  vim.wo[win].scrollbind = true
+  vim.api.nvim_win_call(diff_win, function()
+    vim.cmd[[setlocal scrollbind]]
+  end)
+  vim.api.nvim_win_call(win, function()
+    vim.cmd[[setlocal scrollbind]]
+  end)
 end
 
 --- @param comment Comment
