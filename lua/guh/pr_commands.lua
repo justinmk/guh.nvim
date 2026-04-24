@@ -94,8 +94,9 @@ end
 
 function M.show_pr(id)
   local buf = state.init_buf('pr', id)
-  util.run_term_cmd(buf, 'pr', id, { 'gh', 'pr', 'view', '--comments', tostring(id) })
-  set_pr_view_keymaps(buf)
+  util.run_term_cmd(buf, 'pr', id, { 'gh', 'pr', 'view', '--comments', tostring(id) }, function()
+    set_pr_view_keymaps(buf)
+  end)
 end
 
 function M.show_pr_diff(opts)
@@ -104,8 +105,9 @@ function M.show_pr_diff(opts)
   local buf = state.init_buf('diff', id)
   util.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) }, function()
     M.load_comments()
+    vim.cmd[[set filetype=gitcommit]]  -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
+    set_pr_view_keymaps(buf)
   end)
-  set_pr_view_keymaps(buf)
 end
 
 --- Comment on a diff line/range, or PR overview (bang "!").
