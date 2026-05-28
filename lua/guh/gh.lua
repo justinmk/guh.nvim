@@ -320,59 +320,100 @@ function M.get_user(cb)
   end)
 end
 
---- Gets CI logs for the latest commit in the PR.
+--- Gets metadata for the most-recent matrix-expanded CI jobs at the PR's head commit.
+--- Dedupes by job name, keeping the latest `startedAt`.
 ---
 --- @param pr PullRequest
---- @param cb fun(logs?: string, error?: string)
-function M.get_pr_ci_logs(pr, cb)
+--- @param cb fun(jobs?: { databaseId: integer, name: string, conclusion: string, status: string, startedAt: string, url: string }[], error?: string)
+function M.get_pr_ci_jobs_logs(pr, cb)
   local head_sha = pr.headRefOid
+  if util.is_empty(head_sha) then
+    cb(nil, f('PR #%s has no head commit SHA', pr.number))
+    return
+  end
 
-  -- Get the most recent workflow run for this commit
-  local run_request = {
-    'gh',
-    'api',
-    'repos/:owner/:repo/actions/runs',
-    '-q',
-    '.workflow_runs | map(select(.head_sha == "' .. head_sha .. '")) | sort_by(.created_at) | reverse | .[0].id',
-  }
+  local progress = util.new_progress_report('Loading CI jobs', 0)
+  progress('running', nil, 'fetching check-runs')
 
-  util.system(run_request, function(run_id)
-    run_id = vim.trim(run_id or '')
-    if run_id == '' or run_id == 'null' then
-      cb(nil, f('No workflow runs found for PR #%s', pr.number))
+  -- `--paginate` is safe here: `filter=latest` collapses re-runs server-side, so the count is bounded by distinct check
+  -- names for this one commit (matrix-expanded across workflow files): so this usually fetches only 1 page (<100 items).
+  util.system({
+    'gh', 'api', '--paginate', '--slurp',
+    f('repos/{owner}/{repo}/commits/%s/check-runs?filter=latest&per_page=100', head_sha),
+  }, function(result, stderr, code)
+    if code ~= 0 then
+      progress('failed')
+      cb(nil, ('gh api check-runs failed: %s'):format(vim.trim(stderr or '')))
       return
     end
 
-    -- Get the most recent job in that workflow run
-    local job_request = {
-      'gh',
-      'api',
-      f('repos/:owner/:repo/actions/runs/%s/jobs', run_id),
-      '-q',
-      '.jobs | sort_by(.started_at) | reverse | .[0].id',
-    }
+    local pages = parse_or_default(result, {})
+    local by_name = {}
+    for _, page in ipairs(pages) do
+      for _, cr in ipairs(page.check_runs or {}) do
+        if cr.app and cr.app.slug == 'github-actions' then
+          -- details_url: https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}
+          local job_id = tonumber((cr.details_url or ''):match('/job/(%d+)'))
+          if job_id then
+            -- `filter=latest` already returns one per name; the timestamp comparison is just defensive.
+            local existing = by_name[cr.name]
+            if not existing or (cr.started_at or '') > (existing.startedAt or '') then
+              by_name[cr.name] = {
+                databaseId = job_id,
+                name = cr.name,
+                conclusion = cr.conclusion,
+                status = cr.status,
+                startedAt = cr.started_at,
+                url = cr.html_url,
+              }
+            end
+          end
+        end
+      end
+    end
 
-    util.system(job_request, function(job_id)
-      job_id = vim.trim(job_id or '')
-      if job_id == '' or job_id == 'null' then
-        cb(nil, f('No jobs found in workflow run %s', run_id))
+    local jobs = {}
+    for _, job in pairs(by_name) do
+      table.insert(jobs, job)
+    end
+    if #jobs == 0 then
+      progress('failed')
+      cb(nil, f('No GitHub Actions jobs for PR #%s at %s', pr.number, head_sha))
+      return
+    end
+
+    -- Sort by (status, name).
+    table.sort(jobs, function(a, b)
+      local a_status = a.conclusion or a.status or '?'
+      local b_status = b.conclusion or b.status or '?'
+      if a_status ~= b_status then
+        return a_status < b_status
+      end
+      return (a.name or '') < (b.name or '')
+    end)
+    progress('success')
+    cb(jobs)
+  end)
+end
+
+--- Fetches the log for a single workflow job.
+---
+--- @param job_id integer Workflow job ID (e.g. `job.databaseId` from `get_pr_ci_jobs_logs`).
+--- @param cb fun(log?: string, error?: string)
+function M.get_pr_ci_logs(job_id, cb)
+  local progress = util.new_progress_report('Loading CI log', 0)
+  progress('running', nil, 'job %s', tostring(job_id))
+
+  util.system({ 'gh', 'run', 'view', '--job', tostring(job_id), '--log' },
+    function(logs, stderr, code)
+      if code ~= 0 or util.is_empty(vim.trim(logs or '')) then
+        progress('failed')
+        cb(nil, ('Log unavailable: %s'):format(vim.trim(stderr or '')))
         return
       end
-
-      -- Get logs for that job
-      local logs_request = {
-        'gh',
-        'run',
-        'view',
-        run_id,
-        '--job',
-        job_id,
-        '--log',
-      }
-
-      util.system(logs_request, cb)
+      progress('success')
+      cb(vim.trim(logs))
     end)
-  end)
 end
 
 M.get_repo_async = async.wrap(1, M.get_repo)

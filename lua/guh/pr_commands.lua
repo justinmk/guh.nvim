@@ -105,7 +105,7 @@ function M.show_pr_diff(opts)
   local buf = state.init_buf('diff', id)
   util.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) }, function()
     M.load_comments()
-    vim.cmd[[set filetype=gitcommit]]  -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
+    vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
     set_pr_view_keymaps(buf)
   end)
 end
@@ -123,17 +123,42 @@ M.comment = function(args)
   end
 end
 
+--- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
   local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
   gh.get_pr_info(id, function(pr)
     if not pr then
       return util.notify(('PR #%s not found'):format(id), vim.log.levels.ERROR)
     end
-    gh.get_pr_ci_logs(pr, function(logs)
-      local buf = state.init_buf('logs', id)
-      vim.cmd.buffer(buf)
-      assert(logs, 'failed to get CI logs')
-      vim.api.nvim_paste(logs, false, -1)
+    gh.get_pr_ci_jobs_logs(pr, function(jobs, jobs_err)
+      assert(jobs, ('failed to list CI jobs: %s'):format(jobs_err))
+      jobs = vim.tbl_filter(function(j) return j.conclusion ~= 'skipped' end, jobs)
+      if #jobs == 0 then
+        return util.notify(('No (non-skipped) CI jobs for PR #%s'):format(id), vim.log.levels.WARN)
+      end
+
+      vim.ui.select(jobs, {
+        prompt = ('CI jobs for PR #%s'):format(id),
+        format_item = function(j)
+          return ('[%s] %s'):format(j.conclusion or j.status or '?', j.name)
+        end,
+      }, function(picked)
+        if not picked then return end
+        gh.get_pr_ci_logs(picked.databaseId, function(logs, err)
+          assert(logs, ('failed to get CI log: %s'):format(err))
+
+          local buf = state.init_buf('logs', id)
+          vim.cmd.buffer(buf)
+          vim.bo[buf].buftype = 'nofile'
+          vim.bo[buf].bufhidden = 'hide'
+          vim.bo[buf].swapfile = false
+          vim.bo[buf].modifiable = true
+          vim.api.nvim_paste(logs, false, -1)
+          vim.bo[buf].modified = false
+          vim.bo[buf].modifiable = false
+          vim.cmd.norm[[gg0]]
+        end)
+      end)
     end)
   end)
 end
