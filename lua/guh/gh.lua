@@ -79,31 +79,30 @@ local function get_info(cmd, b_field, cb)
   end)
 end
 
---- Builds a `gh` argv with an optional `--repo <repo>` suffix.
+--- Builds a `gh` argv with a `--repo <repo>` suffix.
 ---
---- @param repo? string "owner/name"; if set, `--repo <repo>` is appended.
+--- @param repo string "owner/name". Required; resolve via `M.get_repo` upstream.
 --- @param ... string subcommand/args (without the leading "gh").
 --- @return string[]
 function M.cmd(repo, ...)
+  vim.validate('repo', repo, 'string')
   local argv = { 'gh', ... }
-  if repo then
-    table.insert(argv, '--repo')
-    table.insert(argv, repo)
-  end
+  table.insert(argv, '--repo')
+  table.insert(argv, repo)
   return argv
 end
 
 --- Gets PR data from b:guh, or requests it from the API.
 ---
 --- @param prnum string|number PR number, or empty for "current PR"
---- @param repo? string "owner/name" for non-local repo.
+--- @param repo string "owner/name".
 --- @param cb fun(pr?: PullRequest)
 function M.get_pr_info(prnum, repo, cb)
   get_info(M.cmd(repo, 'pr', 'view', tostring(prnum), '--json', table.concat(pr_fields, ',')), 'pr_data', cb)
 end
 
 --- @param issue_num string|number Issue number
---- @param repo? string "owner/name" for non-local repo.
+--- @param repo string "owner/name".
 --- @param cb fun(issue?: Issue)
 function M.get_issue(issue_num, repo, cb)
   get_info(M.cmd(repo, 'issue', 'view', tostring(issue_num), '--json', table.concat(issue_fields, ',')), 'issue_data', cb)
@@ -127,8 +126,8 @@ end
 function M.load_comments(type, id, repo, cb)
   assert(cb)
   local log_type = type == 'pulls' and 'pr' or 'issue'
-  local repo_path = repo or '{owner}/{repo}'
-  util.system_str(f('gh api repos/%s/%s/%d/comments', repo_path, type, id), function(comments_json)
+  vim.validate('repo', repo, 'string')
+  util.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, id), function(comments_json)
     local comments = parse_or_default(comments_json, {})
     local function is_valid_comment(comment)
       return comment.line ~= vim.NIL
@@ -147,13 +146,13 @@ end
 
 --- @param repo? string "owner/name" for non-local repo.
 function M.reply_to_comment(prnum, body, reply_to, repo, cb)
-  local repo_path = repo or '{owner}/{repo}'
+  vim.validate('repo', repo, 'string')
   local request = {
     'gh',
     'api',
     '--method',
     'POST',
-    f('repos/%s/pulls/%d/comments', repo_path, prnum),
+    f('repos/%s/pulls/%d/comments', repo, prnum),
     '-f',
     'body=' .. body,
     '-F',
@@ -172,14 +171,14 @@ end
 --- @param repo? string "owner/name" for non-local repo.
 function M.new_comment(pr, body, path, start_line, line, repo, cb)
   local commit_id = assert(pr.headRefOid)
-  local repo_path = repo or '{owner}/{repo}'
+  vim.validate('repo', repo, 'string')
 
   local request = {
     'gh',
     'api',
     '--method',
     'POST',
-    f('repos/%s/pulls/%d/comments', repo_path, pr.number),
+    f('repos/%s/pulls/%d/comments', repo, pr.number),
     '-f',
     'body=' .. body,
     '-f',
@@ -226,13 +225,13 @@ end
 
 --- @param repo? string "owner/name" for non-local repo.
 function M.update_comment(comment_id, body, repo, cb)
-  local repo_path = repo or '{owner}/{repo}'
+  vim.validate('repo', repo, 'string')
   local request = {
     'gh',
     'api',
     '--method',
     'PATCH',
-    f('repos/%s/pulls/comments/%s', repo_path, comment_id),
+    f('repos/%s/pulls/comments/%s', repo, comment_id),
     '-f',
     'body=' .. body,
   }
@@ -247,13 +246,13 @@ end
 
 --- @param repo? string "owner/name" for non-local repo.
 function M.delete_comment(comment_id, repo, cb)
-  local repo_path = repo or '{owner}/{repo}'
+  vim.validate('repo', repo, 'string')
   local request = {
     'gh',
     'api',
     '--method',
     'DELETE',
-    f('repos/%s/pulls/comments/%s', repo_path, comment_id),
+    f('repos/%s/pulls/comments/%s', repo, comment_id),
   }
   config.log('delete_comment request', request)
 
@@ -348,12 +347,12 @@ function M.get_pr_ci_jobs_logs(pr, repo, cb)
   local progress = util.new_progress_report('Loading CI jobs', 0)
   progress('running', nil, 'fetching check-runs')
 
-  local repo_path = repo or '{owner}/{repo}'
+  vim.validate('repo', repo, 'string')
   -- `--paginate` is safe here: `filter=latest` collapses re-runs server-side, so the count is bounded by distinct check
   -- names for this one commit (matrix-expanded across workflow files): so this usually fetches only 1 page (<100 items).
   util.system({
     'gh', 'api', '--paginate', '--slurp',
-    f('repos/%s/commits/%s/check-runs?filter=latest&per_page=100', repo_path, head_sha),
+    f('repos/%s/commits/%s/check-runs?filter=latest&per_page=100', repo, head_sha),
   }, function(result, stderr, code)
     if code ~= 0 then
       progress('failed')
@@ -419,11 +418,11 @@ function M.get_pr_ci_logs(job_id, repo, cb)
   local progress = util.new_progress_report('Loading CI log', 0)
   progress('running', nil, 'job %s', tostring(job_id))
 
-  local repo_path = repo or '{owner}/{repo}'
+  vim.validate('repo', repo, 'string')
   -- Use the raw REST endpoint instead of `gh run view --log` to avoid gh's "{workflow} / {job} {step}" prefix.
   util.system({
     'gh', 'api',
-    f('repos/%s/actions/jobs/%s/logs', repo_path, tostring(job_id)),
+    f('repos/%s/actions/jobs/%s/logs', repo, tostring(job_id)),
   }, function(logs, stderr, code)
     if code ~= 0 or util.is_empty(vim.trim(logs or '')) then
       progress('failed')
