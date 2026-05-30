@@ -12,6 +12,18 @@ M.setup = function(user_config)
       vim.keymap.set('n', '<CR>', function()
         local util = require('guh.util')
         local text = vim.fn.expand('<cWORD>')
+        -- Flash the cWORD so the user can see what got picked.
+        local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+        local line = vim.api.nvim_get_current_line()
+        local s = (line:sub(1, col + 1):match('()%S+$') or col + 2) - 1
+        vim.hl.range(
+          0,
+          vim.api.nvim_create_namespace('guh.cword_hl'),
+          'Visual',
+          { row - 1, s },
+          { row - 1, s + #text },
+          { timeout = 200 }
+        )
         local done = util.progress('Loading...')
         vim.schedule(function()
           vim.cmd('Guh ' .. text)
