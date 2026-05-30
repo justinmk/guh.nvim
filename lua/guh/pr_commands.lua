@@ -91,7 +91,26 @@ function M.request_changes_pr()
 end
 
 function M.merge_pr()
-  util.msg('TODO')
+  local id = (vim.b.guh or {}).id
+  local repo = (vim.b.guh or {}).repo
+  if not id or not repo then
+    return util.msg('Not in a PR buffer', vim.log.levels.ERROR)
+  end
+
+  vim.ui.select({ 'squash', 'merge', 'rebase' }, {
+    prompt = ('Merge PR #%s by:'):format(id),
+  }, function(method)
+    if not method then return end
+    local done = util.progress(('Merging PR #%s (%s)…'):format(id, method))
+    gh.merge_pr(id, repo, method, function(ok, stderr)
+      done(ok and 'success' or 'failed')
+      if ok then
+        util.msg(('Merged PR #%s'):format(id))
+      else
+        util.msg(('Merge failed: %s'):format(vim.trim(stderr)), vim.log.levels.ERROR)
+      end
+    end)
+  end)
 end
 
 function M.load_comments(opts)
