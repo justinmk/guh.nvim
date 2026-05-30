@@ -404,16 +404,19 @@ function M.get_pr_ci_logs(job_id, cb)
   local progress = util.new_progress_report('Loading CI log', 0)
   progress('running', nil, 'job %s', tostring(job_id))
 
-  util.system({ 'gh', 'run', 'view', '--job', tostring(job_id), '--log' },
-    function(logs, stderr, code)
-      if code ~= 0 or util.is_empty(vim.trim(logs or '')) then
-        progress('failed')
-        cb(nil, ('Log unavailable: %s'):format(vim.trim(stderr or '')))
-        return
-      end
-      progress('success')
-      cb(vim.trim(logs))
-    end)
+  -- Use the raw REST endpoint instead of `gh run view --log` to avoid gh's "{workflow} / {job} {step}" prefix.
+  util.system({
+    'gh', 'api',
+    f('repos/{owner}/{repo}/actions/jobs/%s/logs', tostring(job_id)),
+  }, function(logs, stderr, code)
+    if code ~= 0 or util.is_empty(vim.trim(logs or '')) then
+      progress('failed')
+      cb(nil, ('Log unavailable: %s'):format(vim.trim(stderr or '')))
+      return
+    end
+    progress('success')
+    cb(vim.trim(logs))
+  end)
 end
 
 M.get_repo_async = async.wrap(1, M.get_repo)
