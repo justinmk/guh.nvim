@@ -48,7 +48,7 @@ function M.select(opts)
 
   local target = util.parse_target(arg)
   if not target then
-    util.msg(('Could not parse :Guh argument: %s'):format(arg), vim.log.levels.ERROR)
+    util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
     return
   end
 
