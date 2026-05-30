@@ -30,8 +30,12 @@ end
 --- @return string?
 local function resolve_local_repo()
   local repo
-  gh.get_repo(function(r) repo = r end)
-  vim.wait(5000, function() return not not repo end)
+  gh.get_repo(function(r)
+    repo = r
+  end)
+  vim.wait(5000, function()
+    return not not repo
+  end)
   return repo
 end
 
@@ -44,13 +48,13 @@ function M.select(opts)
 
   local target = util.parse_target(arg)
   if not target then
-    util.notify(('Could not parse :Guh argument: %s'):format(arg), vim.log.levels.ERROR)
+    util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
     return
   end
 
   local repo = target.owner and (target.owner .. '/' .. target.repo) or resolve_local_repo()
   if not repo then
-    util.notify('Failed to get repo info', vim.log.levels.ERROR)
+    util.msg('Failed to get repo info', vim.log.levels.ERROR)
     return
   end
 
@@ -75,25 +79,25 @@ end
 
 --- Performs checkout. Shows PR info.
 function M.checkout(opts)
-  util.notify('TODO')
+  util.msg('TODO')
 end
 
 function M.approve_pr()
-  util.notify('TODO')
+  util.msg('TODO')
 end
 
 function M.request_changes_pr()
-  util.notify('TODO')
+  util.msg('TODO')
 end
 
 function M.merge_pr()
-  util.notify('TODO')
+  util.msg('TODO')
 end
 
 function M.load_comments(opts)
   local prnum = opts and opts.args and tonumber(opts.args) or (vim.b.guh or {}).id
   if not prnum then
-    util.notify('No PR number provided', vim.log.levels.ERROR)
+    util.msg('No PR number provided', vim.log.levels.ERROR)
     return
   end
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
@@ -140,10 +144,10 @@ end
 M.comment = function(args)
   assert(args and args.line1 and args.line2)
   if args.bang and args.range then
-    return util.notify('Cannot use bang and range together.', vim.log.levels.ERROR)
+    return util.msg('Cannot use bang and range together.', vim.log.levels.ERROR)
   end
   if args.bang then
-    return util.notify(':GuhComment! (bang) not implemented yet', vim.log.levels.ERROR)
+    return util.msg(':GuhComment! (bang) not implemented yet', vim.log.levels.ERROR)
   else
     comments.do_comment(args.line1, args.line2)
   end
@@ -155,13 +159,15 @@ function M.show_ci_logs(opts)
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
   gh.get_pr_info(id, repo, function(pr)
     if not pr then
-      return util.notify(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+      return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
     end
     gh.get_pr_ci_jobs_logs(pr, repo, function(jobs, jobs_err)
       assert(jobs, ('failed to list CI jobs: %s'):format(jobs_err))
-      jobs = vim.tbl_filter(function(j) return j.conclusion ~= 'skipped' end, jobs)
+      jobs = vim.tbl_filter(function(j)
+        return j.conclusion ~= 'skipped'
+      end, jobs)
       if #jobs == 0 then
-        return util.notify(('No (non-skipped) CI jobs for PR #%s'):format(id), vim.log.levels.WARN)
+        return util.msg(('No (non-skipped) CI jobs for PR #%s'):format(id), vim.log.levels.WARN)
       end
 
       vim.ui.select(jobs, {
@@ -170,7 +176,9 @@ function M.show_ci_logs(opts)
           return ('[%s] %s'):format(j.conclusion or j.status or '?', j.name)
         end,
       }, function(picked)
-        if not picked then return end
+        if not picked then
+          return
+        end
         gh.get_pr_ci_logs(picked.databaseId, repo, function(logs, err)
           assert(logs, ('failed to get CI log: %s'):format(err))
 
@@ -183,7 +191,7 @@ function M.show_ci_logs(opts)
           vim.api.nvim_paste(logs, false, -1)
           vim.bo[buf].modified = false
           vim.bo[buf].modifiable = false
-          vim.cmd.norm[[gg0]]
+          vim.cmd.norm [[gg0]]
         end)
       end)
     end)

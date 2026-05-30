@@ -3,6 +3,12 @@ local state = require('guh.state')
 
 local M = {}
 
+--- Shared `nvim_echo` notification id. Re-using it makes successive emits
+--- update the same notification in place, so progress events from different
+--- callers (e.g. <CR>'s "Loading..." and the real work's progress) collapse
+--- into one row.
+local progress_echo_id = nil ---@type integer?
+
 --- Runs a shell command (split on spaces) asynchronously via `vim.system`.
 --- On non-zero exit with stderr: logs, notifies, and raises an error.
 ---
@@ -16,7 +22,7 @@ function M.system_str(cmd, cb)
     if type(cb) == 'function' then
       if result.code ~= 0 and #result.stderr > 0 then
         config.log('system_str error', result.stderr)
-        M.notify(result.stderr, vim.log.levels.ERROR)
+        M.msg(result.stderr, vim.log.levels.ERROR)
         error(result.stderr)
       end
 
@@ -91,9 +97,12 @@ function M.get_current_git_branch_name(cb)
   end)
 end
 
-function M.notify(message, level)
+--- Shows a notification prefixed with "guh:".
+--- @param message string
+--- @param level? integer one of `vim.log.levels.*`
+function M.msg(message, level)
   vim.schedule(function()
-    vim.notify(message, level)
+    vim.notify(('guh: %s'):format(message), level)
   end)
 end
 
@@ -102,23 +111,53 @@ end
 --- @return fun(status: 'running'|'success'|'failed'|'cancel', percent?: integer, fmt?: string, ...:any): nil
 function M.new_progress_report(action, buf)
   local progress = { kind = 'progress', title = 'guh' }
-  return vim.schedule_wrap(function(status, percent, fmt, ...)
-    if buf and buf > 0 then
-      vim.bo[buf].busy = vim.bo[buf].busy + 1
-    end
+  local incremented = false
+  if buf and not vim.in_fast_event() and buf > 0 then
+    vim.bo[buf].busy = vim.bo[buf].busy + 1
+    incremented = true
+  end
 
-    local done = (status == 'failed' or status == 'success')
+  return vim.schedule_wrap(function(status, percent, fmt, ...)
+    local done = (status == 'failed' or status == 'success' or status == 'cancel')
     progress.source = 'guh.nvim'
     progress.status = status
     progress.percent = not done and percent or nil
     progress.title = not done and progress.title or nil
+    progress.id = progress_echo_id
     local msg = done and '' or ('%s %s'):format(action, (fmt or ''):format(...))
-    progress.id = vim.api.nvim_echo({ { msg } }, status ~= 'running', progress)
+    progress_echo_id = vim.api.nvim_echo({ { msg } }, status ~= 'running', progress)
+    if done then progress_echo_id = nil end
 
-    if buf and vim.api.nvim_buf_is_valid(buf) then
+    -- Only decrement on done, and only if we incremented in the first place.
+    if done and incremented and buf and vim.api.nvim_buf_is_valid(buf) then
       vim.bo[buf].busy = math.max(0, vim.bo[buf].busy - 1)
+      incremented = false
     end
   end)
+end
+
+--- Synchronously emits "Loading..." (or `label`) under a shared progress-id.
+--- Returns a finalizer that emits `status` (default 'success') to dismiss.
+---
+--- @param label? string default: "Loading..."
+--- @return fun(status?: 'success'|'failed'|'cancel')
+function M.progress(label)
+  progress_echo_id = vim.api.nvim_echo({ { label or 'Loading...' } }, false, {
+    kind = 'progress',
+    source = 'guh.nvim',
+    title = 'guh',
+    status = 'running',
+    id = progress_echo_id,
+  })
+  return function(status)
+    progress_echo_id = vim.api.nvim_echo({ { '' } }, false, {
+      kind = 'progress',
+      source = 'guh.nvim',
+      status = status or 'success',
+      id = progress_echo_id,
+    })
+    progress_echo_id = nil
+  end
 end
 
 function M.buf_keymap(buf, mode, lhs, desc, rhs)

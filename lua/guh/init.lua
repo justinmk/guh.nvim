@@ -10,10 +10,13 @@ M.setup = function(user_config)
     group = vim.api.nvim_create_augroup('guh.keymaps', { clear = true }),
     callback = function(args)
       vim.keymap.set('n', '<CR>', function()
+        local util = require('guh.util')
         local text = vim.fn.expand('<cWORD>')
-        if require('guh.util').parse_target(text) then
+        local done = util.progress('Loading...')
+        vim.schedule(function()
           vim.cmd('Guh ' .. text)
-        end
+          done()
+        end)
       end, { buffer = args.buf, desc = 'Open :Guh target at cursor' })
     end,
   })

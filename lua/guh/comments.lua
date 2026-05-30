@@ -30,7 +30,7 @@ local function load_comments_to_quickfix_list(comments_list)
   if #qf_entries > 0 then
     vim.fn.setqflist(qf_entries, 'u')
   else
-    util.notify('No GH comments loaded.')
+    util.msg('No GH comments loaded.')
   end
 end
 
@@ -167,10 +167,10 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
 
   -- Set scrollbind on both windows *after* writing the buffer content.
   vim.api.nvim_win_call(diff_win, function()
-    vim.cmd[[setlocal scrollbind]]
+    vim.cmd [[setlocal scrollbind]]
   end)
   vim.api.nvim_win_call(win, function()
-    vim.cmd[[setlocal scrollbind]]
+    vim.cmd [[setlocal scrollbind]]
   end)
 end
 
@@ -280,7 +280,7 @@ function M.load_comments(prnum, repo, cb)
 end
 
 M.update_comment = function(opts)
-  util.notify('TODO')
+  util.msg('TODO')
 end
 
 -- TODO: fix this, code is outdated after big refactor.
@@ -289,7 +289,7 @@ M.load_comments_into_diagnostics = function(bufnr, filename, comments_list)
   vim.schedule(function()
     config.log('load_comments_into_diagnostics:', filename)
     if not comments_list or comments_list[filename] == nil then
-      util.notify(('comments_list[%s] is empty'):format(filename))
+      util.msg(('comments_list[%s] is empty'):format(filename))
     else
       local diagnostics = {}
       for _, comment in pairs(comments_list[filename]) do
@@ -321,7 +321,7 @@ function M.prepare_to_comment(line1, line2)
   local prnum = assert(vim.b.guh.id)
   local repo = assert(vim.b.guh.repo)
   if not prnum then
-    vim.notify('Not a PR diff buffer', vim.log.levels.WARN)
+    util.msg('Not a PR diff buffer', vim.log.levels.WARN)
     return nil
   end
 
@@ -329,7 +329,7 @@ function M.prepare_to_comment(line1, line2)
   line2 = math.max(line1, line2 or line1)
   local lines = vim.api.nvim_buf_get_lines(buf, line1 - 1, line2, false)
   if vim.tbl_isempty(lines) then
-    vim.notify('Empty selection', vim.log.levels.WARN)
+    util.msg('Empty selection', vim.log.levels.WARN)
     return nil
   end
 
@@ -346,7 +346,7 @@ function M.prepare_to_comment(line1, line2)
     end
   end
   if not file then
-    vim.notify('Could not determine file from diff', vim.log.levels.WARN)
+    util.msg('Could not determine file from diff', vim.log.levels.WARN)
     return nil
   end
 
@@ -356,7 +356,7 @@ function M.prepare_to_comment(line1, line2)
   for i = line1, line2 do
     local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
     if l and l:match('^%+%+%+ b/(.+)$') and not l:match('^%+%+%+ b/' .. vim.pesc(file) .. '$') then
-      vim.notify('Cannot comment across multiple files in a diff', vim.log.levels.ERROR)
+      util.msg('Cannot comment across multiple files in a diff', vim.log.levels.ERROR)
       return nil
     end
   end
@@ -431,7 +431,7 @@ function M.do_comment(line1, line2)
 
   gh.get_pr_info(info.pr_id, info.repo, function(pr)
     if not pr then
-      return util.notify(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
+      return util.msg(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
     end
     vim.schedule(function()
       M.edit_comment(info.pr_id, { '' }, config.s.keymaps.comment.send_comment, function(input)
