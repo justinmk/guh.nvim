@@ -284,3 +284,25 @@ describe('commands', function()
     -- t.ok(buf == 'guh://issue/1' or buf == 'guh://pr/1', 'guh://{pr,issue}/1', buf)
   end)
 end)
+
+describe('util', function()
+  it('parse_target()', function()
+    local function parse_target(arg)
+      return n.exec_lua(function(a) return require('guh.util').parse_target(a) end, arg)
+    end
+
+    t.eq({ id = 13 }, parse_target('13'))
+    t.eq({ id = 13 }, parse_target('  13  '))
+    t.eq({ owner = 'justinmk', repo = 'guh.nvim', id = 13, is_pr = true },
+      parse_target('https://github.com/justinmk/guh.nvim/pull/13'))
+    t.eq({ owner = 'neovim', repo = 'neovim', id = 20632, is_pr = false },
+      parse_target('https://github.com/neovim/neovim/issues/20632'))
+    t.eq({ owner = 'neovim', repo = 'neovim', id = 20632 },
+      parse_target('neovim/neovim#20632'))
+
+    t.eq(nil, parse_target('garbage'))
+    t.eq(nil, parse_target(''))
+    t.eq(nil, parse_target('owner/repo'))
+    t.eq(nil, parse_target('https://github.com/owner/repo'))
+  end)
+end)

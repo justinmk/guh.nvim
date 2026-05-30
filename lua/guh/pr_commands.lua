@@ -27,30 +27,51 @@ end
 --- - PR detail
 --- - Issue detail
 function M.select(opts)
-  if 0 == #((opts or {}).args or {}) then
+  local arg = (opts or {}).args or ''
+  if 0 == #arg then
     M.show_status()
     return
   end
-  local num = assert(opts and opts.args and tonumber(opts.args))
-  local repo
-  gh.get_repo(function(repo_)
-    repo = repo_
-  end)
-  vim.wait(5000, function()
-    return not not repo
-  end)
-  if not repo then
-    util.notify('Failed to get repo info', vim.log.levels.ERROR)
+
+  local target = util.parse_target(arg)
+  if not target then
+    util.notify(('Could not parse :Guh argument: %s'):format(arg), vim.log.levels.ERROR)
     return
   end
-  local test_cmd = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, num) }, { text = true }):wait()
-  local is_pr = 0 == (test_cmd).code
-  if is_pr and num then
-    M.show_pr(num)
+
+  local repo_arg = target.owner and (target.owner .. '/' .. target.repo) or nil
+
+  -- URL form already tells us PR vs issue; skip the API probe.
+  if target.is_pr ~= nil then
+    if target.is_pr then
+      M.show_pr(target.id, repo_arg)
+    else
+      M.show_issue(target.id, repo_arg)
+    end
+    return
+  end
+
+  -- For slug and bare-number forms, probe the API to disambiguate.
+  local repo = repo_arg
+  if not repo then
+    gh.get_repo(function(repo_)
+      repo = repo_
+    end)
+    vim.wait(5000, function()
+      return not not repo
+    end)
+    if not repo then
+      util.notify('Failed to get repo info', vim.log.levels.ERROR)
+      return
+    end
+  end
+
+  local test_cmd = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }):wait()
+  local is_pr = 0 == test_cmd.code
+  if is_pr then
+    M.show_pr(target.id, repo_arg)
   else
-    M.show_issue(num)
-    -- gh.get_issue(num, show_issue_info)
-    -- TODO: issue selection?
+    M.show_issue(target.id, repo_arg)
   end
 end
 
@@ -86,15 +107,30 @@ function M.show_status()
 end
 
 --- @param id integer
-function M.show_issue(id)
-  local buf = state.init_buf('issue', id)
-  util.run_term_cmd(buf, 'issue', id, { 'gh', 'issue', 'view', tostring(id) })
+--- @param repo? string "owner/name", for non-local repo (outside of CWD).
+function M.show_issue(id, repo)
+  local bufid = repo and (repo .. '/' .. id) or id
+  local buf = state.init_buf('issue', bufid, { id = id })
+  local cmd = { 'gh', 'issue', 'view', tostring(id) }
+  if repo then
+    table.insert(cmd, '--repo')
+    table.insert(cmd, repo)
+  end
+  util.run_term_cmd(buf, 'issue', bufid, cmd)
   set_issue_view_keymaps(buf)
 end
 
-function M.show_pr(id)
-  local buf = state.init_buf('pr', id)
-  util.run_term_cmd(buf, 'pr', id, { 'gh', 'pr', 'view', '--comments', tostring(id) }, function()
+--- @param id integer
+--- @param repo? string "owner/name", for non-local repo (outside of CWD).
+function M.show_pr(id, repo)
+  local bufid = repo and (repo .. '/' .. id) or id
+  local buf = state.init_buf('pr', bufid, { id = id })
+  local cmd = { 'gh', 'pr', 'view', '--comments', tostring(id) }
+  if repo then
+    table.insert(cmd, '--repo')
+    table.insert(cmd, repo)
+  end
+  util.run_term_cmd(buf, 'pr', bufid, cmd, function()
     set_pr_view_keymaps(buf)
   end)
 end
