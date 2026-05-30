@@ -122,7 +122,7 @@ function M.load_comments(type, number, cb)
       end
 
       local nr_before = #comments
-      comments = util.filter_array(comments, is_valid_comment)
+      comments = vim.tbl_filter(is_valid_comment, comments)
       config.log(
         ('%s comments (valid: %s, discarded: %s)'):format(log_type, #comments, nr_before - #comments),
         comments

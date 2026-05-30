@@ -26,16 +26,6 @@ function M.system(cmd, cb)
   end)
 end
 
-function M.filter_array(arr, condition)
-  local result = {}
-  for _, v in ipairs(arr) do
-    if condition(v) then
-      table.insert(result, v)
-    end
-  end
-  return result
-end
-
 function M.is_empty(value)
   return value == nil or value == '' or value == 0 or #value == 0
 end
