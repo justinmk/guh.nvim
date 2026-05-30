@@ -53,17 +53,22 @@ To review a PR without doing a checkout in your repo:
 COMMANDS                                                        *guh-commands*
 
                                                                         *:Guh*
-:Guh [pr_or_issue]
+:Guh [target]
               Views (or refreshes) the given PR or issue, or prompts to select
-              a PR. >
-
-                :Guh 123
+              a PR. `[target]` can be:
+              - a number (PR or issue in the current repo): `:Guh 123`
+              - a GitHub URL (any repo): >
+                  :Guh https://github.com/justinmk/guh.nvim/pull/13
+                  :Guh https://github.com/neovim/neovim/issues/20632
+<              - an `owner/repo#N` slug (any repo): >
+                  :Guh neovim/neovim#20632
 <
               Related gh commands: >
                 gh pr view 42
                 gh issue view 42
 <
               Buffer-local key bindings:
+              - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
               - `cA` to approve PR
               - `cM` to merge PR (see `GuhMerge` for details)
               - `ca` to write top level PR comment
