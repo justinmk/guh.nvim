@@ -105,7 +105,11 @@ end
 --- @param repo string "owner/name".
 --- @param cb fun(issue?: Issue)
 function M.get_issue(issue_num, repo, cb)
-  get_info(M.cmd(repo, 'issue', 'view', tostring(issue_num), '--json', table.concat(issue_fields, ',')), 'issue_data', cb)
+  get_info(
+    M.cmd(repo, 'issue', 'view', tostring(issue_num), '--json', table.concat(issue_fields, ',')),
+    'issue_data',
+    cb
+  )
 end
 
 function M.get_repo(cb)
@@ -135,10 +139,7 @@ function M.load_comments(type, id, repo, cb)
 
     local nr_before = #comments
     comments = vim.tbl_filter(is_valid_comment, comments)
-    config.log(
-      ('%s comments (valid: %s, discarded: %s)'):format(log_type, #comments, nr_before - #comments),
-      comments
-    )
+    config.log(('%s comments (valid: %s, discarded: %s)'):format(log_type, #comments, nr_before - #comments), comments)
 
     cb(comments)
   end)
@@ -351,7 +352,10 @@ function M.get_pr_ci_jobs_logs(pr, repo, cb)
   -- `--paginate` is safe here: `filter=latest` collapses re-runs server-side, so the count is bounded by distinct check
   -- names for this one commit (matrix-expanded across workflow files): so this usually fetches only 1 page (<100 items).
   util.system({
-    'gh', 'api', '--paginate', '--slurp',
+    'gh',
+    'api',
+    '--paginate',
+    '--slurp',
     f('repos/%s/commits/%s/check-runs?filter=latest&per_page=100', repo, head_sha),
   }, function(result, stderr, code)
     if code ~= 0 then
@@ -421,7 +425,8 @@ function M.get_pr_ci_logs(job_id, repo, cb)
   vim.validate('repo', repo, 'string')
   -- Use the raw REST endpoint instead of `gh run view --log` to avoid gh's "{workflow} / {job} {step}" prefix.
   util.system({
-    'gh', 'api',
+    'gh',
+    'api',
     f('repos/%s/actions/jobs/%s/logs', repo, tostring(job_id)),
   }, function(logs, stderr, code)
     if code ~= 0 or util.is_empty(vim.trim(logs or '')) then

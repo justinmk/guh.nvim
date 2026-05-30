@@ -16,7 +16,7 @@ function M.system_str(cmd, cb)
     if type(cb) == 'function' then
       if result.code ~= 0 and #result.stderr > 0 then
         config.log('system_str error', result.stderr)
-        M.notify(result.stderr, vim.log.levels.ERROR)
+        M.msg(result.stderr, vim.log.levels.ERROR)
         error(result.stderr)
       end
 
@@ -91,9 +91,12 @@ function M.get_current_git_branch_name(cb)
   end)
 end
 
-function M.notify(message, level)
+--- Shows a notification prefixed with "guh:".
+--- @param message string
+--- @param level? integer one of `vim.log.levels.*`
+function M.msg(message, level)
   vim.schedule(function()
-    vim.notify(message, level)
+    vim.notify(('guh: %s'):format(message), level)
   end)
 end
 
