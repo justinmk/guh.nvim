@@ -79,7 +79,7 @@ describe('guh.gh', function()
           return
         end
 
-        gh.get_pr_ci_jobs_logs(pr, function(jobs, jobs_err)
+        gh.get_pr_ci_jobs_logs(pr, nil, function(jobs, jobs_err)
           if not jobs then
             err = jobs_err
             done = true
@@ -89,7 +89,7 @@ describe('guh.gh', function()
           assert(jobs[1].databaseId, 'job missing databaseId')
           assert(type(jobs[1].name) == 'string', 'job missing name')
 
-          gh.get_pr_ci_logs(jobs[1].databaseId, function(job_logs, job_err)
+          gh.get_pr_ci_logs(jobs[1].databaseId, nil, function(job_logs, job_err)
             logs = job_logs
             err = job_err
             done = true

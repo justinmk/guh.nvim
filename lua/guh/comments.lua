@@ -255,13 +255,14 @@ local function group_comments(gh_comments, cb)
 end
 
 ---@param prnum integer
+---@param repo? string "owner/name" for non-local repo.
 ---@param cb? function
-function M.load_comments(prnum, cb)
+function M.load_comments(prnum, repo, cb)
   local progress = util.new_progress_report('Loading comments', vim.fn.bufnr())
   assert(type(prnum) == 'number')
   local resource = 'pulls' -- TODO: support 'issues'
   local log_type = resource == 'pulls' and 'pr' or 'issue'
-  gh.load_comments(resource, prnum, function(comments)
+  gh.load_comments(resource, prnum, repo, function(comments)
     group_comments(
       comments,
       vim.schedule_wrap(function(grouped)
@@ -314,10 +315,11 @@ end
 ---
 --- @param line1 integer 1-indexed start line
 --- @param line2 integer 1-indexed end line (inclusive)
---- @return table|nil info { buf, pr_id, file, start_line, end_line }
+--- @return table|nil info { buf, pr_id, repo, file, start_line, end_line }
 function M.prepare_to_comment(line1, line2)
   local buf = vim.api.nvim_get_current_buf()
   local prnum = assert(vim.b.guh.id)
+  local repo = assert(vim.b.guh.repo)
   if not prnum then
     vim.notify('Not a PR diff buffer', vim.log.levels.WARN)
     return nil
@@ -378,6 +380,7 @@ function M.prepare_to_comment(line1, line2)
     return {
       buf = buf,
       pr_id = tonumber(prnum),
+      repo = repo,
       file = file,
       line_start = nil,
       line_end = nil,
@@ -408,6 +411,7 @@ function M.prepare_to_comment(line1, line2)
   return {
     buf = buf,
     pr_id = tonumber(prnum),
+    repo = repo,
     file = file,
     -- GH expects 0-indexed lines, end-EXclusive.
     start_line = line_start,
@@ -425,17 +429,17 @@ function M.do_comment(line1, line2)
     return
   end
 
-  gh.get_pr_info(info.pr_id, function(pr)
+  gh.get_pr_info(info.pr_id, info.repo, function(pr)
     if not pr then
       return util.notify(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
     end
     vim.schedule(function()
       M.edit_comment(info.pr_id, { '' }, config.s.keymaps.comment.send_comment, function(input)
         local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
-        gh.new_comment(pr, input, info.file, info.start_line, info.end_line, function(resp)
+        gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.repo, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
-            M.load_comments(info.pr_id) -- Reload comments.
+            M.load_comments(info.pr_id, info.repo) -- Reload comments.
           else
             progress('failed', nil, 'Failed to send comment.')
           end

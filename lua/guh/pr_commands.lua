@@ -98,7 +98,7 @@ function M.load_comments(opts)
     util.notify('No PR number provided', vim.log.levels.ERROR)
     return
   end
-  comments.load_comments(prnum)
+  comments.load_comments(prnum, (vim.b.guh or {}).repo)
 end
 
 function M.show_status()
@@ -110,7 +110,7 @@ end
 --- @param repo? string "owner/name", for non-local repo (outside of CWD).
 function M.show_issue(id, repo)
   local bufid = repo and (repo .. '/' .. id) or id
-  local buf = state.init_buf('issue', bufid, { id = id })
+  local buf = state.init_buf('issue', bufid, { id = id, repo = repo })
   local cmd = { 'gh', 'issue', 'view', tostring(id) }
   if repo then
     table.insert(cmd, '--repo')
@@ -124,7 +124,7 @@ end
 --- @param repo? string "owner/name", for non-local repo (outside of CWD).
 function M.show_pr(id, repo)
   local bufid = repo and (repo .. '/' .. id) or id
-  local buf = state.init_buf('pr', bufid, { id = id })
+  local buf = state.init_buf('pr', bufid, { id = id, repo = repo })
   local cmd = { 'gh', 'pr', 'view', '--comments', tostring(id) }
   if repo then
     table.insert(cmd, '--repo')
@@ -137,9 +137,16 @@ end
 
 function M.show_pr_diff(opts)
   local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
+  local repo = (vim.b.guh or {}).repo
 
-  local buf = state.init_buf('diff', id)
-  util.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) }, function()
+  local bufid = repo and (repo .. '/' .. id) or id
+  local buf = state.init_buf('diff', bufid, { id = id, repo = repo })
+  local cmd = { 'gh', 'pr', 'diff', tostring(id) }
+  if repo then
+    table.insert(cmd, '--repo')
+    table.insert(cmd, repo)
+  end
+  util.run_term_cmd(buf, 'diff', bufid, cmd, function()
     M.load_comments()
     vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
     set_pr_view_keymaps(buf)
@@ -162,11 +169,12 @@ end
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
   local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
-  gh.get_pr_info(id, function(pr)
+  local repo = (vim.b.guh or {}).repo
+  gh.get_pr_info(id, repo, function(pr)
     if not pr then
       return util.notify(('PR #%s not found'):format(id), vim.log.levels.ERROR)
     end
-    gh.get_pr_ci_jobs_logs(pr, function(jobs, jobs_err)
+    gh.get_pr_ci_jobs_logs(pr, repo, function(jobs, jobs_err)
       assert(jobs, ('failed to list CI jobs: %s'):format(jobs_err))
       jobs = vim.tbl_filter(function(j) return j.conclusion ~= 'skipped' end, jobs)
       if #jobs == 0 then
@@ -180,7 +188,7 @@ function M.show_ci_logs(opts)
         end,
       }, function(picked)
         if not picked then return end
-        gh.get_pr_ci_logs(picked.databaseId, function(logs, err)
+        gh.get_pr_ci_logs(picked.databaseId, repo, function(logs, err)
           assert(logs, ('failed to get CI log: %s'):format(err))
 
           local buf = state.init_buf('logs', id)
