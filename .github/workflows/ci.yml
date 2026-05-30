@@ -32,7 +32,7 @@ jobs:
           # sudo apt-get update
           sudo apt-get install -y ninja-build gettext cmake curl build-essential git
 
-      # 4. Build Neovim. Run a dummy test. This avoids build noise in the logs for the next step.
+      # 4. Build Neovim (and run a dummy test). This avoids build noise in the logs for the next step.
       - name: Setup Neovim test environment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -40,7 +40,7 @@ jobs:
         run: |
           # make patch-runner
           cd neovim
-          TEST_FILE=test/functional/example_spec.lua make functionaltest
+          TEST_FILE=test/functional/example_spec.lua CMAKE_FLAGS="-D CI_BUILD=ON" make functionaltest
 
       # 5. Run the plugin tests using Neovim’s framework.
       - name: Run plugin tests

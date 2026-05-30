@@ -56,7 +56,7 @@ describe('guh.gh', function()
     end)
   end)
 
-  it('get_pr_ci_logs', function()
+  it('get_pr_ci_jobs_logs + get_pr_ci_logs', function()
     n.exec_lua(function()
       local gh = require('guh.gh')
       local util = require('guh.util')
@@ -79,23 +79,36 @@ describe('guh.gh', function()
           return
         end
 
-        -- Test get_pr_ci_logs with the PR
-        gh.get_pr_ci_logs(pr, function(job_logs, job_err)
-          logs = job_logs
-          err = job_err
-          done = true
+        gh.get_pr_ci_jobs_logs(pr, function(jobs, jobs_err)
+          if not jobs then
+            err = jobs_err
+            done = true
+            return
+          end
+          assert(#jobs > 0, 'no CI jobs returned')
+          assert(jobs[1].databaseId, 'job missing databaseId')
+          assert(type(jobs[1].name) == 'string', 'job missing name')
+
+          gh.get_pr_ci_logs(jobs[1].databaseId, function(job_logs, job_err)
+            logs = job_logs
+            err = job_err
+            done = true
+          end)
         end)
       end)
 
-      -- Wait for the callbacks to complete
-      local ok = vim.wait(10000, function()
+      local ok = vim.wait(15000, function()
         return done
       end)
       assert(ok, 'get_pr_ci_logs timed out')
 
-      -- Either logs should exist or an error message should exist
-      assert(not err, ('error: %s'):format(err))
-      assert(logs, 'no logs or error returned')
+      -- Logs may have been purged by GitHub (90 day retention). Either logs or
+      -- a "log unavailable" error is acceptable; a crash or timeout is not.
+      assert(logs or err, 'no result returned')
+      if err then
+        assert(err:match('[Ll]og unavailable') or err:match('HTTP 410'),
+          ('unexpected error: %s'):format(err))
+      end
     end)
   end)
 

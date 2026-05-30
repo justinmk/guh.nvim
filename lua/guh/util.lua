@@ -3,6 +3,11 @@ local state = require('guh.state')
 
 local M = {}
 
+--- Runs a shell command (split on spaces) asynchronously via `vim.system`.
+--- On non-zero exit with stderr: logs, notifies, and raises an error.
+---
+--- @param cmd string Command string; split on spaces into argv.
+--- @param cb? fun(stdout: string, stderr: string)
 function M.system_str(cmd, cb)
   local cmd_split = vim.split(cmd, ' ')
   vim.system(cmd_split, { text = true }, function(result)
@@ -18,22 +23,16 @@ function M.system_str(cmd, cb)
   end)
 end
 
+--- Runs a command asynchronously via `vim.system`. The callback is deferred (`vim.schedule_wrap`).
+---
+--- @param cmd string[] argv list.
+--- @param cb? fun(stdout: string, stderr: string, code: integer)
 function M.system(cmd, cb)
   vim.system(cmd, { text = true }, function(result)
     if type(cb) == 'function' then
-      vim.schedule_wrap(cb)(result.stdout)
+      vim.schedule_wrap(cb)(result.stdout, result.stderr, result.code)
     end
   end)
-end
-
-function M.filter_array(arr, condition)
-  local result = {}
-  for _, v in ipairs(arr) do
-    if condition(v) then
-      table.insert(result, v)
-    end
-  end
-  return result
 end
 
 function M.is_empty(value)
@@ -69,11 +68,11 @@ end
 --- @return fun(status: 'running'|'success'|'failed'|'cancel', percent?: integer, fmt?: string, ...:any): nil
 function M.new_progress_report(action, buf)
   local progress = { kind = 'progress', title = 'guh' }
-  if buf then
-    vim.bo[buf].busy = vim.bo[buf].busy + 1
-  end
-
   return vim.schedule_wrap(function(status, percent, fmt, ...)
+    if buf and buf > 0 then
+      vim.bo[buf].busy = vim.bo[buf].busy + 1
+    end
+
     local done = (status == 'failed' or status == 'success')
     progress.source = 'guh.nvim'
     progress.status = status
@@ -132,6 +131,10 @@ function M.run_term_cmd(buf, feat, id, cmd, on_done)
     vim.fn.jobstart(cmd, {
       term = true,
       on_exit = function()
+        local ns = vim.api.nvim_get_namespaces()['nvim.terminal.exitmsg']
+        if ns and vim.api.nvim_buf_is_valid(buf) then
+          vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+        end
         state.set_buf_name(buf, feat, id)
         if on_done then
           on_done()
