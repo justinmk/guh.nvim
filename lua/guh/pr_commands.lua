@@ -111,12 +111,7 @@ end
 function M.show_issue(id, repo)
   local bufid = repo and (repo .. '/' .. id) or id
   local buf = state.init_buf('issue', bufid, { id = id, repo = repo })
-  local cmd = { 'gh', 'issue', 'view', tostring(id) }
-  if repo then
-    table.insert(cmd, '--repo')
-    table.insert(cmd, repo)
-  end
-  util.run_term_cmd(buf, 'issue', bufid, cmd)
+  util.run_term_cmd(buf, 'issue', bufid, gh.cmd(repo, 'issue', 'view', tostring(id)))
   set_issue_view_keymaps(buf)
 end
 
@@ -125,12 +120,7 @@ end
 function M.show_pr(id, repo)
   local bufid = repo and (repo .. '/' .. id) or id
   local buf = state.init_buf('pr', bufid, { id = id, repo = repo })
-  local cmd = { 'gh', 'pr', 'view', '--comments', tostring(id) }
-  if repo then
-    table.insert(cmd, '--repo')
-    table.insert(cmd, repo)
-  end
-  util.run_term_cmd(buf, 'pr', bufid, cmd, function()
+  util.run_term_cmd(buf, 'pr', bufid, gh.cmd(repo, 'pr', 'view', '--comments', tostring(id)), function()
     set_pr_view_keymaps(buf)
   end)
 end
@@ -138,15 +128,9 @@ end
 function M.show_pr_diff(opts)
   local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
   local repo = (vim.b.guh or {}).repo
-
   local bufid = repo and (repo .. '/' .. id) or id
   local buf = state.init_buf('diff', bufid, { id = id, repo = repo })
-  local cmd = { 'gh', 'pr', 'diff', tostring(id) }
-  if repo then
-    table.insert(cmd, '--repo')
-    table.insert(cmd, repo)
-  end
-  util.run_term_cmd(buf, 'diff', bufid, cmd, function()
+  util.run_term_cmd(buf, 'diff', bufid, gh.cmd(repo, 'pr', 'diff', tostring(id)), function()
     M.load_comments()
     vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
     set_pr_view_keymaps(buf)

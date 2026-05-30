@@ -319,7 +319,7 @@ end
 function M.prepare_to_comment(line1, line2)
   local buf = vim.api.nvim_get_current_buf()
   local prnum = assert(vim.b.guh.id)
-  local repo = assert(vim.b.guh.repo)
+  local repo = vim.b.guh.repo
   if not prnum then
     vim.notify('Not a PR diff buffer', vim.log.levels.WARN)
     return nil

@@ -51,7 +51,7 @@ end
 
 --- Gets details for one "thing" from `gh` and parses the JSON response into an object.
 ---
---- @param cmd string gh command
+--- @param cmd string[] gh command
 --- @param b_field string b:guh field to check for (and store) cached data.
 local function get_info(cmd, b_field, cb)
   -- Use b:guh cache on the current buffer, if available.
@@ -62,15 +62,14 @@ local function get_info(cmd, b_field, cb)
   end
 
   local buf = vim.api.nvim_get_current_buf()
-  vim.schedule_wrap(util.system_str)(cmd, function(result, stderr)
-    if result == nil then
+  util.system(cmd, function(result, stderr, code)
+    if code ~= 0 then
+      if stderr and stderr:match('Unknown JSON field') then
+        error(('Unknown JSON field: %s'):format(stderr))
+      end
+      config.log('get_info error', stderr)
       cb(nil)
       return
-    elseif stderr:match('Unknown JSON field') then
-      error(('Unknown JSON field: %s'):format(stderr))
-      local r = parse_or_default(result, nil)
-      state.set_b_guh(buf, { [b_field] = r })
-      cb(r)
     end
     config.log('get_info resp', result)
 
@@ -80,24 +79,34 @@ local function get_info(cmd, b_field, cb)
   end)
 end
 
+--- Builds a `gh` argv with an optional `--repo <repo>` suffix.
+---
+--- @param repo? string "owner/name"; if set, `--repo <repo>` is appended.
+--- @param ... string subcommand/args (without the leading "gh").
+--- @return string[]
+function M.cmd(repo, ...)
+  local argv = { 'gh', ... }
+  if repo then
+    table.insert(argv, '--repo')
+    table.insert(argv, repo)
+  end
+  return argv
+end
+
 --- Gets PR data from b:guh, or requests it from the API.
 ---
 --- @param prnum string|number PR number, or empty for "current PR"
 --- @param repo? string "owner/name" for non-local repo.
 --- @param cb fun(pr?: PullRequest)
 function M.get_pr_info(prnum, repo, cb)
-  local repo_arg = repo and (' --repo ' .. repo) or ''
-  local cmd = f('gh pr view %s%s --json %s', prnum, repo_arg, table.concat(pr_fields, ','))
-  get_info(cmd, 'pr_data', cb)
+  get_info(M.cmd(repo, 'pr', 'view', tostring(prnum), '--json', table.concat(pr_fields, ',')), 'pr_data', cb)
 end
 
 --- @param issue_num string|number Issue number
 --- @param repo? string "owner/name" for non-local repo.
 --- @param cb fun(issue?: Issue)
 function M.get_issue(issue_num, repo, cb)
-  local repo_arg = repo and (' --repo ' .. repo) or ''
-  local cmd = f('gh issue view %s%s --json %s', issue_num, repo_arg, table.concat(issue_fields, ','))
-  get_info(cmd, 'issue_data', cb)
+  get_info(M.cmd(repo, 'issue', 'view', tostring(issue_num), '--json', table.concat(issue_fields, ',')), 'issue_data', cb)
 end
 
 function M.get_repo(cb)
