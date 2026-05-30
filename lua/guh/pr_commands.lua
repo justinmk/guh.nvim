@@ -26,6 +26,15 @@ end
 --- - Status (if no args given)
 --- - PR detail
 --- - Issue detail
+--- Resolves the current local repo "owner/name", blocking up to 5s.
+--- @return string?
+local function resolve_local_repo()
+  local repo
+  gh.get_repo(function(r) repo = r end)
+  vim.wait(5000, function() return not not repo end)
+  return repo
+end
+
 function M.select(opts)
   local arg = (opts or {}).args or ''
   if 0 == #arg then
@@ -39,39 +48,28 @@ function M.select(opts)
     return
   end
 
-  local repo_arg = target.owner and (target.owner .. '/' .. target.repo) or nil
+  local repo = target.owner and (target.owner .. '/' .. target.repo) or resolve_local_repo()
+  if not repo then
+    util.notify('Failed to get repo info', vim.log.levels.ERROR)
+    return
+  end
 
   -- URL form already tells us PR vs issue; skip the API probe.
   if target.is_pr ~= nil then
     if target.is_pr then
-      M.show_pr(target.id, repo_arg)
+      M.show_pr(target.id, repo)
     else
-      M.show_issue(target.id, repo_arg)
+      M.show_issue(target.id, repo)
     end
     return
-  end
-
-  -- For slug and bare-number forms, probe the API to disambiguate.
-  local repo = repo_arg
-  if not repo then
-    gh.get_repo(function(repo_)
-      repo = repo_
-    end)
-    vim.wait(5000, function()
-      return not not repo
-    end)
-    if not repo then
-      util.notify('Failed to get repo info', vim.log.levels.ERROR)
-      return
-    end
   end
 
   local test_cmd = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }):wait()
   local is_pr = 0 == test_cmd.code
   if is_pr then
-    M.show_pr(target.id, repo_arg)
+    M.show_pr(target.id, repo)
   else
-    M.show_issue(target.id, repo_arg)
+    M.show_issue(target.id, repo)
   end
 end
 
@@ -98,7 +96,8 @@ function M.load_comments(opts)
     util.notify('No PR number provided', vim.log.levels.ERROR)
     return
   end
-  comments.load_comments(prnum)
+  local repo = (vim.b.guh or {}).repo or resolve_local_repo()
+  comments.load_comments(prnum, repo)
 end
 
 function M.show_status()
@@ -107,39 +106,30 @@ function M.show_status()
 end
 
 --- @param id integer
---- @param repo? string "owner/name", for non-local repo (outside of CWD).
+--- @param repo string "owner/name"
 function M.show_issue(id, repo)
-  local bufid = repo and (repo .. '/' .. id) or id
-  local buf = state.init_buf('issue', bufid, { id = id })
-  local cmd = { 'gh', 'issue', 'view', tostring(id) }
-  if repo then
-    table.insert(cmd, '--repo')
-    table.insert(cmd, repo)
-  end
-  util.run_term_cmd(buf, 'issue', bufid, cmd)
+  local bufid = repo .. '/' .. id
+  local buf = state.init_buf('issue', bufid, { id = id, repo = repo })
+  util.run_term_cmd(buf, 'issue', bufid, gh.cmd(repo, 'issue', 'view', tostring(id)))
   set_issue_view_keymaps(buf)
 end
 
 --- @param id integer
---- @param repo? string "owner/name", for non-local repo (outside of CWD).
+--- @param repo string "owner/name"
 function M.show_pr(id, repo)
-  local bufid = repo and (repo .. '/' .. id) or id
-  local buf = state.init_buf('pr', bufid, { id = id })
-  local cmd = { 'gh', 'pr', 'view', '--comments', tostring(id) }
-  if repo then
-    table.insert(cmd, '--repo')
-    table.insert(cmd, repo)
-  end
-  util.run_term_cmd(buf, 'pr', bufid, cmd, function()
+  local bufid = repo .. '/' .. id
+  local buf = state.init_buf('pr', bufid, { id = id, repo = repo })
+  util.run_term_cmd(buf, 'pr', bufid, gh.cmd(repo, 'pr', 'view', '--comments', tostring(id)), function()
     set_pr_view_keymaps(buf)
   end)
 end
 
 function M.show_pr_diff(opts)
   local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
-
-  local buf = state.init_buf('diff', id)
-  util.run_term_cmd(buf, 'diff', id, { 'gh', 'pr', 'diff', tostring(id) }, function()
+  local repo = (vim.b.guh or {}).repo or resolve_local_repo()
+  local bufid = repo .. '/' .. id
+  local buf = state.init_buf('diff', bufid, { id = id, repo = repo })
+  util.run_term_cmd(buf, 'diff', bufid, gh.cmd(repo, 'pr', 'diff', tostring(id)), function()
     M.load_comments()
     vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
     set_pr_view_keymaps(buf)
@@ -162,11 +152,12 @@ end
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
   local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
-  gh.get_pr_info(id, function(pr)
+  local repo = (vim.b.guh or {}).repo or resolve_local_repo()
+  gh.get_pr_info(id, repo, function(pr)
     if not pr then
       return util.notify(('PR #%s not found'):format(id), vim.log.levels.ERROR)
     end
-    gh.get_pr_ci_jobs_logs(pr, function(jobs, jobs_err)
+    gh.get_pr_ci_jobs_logs(pr, repo, function(jobs, jobs_err)
       assert(jobs, ('failed to list CI jobs: %s'):format(jobs_err))
       jobs = vim.tbl_filter(function(j) return j.conclusion ~= 'skipped' end, jobs)
       if #jobs == 0 then
@@ -180,7 +171,7 @@ function M.show_ci_logs(opts)
         end,
       }, function(picked)
         if not picked then return end
-        gh.get_pr_ci_logs(picked.databaseId, function(logs, err)
+        gh.get_pr_ci_logs(picked.databaseId, repo, function(logs, err)
           assert(logs, ('failed to get CI log: %s'):format(err))
 
           local buf = state.init_buf('logs', id)

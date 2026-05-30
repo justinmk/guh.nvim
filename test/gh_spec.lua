@@ -36,7 +36,7 @@ describe('guh.gh', function()
       local gh = require('guh.gh')
       local util = require('guh.util')
       local system_str_async = async.wrap(2, util.system_str)
-      local get_pr_info_async = async.wrap(2, gh.get_pr_info)
+      local get_pr_info_async = async.wrap(3, gh.get_pr_info)
 
       local function test_get_pr_info()
         return async.run(function()
@@ -44,7 +44,7 @@ describe('guh.gh', function()
           local pr_num = assert(vim.json.decode(result)[1].number, 'failed to get a repo issue')
 
           async.await(vim.schedule)
-          local pr = get_pr_info_async(pr_num)
+          local pr = get_pr_info_async(pr_num, 'justinmk/guh.nvim')
           assert(pr, 'pr is nil')
           assert(type(pr.number) == 'number', 'pr.number not number')
           assert(type(pr.title) == 'string', 'pr.title not string')
@@ -79,7 +79,7 @@ describe('guh.gh', function()
           return
         end
 
-        gh.get_pr_ci_jobs_logs(pr, function(jobs, jobs_err)
+        gh.get_pr_ci_jobs_logs(pr, 'justinmk/guh.nvim', function(jobs, jobs_err)
           if not jobs then
             err = jobs_err
             done = true
@@ -89,7 +89,7 @@ describe('guh.gh', function()
           assert(jobs[1].databaseId, 'job missing databaseId')
           assert(type(jobs[1].name) == 'string', 'job missing name')
 
-          gh.get_pr_ci_logs(jobs[1].databaseId, function(job_logs, job_err)
+          gh.get_pr_ci_logs(jobs[1].databaseId, 'justinmk/guh.nvim', function(job_logs, job_err)
             logs = job_logs
             err = job_err
             done = true
@@ -118,7 +118,7 @@ describe('guh.gh', function()
       local gh = require('guh.gh')
       local util = require('guh.util')
       local system_str_async = async.wrap(2, util.system_str)
-      local get_issue_async = async.wrap(2, gh.get_issue)
+      local get_issue_async = async.wrap(3, gh.get_issue)
 
       local function test_get_issue()
         return async.run(function()
@@ -126,7 +126,7 @@ describe('guh.gh', function()
           local issue_num = assert(vim.json.decode(assert(result))[1].number, 'failed to get a repo issue')
 
           async.await(vim.schedule)
-          local issue = get_issue_async(issue_num)
+          local issue = get_issue_async(issue_num, 'justinmk/guh.nvim')
           assert(issue, 'issue is nil')
           assert(type(issue.number) == 'number', 'issue.number not number')
           assert(type(issue.title) == 'string', 'issue.title not string')
@@ -187,7 +187,7 @@ describe('comments', function()
         -- local prs = assert(vim.json.decode(assert(result)), 'failed to get PRs')
         -- assert(#prs > 0, 'no PRs found')
         local pr_num = 2
-        require('guh.comments').load_comments(pr_num, assert_comments)
+        require('guh.comments').load_comments(pr_num, 'justinmk/guh.nvim', assert_comments)
 
         -- Wait for quickfix to be populated or timeout
         local ok, qf = vim.wait(5000, function()
@@ -220,6 +220,7 @@ describe('features', function()
       state.set_b_guh(buf, {
         id = pr_id,
         feat = 'diff',
+        repo = 'justinmk/guh.nvim',
       })
 
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
@@ -261,7 +262,7 @@ describe('commands', function()
         +++ {MATCH:.*}|
         @@ {MATCH:.*} @@ {MATCH:.*}|
         {MATCH:.*}|*3
-        {MATCH:guh://diff/1 .* guh://comments/1 +}|
+        {MATCH:guh://diff/.*/1 .* guh://comments/1 +}|
         {MATCH:.*}|
       ]],
     }

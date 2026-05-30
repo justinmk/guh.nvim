@@ -6,6 +6,8 @@ local M = {}
 --- Runs a shell command (split on spaces) asynchronously via `vim.system`.
 --- On non-zero exit with stderr: logs, notifies, and raises an error.
 ---
+--- @deprecated Use `util.system()` instead.
+---
 --- @param cmd string Command string; split on spaces into argv.
 --- @param cb? fun(stdout: string, stderr: string)
 function M.system_str(cmd, cb)

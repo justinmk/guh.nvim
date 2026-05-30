@@ -114,6 +114,11 @@ function M.set_buf_name(buf, feat, id)
   if prev_altbuf ~= unwanted_altbuf and unwanted_altbuf > 0 and unwanted_altbuf ~= buf then
     vim.api.nvim_buf_delete(unwanted_altbuf, {})
   end
+
+  -- Restore the alt buffer that was clobbered above.
+  if prev_altbuf > 0 and prev_altbuf ~= buf and vim.api.nvim_buf_is_valid(prev_altbuf) then
+    vim.fn.setreg('#', prev_altbuf)
+  end
 end
 
 -- M.on_win_open = function()
