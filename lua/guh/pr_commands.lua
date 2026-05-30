@@ -52,7 +52,9 @@ function M.select(opts)
     return
   end
 
-  local repo = target.owner and (target.owner .. '/' .. target.repo) or resolve_local_repo()
+  local repo = target.owner and (target.owner .. '/' .. target.repo)
+    or (vim.b.guh or {}).repo
+    or resolve_local_repo()
   if not repo then
     util.msg('Failed to get repo info', vim.log.levels.ERROR)
     return
@@ -124,8 +126,17 @@ function M.load_comments(opts)
 end
 
 function M.show_status()
-  local buf = state.init_buf('status', 'all')
-  util.run_term_cmd(buf, 'status', 'all', { 'gh', 'status' })
+  local repo = (vim.b.guh or {}).repo or resolve_local_repo()
+  local buf = state.init_buf('status', 'all', { repo = repo })
+  local cmd = { 'gh', 'status' }
+  if repo then
+    cmd = {
+      vim.o.shell,
+      vim.o.shellcmdflag,
+      ('gh status && gh pr status --repo %s'):format(vim.fn.shellescape(repo)),
+    }
+  end
+  util.run_term_cmd(buf, 'status', 'all', cmd)
 end
 
 --- @param id integer

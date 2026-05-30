@@ -68,6 +68,11 @@ function M.parse_target(arg)
     return { owner = owner, repo = repo, id = tonumber(num) }
   end
 
+  num = arg:match('^#(%d+)$')
+  if num then
+    return { id = tonumber(num) }
+  end
+
   num = tonumber(arg)
   if num then
     return { id = num }
