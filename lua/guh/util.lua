@@ -132,6 +132,10 @@ function M.run_term_cmd(buf, feat, id, cmd, on_done)
     vim.fn.jobstart(cmd, {
       term = true,
       on_exit = function()
+        local ns = vim.api.nvim_get_namespaces()['nvim.terminal.exitmsg']
+        if ns and vim.api.nvim_buf_is_valid(buf) then
+          vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+        end
         state.set_buf_name(buf, feat, id)
         if on_done then
           on_done()
