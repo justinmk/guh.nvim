@@ -320,8 +320,16 @@ function M.get_pr_diff(number, cb)
   util.system_str(f('gh pr diff %s', number), cb)
 end
 
-function M.merge_pr(number, options, cb)
-  util.system_str(f('gh pr merge %s %s', number, options), cb)
+--- Merges a PR via `gh pr merge`.
+---
+--- @param id integer
+--- @param repo string "owner/name"
+--- @param method 'merge'|'squash'|'rebase'
+--- @param cb fun(ok: boolean, stderr: string)
+function M.merge_pr(id, repo, method, cb)
+  util.system(M.cmd(repo, 'pr', 'merge', tostring(id), '--' .. method), function(_, stderr, code)
+    cb(code == 0, stderr or '')
+  end)
 end
 
 function M.get_user(cb)
