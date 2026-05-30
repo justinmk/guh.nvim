@@ -54,19 +54,26 @@ COMMANDS                                                        *guh-commands*
 
                                                                         *:Guh*
 :Guh [target]
-              Views (or refreshes) the given PR or issue, or prompts to select
-              a PR. `[target]` can be:
-              - a number (PR or issue in the current repo): `:Guh 123`
-              - a GitHub URL (any repo): >
-                  :Guh https://github.com/justinmk/guh.nvim/pull/13
-                  :Guh https://github.com/neovim/neovim/issues/20632
-<              - an `owner/repo#N` slug (any repo): >
-                  :Guh neovim/neovim#20632
+              Without `[target]`: shows a status dashboard.
+              - Top part shows `gh pr status`.
+              - Bottom part shows info for the current repo (derived from the
+                current `guh://` buffer or |current-directory|).
+              - Hit <Enter> to view any PR/issue at cursor. |guh-mappings|
+
+              With `[target]`: views or refreshes the PR or issue given by:
+              - PR or issue number (current repo): `:Guh 123`
+              - GitHub URL: `:Guh https://github.com/neovim/neovim/issues/20632`
+              - Slug ("owner/repo#123") >
+                :Guh neovim/neovim#20632
+                :Guh #20632
 <
               Related gh commands: >
+                gh status
+                gh pr status
                 gh pr view 42
                 gh issue view 42
 <
+                                                                *guh-mappings*
               Buffer-local key bindings:
               - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
               - `cA` to approve PR
