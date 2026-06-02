@@ -325,9 +325,25 @@ end
 --- @param id integer
 --- @param repo string "owner/name"
 --- @param method 'merge'|'squash'|'rebase'
+--- @param subject? string commit subject (squash/merge only)
+--- @param body? string commit body (squash/merge only)
 --- @param cb fun(ok: boolean, stderr: string)
-function M.merge_pr(id, repo, method, cb)
-  util.system(M.cmd(repo, 'pr', 'merge', tostring(id), '--' .. method), function(_, stderr, code)
+function M.merge_pr(id, repo, method, subject, body, cb)
+  vim.validate('id', id, 'number')
+  vim.validate('repo', repo, 'string')
+  vim.validate('method', method, function(m)
+    return m == 'merge' or m == 'squash' or m == 'rebase'
+  end, "'merge'|'squash'|'rebase'")
+  vim.validate('subject', subject, 'string', true)
+  vim.validate('body', body, 'string', true)
+  local cmd = M.cmd(repo, 'pr', 'merge', tostring(id), '--' .. method)
+  if method ~= 'rebase' and subject and subject ~= '' then
+    table.insert(cmd, '--subject')
+    table.insert(cmd, subject)
+    table.insert(cmd, '--body')
+    table.insert(cmd, body or '')
+  end
+  util.system(cmd, function(_, stderr, code)
     cb(code == 0, stderr or '')
   end)
 end
