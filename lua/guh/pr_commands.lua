@@ -14,7 +14,7 @@ local function set_pr_view_keymaps(buf)
   util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR or diff', M.comment)
   util.buf_keymap(buf, 'x', 'c', 'Comment on PR or diff', M.comment)
   util.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', '<cmd>GuhDiff<cr>')
-  util.buf_keymap(buf, 'n', 'ol', 'View the CI logs for this PR', M.show_ci_logs)
+  util.buf_keymap(buf, 'n', 'gl', 'View the CI logs for this PR', M.show_ci_logs)
 end
 
 --- @param buf integer
