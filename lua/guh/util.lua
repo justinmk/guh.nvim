@@ -21,7 +21,7 @@ function M.system_str(cmd, cb)
   vim.system(cmd_split, { text = true }, function(result)
     if type(cb) == 'function' then
       if result.code ~= 0 and #result.stderr > 0 then
-        config.log('system_str error', result.stderr)
+        M.log('system_str error', result.stderr)
         M.msg(result.stderr, vim.log.levels.ERROR)
         error(result.stderr)
       end
@@ -108,6 +108,26 @@ function M.get_current_git_branch_name(cb)
   M.system_str('git branch --show-current', function(result)
     cb(vim.split(result, '\n')[1])
   end)
+end
+
+--- Appends a debug log entry to `stdpath('log')/guh.log` when
+--- `config.s.debug` is true. No-op otherwise.
+---
+--- @param key string
+--- @param message any
+function M.log(key, message)
+  if not config.s.debug then
+    return
+  end
+  local log_file_name = vim.fn.stdpath('log') .. '/guh.log'
+  local log_file = io.open(log_file_name, 'a')
+  if not log_file then
+    return
+  end
+  log_file:write(os.date('%Y-%m-%d %H:%M:%S') .. ' ' .. key .. ':\n')
+  log_file:write(vim.inspect(message))
+  log_file:write('\n\n')
+  log_file:close()
 end
 
 --- Shows a notification prefixed with "guh:".
