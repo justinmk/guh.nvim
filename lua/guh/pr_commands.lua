@@ -124,9 +124,8 @@ function M.merge_pr()
       end
       vim.schedule(function()
         local content = vim.split(('%s\n\n%s'):format(pr.title or '', pr.body or ''), '\n', { plain = true })
-        local keymap = config.s.keymaps.comment.send_comment
-        local infomsg = ('First line = subject; rest = body. Press %s to merge.'):format(keymap)
-        comments.edit_comment('merge', id, content, keymap, infomsg, function(input)
+        local infomsg = 'First line = subject; rest = body. :wq to merge (:q! to abort).'
+        comments.edit_comment('merge', id, content, infomsg, function(input)
           local subject, body = input:match('^([^\n]*)\n?(.*)$')
           do_merge(method, subject, vim.trim(body or ''))
         end)
