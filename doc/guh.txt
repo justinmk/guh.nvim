@@ -115,7 +115,7 @@ Comment on issues, PRs, and diffs                                *guh-comment*
 
 Opens an editable `guh://comment/<N>` buffer. To submit:
 - `:wq` (or `ZZ`) posts the comment.
-- `:q!` discards.
+- `:q!` (or `ZQ`) discards. Also if buffer is empty.
 
 :GuhComment   With bang "!", comments on PR at top level. Without bang,
               comments on the current diff line or range. >
@@ -128,8 +128,8 @@ Merging PRs                                                        *guh-merge*
 `cM` on a PR view opens a method picker ("squash"/"merge"/"rebase"). For
 "squash" and "merge" a `guh://merge/<id>` buffer opens, prefilled with the PR
 title and body. To confirm and merge the PR:
-- `:wq`  the commit (first line = `--subject`, rest = `--body`).
-- `:q!` aborts the merge.
+- `:wq` (or `ZZ`) merges (first line = `--subject`, rest = `--body`).
+- `:q!` (or `ZQ`) aborts. Also if buffer is empty.
 
 
 ------------------------------------------------------------------------------

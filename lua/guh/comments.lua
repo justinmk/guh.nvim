@@ -457,8 +457,8 @@ end
 --- @param prnum integer
 --- @param content string[] lines to prefill the buffer with
 --- @param infomsg? string overlay message; nil = default
---- @param callback fun(input: string) called only on save-then-close
-function M.edit_comment(feat, prnum, content, infomsg, callback)
+--- @param cb fun(input: string) called only on save-then-close
+function M.edit_comment(feat, prnum, content, infomsg, cb)
   if not state.try_show(feat, prnum) then
     vim.cmd [[split]]
   end
@@ -495,7 +495,11 @@ function M.edit_comment(feat, prnum, content, infomsg, callback)
         buffer = buf,
         once = true,
         callback = function()
-          callback(input)
+          if vim.trim(input) ~= '' then
+            cb(input)
+          else
+            util.msg('aborted (empty buffer)')
+          end
         end,
       })
     end,
