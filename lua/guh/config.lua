@@ -19,9 +19,6 @@ M.s = {
       approve = 'cA',
       request_changes = 'cR',
     },
-    comment = {
-      send_comment = 'ZZ',
-    },
     pr = {
       approve = 'cA',
       request_changes = 'cR',

@@ -76,11 +76,12 @@ COMMANDS                                                        *guh-commands*
                                                                 *guh-mappings*
               Buffer-local key bindings:
               - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
-              - `cA` to approve PR
-              - `cM` to merge PR (see `GuhMerge` for details)
-              - `ca` to write top level PR comment
-              - `gd` to open diff view
-              - `gl` view the most recent CI logs
+              - `cA` to approve PR.
+              - `cM` to merge PR. |guh-merge|
+              - `ca` to write top level PR comment.
+              - `cc` to comment on a line in a PR diff. |guh-comment|
+              - `gd` to open diff view.
+              - `gl` view the most recent CI logs.
 
               HTML comments is the thing too and they look bad in text. To
               render HTML as text `html_comments_command` settings can be used
@@ -91,11 +92,6 @@ COMMANDS                                                        *guh-commands*
               Plugin searches for html tag and only then passes comment
               through `html_comments_command`. You can disable this
               functionality by setting `html_comments_command` as `false`.
-
-                                                            *:GuhLoadComments*
-:GuhLoadComments
-              Loads the current PR diff comments in a vertical 'scrollbind'
-              split window.
 
                                                                     *:GuhDiff*
 :GuhDiff      Shows PR diff and its comments.
@@ -114,17 +110,26 @@ COMMANDS                                                        *guh-commands*
               - `cA` to approve PR
 
 
-                                                                 *:GuhComment*
+==============================================================================
+Comment on issues, PRs, and diffs                                *guh-comment*
+
+Opens an editable `guh://comment/<N>` buffer. To submit:
+- `:wq` (or `ZZ`) posts the comment.
+- `:q!` discards.
+
 :GuhComment   With bang "!", comments on PR at top level. Without bang,
               comments on the current diff line or range. >
                 :[range]GuhComment
-<
-              Buffer-local mappings:
 
-              - c<Enter> If there is already loaded comment on cursor line
-                (using `GuhLoadComments` command) then comment is added as
-                reply to thread. If there is no comment on line then new
-                conversation is started.
+<
+==============================================================================
+Merging PRs                                                        *guh-merge*
+
+`cM` on a PR view opens a method picker ("squash"/"merge"/"rebase"). For
+"squash" and "merge" a `guh://merge/<id>` buffer opens, prefilled with the PR
+title and body. To confirm and merge the PR:
+- `:wq`  the commit (first line = `--subject`, rest = `--body`).
+- `:q!` aborts the merge.
 
 
 ------------------------------------------------------------------------------
