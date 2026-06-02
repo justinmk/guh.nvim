@@ -310,6 +310,18 @@ describe('util', function()
       parse_target('https://github.com/neovim/neovim/issues/20632')
     )
     t.eq({ owner = 'neovim', repo = 'neovim', id = 20632 }, parse_target('neovim/neovim#20632'))
+    t.eq(
+      { owner = 'justinmk', repo = 'guh.nvim', id = 24, is_pr = true },
+      parse_target('guh://pr/justinmk/guh.nvim/24')
+    )
+    t.eq(
+      { owner = 'justinmk', repo = 'guh.nvim', id = 24, is_pr = true },
+      parse_target('guh://diff/justinmk/guh.nvim/24')
+    )
+    t.eq(
+      { owner = 'neovim', repo = 'neovim', id = 24 },
+      parse_target('guh://issue/neovim/neovim/24')
+    )
 
     t.eq(nil, parse_target('garbage'))
     t.eq(nil, parse_target(''))
