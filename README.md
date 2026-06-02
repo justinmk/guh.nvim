@@ -22,6 +22,12 @@ Run `:Guh 42` to view PR or issue 42. Also accepts a GitHub URL or
 
 Inside any `guh://` buffer, press `<CR>` to run `:Guh` on the target at cursor.
 
+Editable buffers (comments, merge message) confirm the action on
+write-and-close:
+
+- `:wq` (or `ZZ`) submits.
+- `:q!` (or `ZQ`) discards.
+
 See help file for details.
 
 ## Install

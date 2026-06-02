@@ -434,7 +434,7 @@ function M.do_comment(line1, line2)
       return util.msg(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
     end
     vim.schedule(function()
-      M.edit_comment('comment', info.pr_id, { '' }, config.s.keymaps.comment.send_comment, nil, function(input)
+      M.edit_comment('comment', info.pr_id, { '' }, nil, function(input)
         local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.repo, function(resp)
           if resp['errors'] == nil then
@@ -449,43 +449,59 @@ function M.do_comment(line1, line2)
   end)
 end
 
+--- Opens a markdown buffer prefilled with `content`. The user edits, then:
+--- - `:wq` (or `ZZ`) → callback runs with the buffer contents.
+--- - `:q!` (close without writing) → callback does not run.
+---
 --- @param feat Feat
-function M.edit_comment(feat, prnum, content, keymap, infomsg, callback)
+--- @param prnum integer
+--- @param content string[] lines to prefill the buffer with
+--- @param infomsg? string overlay message; nil = default
+--- @param callback fun(input: string) called only on save-then-close
+function M.edit_comment(feat, prnum, content, infomsg, callback)
   if not state.try_show(feat, prnum) then
-    vim.cmd [[
-       split
-     ]]
+    vim.cmd [[split]]
   end
   local buf = state.init_buf(feat, prnum)
   vim._with({ buf = buf }, function()
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
-  infomsg = infomsg or ('Type your comment, then press %s to post it.'):format(keymap)
-  util.show_info_overlay(buf, infomsg)
+  local ns = vim.api.nvim_create_namespace('guh.edit_comment.hint')
+  vim.api.nvim_buf_set_extmark(buf, ns, 0, 0, {
+    virt_lines_above = true,
+    virt_lines = { { { infomsg or 'Edit, then :wq to post (:q! to abort).', 'Comment' } } },
+  })
 
-  vim.bo[buf].buftype = 'nofile'
+  vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].filetype = 'markdown'
   vim.bo[buf].modifiable = true
   vim.bo[buf].textwidth = 0
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
+  vim.bo[buf].modified = false
   vim.cmd [[normal! G]]
 
-  local function capture_input_and_close()
-    local input_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-    local input = table.concat(input_lines, '\n')
+  local pending ---@type string?
+  local group = vim.api.nvim_create_augroup('guh.edit_comment.' .. buf, { clear = true })
 
-    vim.cmd('bdelete')
-    callback(input)
-  end
-
-  util.buf_keymap(buf, 'n', keymap, '', capture_input_and_close)
-  vim.api.nvim_create_autocmd('InsertEnter', {
-    once = true,
+  -- Write-and-close confirms the action (vim-fugitive style).
+  vim.api.nvim_create_autocmd('BufWriteCmd', {
+    group = group,
     buffer = buf,
     callback = function()
-      util.show_info_overlay(buf, nil) -- Clear overlay.
+      pending = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+      vim.bo[buf].modified = false
+    end,
+  })
+  vim.api.nvim_create_autocmd({ 'BufWipeout', 'BufUnload' }, {
+    group = group,
+    buffer = buf,
+    once = true,
+    callback = function()
+      if pending then
+        callback(pending)
+      end
     end,
   })
 end
