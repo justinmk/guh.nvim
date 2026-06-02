@@ -131,7 +131,9 @@ function M.new_progress_report(action, buf)
     progress.id = progress_echo_id
     local msg = done and '' or ('%s %s'):format(action, (fmt or ''):format(...))
     progress_echo_id = vim.api.nvim_echo({ { msg } }, status ~= 'running', progress)
-    if done then progress_echo_id = nil end
+    if done then
+      progress_echo_id = nil
+    end
 
     -- Only decrement on done, and only if we incremented in the first place.
     if done and incremented and buf and vim.api.nvim_buf_is_valid(buf) then
