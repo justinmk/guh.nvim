@@ -52,9 +52,7 @@ function M.select(opts)
     return
   end
 
-  local repo = target.owner and (target.owner .. '/' .. target.repo)
-    or (vim.b.guh or {}).repo
-    or resolve_local_repo()
+  local repo = target.owner and (target.owner .. '/' .. target.repo) or (vim.b.guh or {}).repo or resolve_local_repo()
   if not repo then
     util.msg('Failed to get repo info', vim.log.levels.ERROR)
     return
@@ -102,7 +100,9 @@ function M.merge_pr()
   vim.ui.select({ 'squash', 'merge', 'rebase' }, {
     prompt = ('Merge PR #%s by:'):format(id),
   }, function(method)
-    if not method then return end
+    if not method then
+      return
+    end
     local done = util.progress(('Merging PR #%s (%s)…'):format(id, method))
     gh.merge_pr(id, repo, method, function(ok, stderr)
       done(ok and 'success' or 'failed')
@@ -130,10 +130,38 @@ function M.show_status()
   local buf = state.init_buf('status', 'all', { repo = repo })
   local cmd = { 'gh', 'status' }
   if repo then
+    local owner, name = repo:match('^([^/]+)/(.+)$')
+    local query = vim.text.indent(
+      0,
+      [[
+      query($owner:String!,$name:String!){
+        repository(owner:$owner,name:$name){
+          pullRequests(first:10,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title}}
+          issues(first:10,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title}}
+        }
+      }
+    ]]
+    )
+    -- "#NNN" matches `b:guh.repo` so <CR> works on these rows.
+    local tmpl = vim.text.indent(
+      0,
+      [[
+      {{"\nRecent (open) PRs:\n" -}}
+      {{range .data.repository.pullRequests.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end -}}
+      {{"\nRecent (open) issues:\n" -}}
+      {{range .data.repository.issues.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end}}
+    ]]
+    )
     cmd = {
       vim.o.shell,
       vim.o.shellcmdflag,
-      ('gh status && gh pr status --repo %s'):format(vim.fn.shellescape(repo)),
+      ('gh status && gh pr status --repo %s && gh api graphql -f owner=%s -f name=%s -f query=%s --template %s'):format(
+        vim.fn.shellescape(repo),
+        vim.fn.shellescape(owner),
+        vim.fn.shellescape(name),
+        vim.fn.shellescape(query),
+        vim.fn.shellescape(tmpl)
+      ),
     }
   end
   util.run_term_cmd(buf, 'status', 'all', cmd)
