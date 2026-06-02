@@ -123,7 +123,8 @@ function M.merge_pr()
         return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
       end
       vim.schedule(function()
-        local content = vim.split(('%s\n\n%s'):format(pr.title or '', pr.body or ''), '\n', { plain = true })
+        local text = ('%s\n\n%s'):format(pr.title or '', pr.body or ''):gsub('\r', '')
+        local content = vim.split(text, '\n', { plain = true })
         local infomsg = 'First line = subject; rest = body. :wq to merge (:q! to abort).'
         comments.edit_comment('merge', id, content, infomsg, function(input)
           local subject, body = input:match('^([^\n]*)\n?(.*)$')
