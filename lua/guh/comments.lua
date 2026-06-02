@@ -467,11 +467,7 @@ function M.edit_comment(feat, prnum, content, infomsg, callback)
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
-  local ns = vim.api.nvim_create_namespace('guh.edit_comment.hint')
-  vim.api.nvim_buf_set_extmark(buf, ns, 0, 0, {
-    virt_lines_above = true,
-    virt_lines = { { { infomsg or 'Edit, then :wq to post (:q! to abort).', 'Comment' } } },
-  })
+  util.show_info_overlay(buf, infomsg or 'Edit, then :wq to post (:q! to abort).')
 
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].filetype = 'markdown'
@@ -480,7 +476,7 @@ function M.edit_comment(feat, prnum, content, infomsg, callback)
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
   vim.bo[buf].modified = false
-  vim.cmd [[normal! G]]
+  vim.cmd [[normal! gg]]
 
   local pending ---@type string?
   local group = vim.api.nvim_create_augroup('guh.edit_comment.' .. buf, { clear = true })
