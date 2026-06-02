@@ -251,12 +251,18 @@ describe('commands', function()
   it(':GuhDiff loads PR diff + comments split window', function()
     n.command('GuhDiff 1')
 
+    t.retry(nil, nil, function()
+      n.command('2 wincmd w')
+    end)
+    -- XXX: jiggle the comments viewport so the overlay appears. Is this a virt_lines bug?
+    n.feed('<C-y>')
+
     screen:expect {
       timeout = 10000,
       attr_ids = {}, -- Don't care about colors.
       grid = [[
-        ^diff --git {MATCH:a/.* b/.*}│  Empty line = no comment {MATCH:.*}|
-        index {MATCH:.*}|
+        diff --git {MATCH:a/.* b/.*}│Empty line = no comment {MATCH:.*}|
+        index {MATCH:.*}│^{MATCH:.*}|
         --- {MATCH:.*}|
         +++ {MATCH:.*}|
         @@ {MATCH:.*} @@ {MATCH:.*}|

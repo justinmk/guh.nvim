@@ -470,34 +470,34 @@ function M.edit_comment(feat, prnum, content, infomsg, callback)
   util.show_info_overlay(buf, infomsg or 'Edit, then :wq to post (:q! to abort).')
 
   vim.bo[buf].buftype = 'acwrite'
+  vim.bo[buf].bufhidden = 'wipe' -- Ensure BufWipeout fires on :q.
   vim.bo[buf].filetype = 'markdown'
   vim.bo[buf].modifiable = true
   vim.bo[buf].textwidth = 0
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
-  vim.bo[buf].modified = false
+  -- Stay 'modified' so plain :q is refused: user must pick ZZ (submit) or ZQ (abort).
+  vim.bo[buf].modified = true
   vim.cmd [[normal! gg]]
 
-  local pending ---@type string?
   local group = vim.api.nvim_create_augroup('guh.edit_comment.' .. buf, { clear = true })
 
   -- Write-and-close confirms the action (vim-fugitive style).
   vim.api.nvim_create_autocmd('BufWriteCmd', {
     group = group,
     buffer = buf,
-    callback = function()
-      pending = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
-      vim.bo[buf].modified = false
-    end,
-  })
-  vim.api.nvim_create_autocmd({ 'BufWipeout', 'BufUnload' }, {
-    group = group,
-    buffer = buf,
     once = true,
     callback = function()
-      if pending then
-        callback(pending)
-      end
+      local input = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
+      vim.bo[buf].modified = false
+      vim.api.nvim_create_autocmd('BufWipeout', {
+        group = group,
+        buffer = buf,
+        once = true,
+        callback = function()
+          callback(input)
+        end,
+      })
     end,
   })
 end
