@@ -97,20 +97,40 @@ function M.merge_pr()
     return util.msg('Not in a PR buffer', vim.log.levels.ERROR)
   end
 
-  vim.ui.select({ 'squash', 'merge', 'rebase' }, {
-    prompt = ('Merge PR #%s by:'):format(id),
-  }, function(method)
-    if not method then
-      return
-    end
+  local function do_merge(method, subject, body)
     local done = util.progress(('Merging PR #%s (%s)…'):format(id, method))
-    gh.merge_pr(id, repo, method, function(ok, stderr)
+    gh.merge_pr(id, repo, method, subject, body, function(ok, stderr)
       done(ok and 'success' or 'failed')
       if ok then
         util.msg(('Merged PR #%s'):format(id))
       else
         util.msg(('Merge failed: %s'):format(vim.trim(stderr)), vim.log.levels.ERROR)
       end
+    end)
+  end
+
+  vim.ui.select({ 'squash', 'merge', 'rebase' }, {
+    prompt = ('Merge PR #%s by:'):format(id),
+  }, function(method)
+    if not method then
+      return
+    end
+    if method == 'rebase' then
+      return do_merge(method)
+    end
+    gh.get_pr_info(id, repo, function(pr)
+      if not pr then
+        return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+      end
+      vim.schedule(function()
+        local content = vim.split(('%s\n\n%s'):format(pr.title or '', pr.body or ''), '\n', { plain = true })
+        local keymap = config.s.keymaps.comment.send_comment
+        local infomsg = ('First line = subject; rest = body. Press %s to merge.'):format(keymap)
+        comments.edit_comment('merge', id, content, keymap, infomsg, function(input)
+          local subject, body = input:match('^([^\n]*)\n?(.*)$')
+          do_merge(method, subject, vim.trim(body or ''))
+        end)
+      end)
     end)
   end)
 end

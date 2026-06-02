@@ -434,7 +434,7 @@ function M.do_comment(line1, line2)
       return util.msg(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
     end
     vim.schedule(function()
-      M.edit_comment(info.pr_id, { '' }, config.s.keymaps.comment.send_comment, function(input)
+      M.edit_comment('comment', info.pr_id, { '' }, config.s.keymaps.comment.send_comment, nil, function(input)
         local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.repo, function(resp)
           if resp['errors'] == nil then
@@ -449,18 +449,19 @@ function M.do_comment(line1, line2)
   end)
 end
 
-function M.edit_comment(prnum, content, keymap, callback)
-  if not state.try_show('comment', prnum) then
+--- @param feat Feat
+function M.edit_comment(feat, prnum, content, keymap, infomsg, callback)
+  if not state.try_show(feat, prnum) then
     vim.cmd [[
        split
      ]]
   end
-  local buf = state.init_buf('comment', prnum)
+  local buf = state.init_buf(feat, prnum)
   vim._with({ buf = buf }, function()
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
-  local infomsg = ('Type your comment, then press %s to post it.'):format(keymap)
+  infomsg = infomsg or ('Type your comment, then press %s to post it.'):format(keymap)
   util.show_info_overlay(buf, infomsg)
 
   vim.bo[buf].buftype = 'nofile'
