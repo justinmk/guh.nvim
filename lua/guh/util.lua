@@ -47,12 +47,14 @@ end
 ---   - bare number: `"13"`
 ---   - GitHub URL: `"https://github.com/owner/repo/pull/13"` or `"…/issues/13"`
 ---   - slug: `"owner/repo#13"`
+---   - guh URI: `"guh://pr/owner/repo/13"`, `"guh://issue/owner/repo/13"`,
+---     `"guh://diff/owner/repo/13"`
 ---
 --- @param arg string
 --- @return { owner?: string, repo?: string, id: integer, is_pr?: boolean }?
 function M.parse_target(arg)
   arg = vim.trim(arg or '')
-  local owner, repo, num
+  local owner, repo, num, feat
 
   owner, repo, num = arg:match('^https?://github%.com/([^/]+)/([^/]+)/pull/(%d+)')
   if owner then
@@ -61,6 +63,12 @@ function M.parse_target(arg)
   owner, repo, num = arg:match('^https?://github%.com/([^/]+)/([^/]+)/issues/(%d+)')
   if owner then
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = false }
+  end
+
+  feat, owner, repo, num = arg:match('^guh://(%w+)/([%w%._-]+)/([%w%._-]+)/(%d+)$')
+  if feat then
+    local is_pr = (feat == 'pr' or feat == 'diff') or nil
+    return { owner = owner, repo = repo, id = tonumber(num), is_pr = is_pr }
   end
 
   owner, repo, num = arg:match('^([%w%._-]+)/([%w%._-]+)#(%d+)$')
