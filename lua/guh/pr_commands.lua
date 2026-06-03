@@ -14,6 +14,7 @@ local function set_default_keymaps(buf)
   util.map_default(buf, 'n', 'cra', '<Plug>(guh-approve)', 'Approve PR')
   util.map_default(buf, 'n', 'crr', '<Plug>(guh-request-changes)', 'Request PR changes')
   util.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
+  util.map_default(buf, 'n', 'cM', '<Plug>(guh-merge-admin)', 'Merge PR (--admin)')
   util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
   util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
   util.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
@@ -108,7 +109,9 @@ end
 
 --- [count] picks the merge method directly: 1=squash, 2=merge, 3=rebase.
 --- No count → vim.ui.select prompt.
-function M.merge_pr()
+---
+--- @param admin? boolean pass `--admin` to bypass branch protections.
+function M.merge_pr(admin)
   local id = (vim.b.guh or {}).id
   local repo = (vim.b.guh or {}).repo
   if not id or not repo then
@@ -116,8 +119,9 @@ function M.merge_pr()
   end
 
   local function do_merge(method, subject, body)
-    local done = util.progress(('Merging PR #%s (%s)…'):format(id, method))
-    gh.merge_pr(id, repo, method, subject, body, function(ok, stderr)
+    local label = admin and (method .. ', admin') or method
+    local done = util.progress(('Merging PR #%s (%s)…'):format(id, label))
+    gh.merge_pr(id, repo, method, subject, body, admin, function(ok, stderr)
       done(ok and 'success' or 'failed')
       if ok then
         util.msg(('Merged PR #%s'):format(id))
@@ -139,9 +143,9 @@ function M.merge_pr()
         local subject = method == 'merge' and ('Merge #%s %s'):format(id, pr.title) or ('%s #%s'):format(pr.title, id)
         local text = ('%s\n\n%s'):format(subject, pr.body or ''):gsub('\r', '')
         local content = vim.split(text, '\n', { plain = true })
-        local infomsg =
-          ('[%s] First line = subject; rest = body. ZZ to merge (ZQ to abort).'):format(method)
-        comments.edit_comment('merge', id, content, infomsg, function(input)
+        local tag = admin and ('[%s, --admin]'):format(method) or ('[%s]'):format(method)
+        local msg = ('%s First line = subject; rest = body. ZZ to merge (ZQ to abort).'):format(tag)
+        comments.edit_comment('merge', id, content, { msg, admin and 'DiagnosticError' }, function(input)
           local subject, body = input:match('^([^\n]*)\n?(.*)$')
           do_merge(method, subject, vim.trim(body or ''))
         end)
@@ -156,7 +160,7 @@ function M.merge_pr()
   end
 
   vim.ui.select(methods, {
-    prompt = ('Merge PR #%s by:'):format(id),
+    prompt = admin and ('Merge (--admin) PR #%s by:'):format(id) or ('Merge PR #%s by:'):format(id),
   }, function(method)
     if method then
       with_method(method)
