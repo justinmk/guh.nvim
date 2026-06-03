@@ -458,6 +458,8 @@ function M.get_pr_ci_logs(job_id, repo, cb)
       cb(nil, ('Log unavailable: %s'):format(vim.trim(stderr or '')))
       return
     end
+    -- Strip the leading UTF-8 BOM that the REST API prepends to log payloads.
+    logs = logs:gsub('^\xef\xbb\xbf', '')
     progress('success')
     cb(vim.trim(logs))
   end)

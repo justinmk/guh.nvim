@@ -136,7 +136,8 @@ function M.merge_pr()
         return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
       end
       vim.schedule(function()
-        local text = ('%s\n\n%s'):format(pr.title or '', pr.body or ''):gsub('\r', '')
+        local subject = method == 'merge' and ('Merge #%s %s'):format(id, pr.title) or (pr.title)
+        local text = ('%s\n\n%s'):format(subject, pr.body or ''):gsub('\r', '')
         local content = vim.split(text, '\n', { plain = true })
         local infomsg =
           ('[%s] First line = subject; rest = body. ZZ to merge (ZQ to abort).'):format(method)
