@@ -40,6 +40,12 @@
 --- @field updatedAt string
 --- @field url string
 
+--- @class PRCommit
+--- @field oid string
+--- @field messageHeadline string
+--- @field messageBody string
+--- @field authors table[]
+
 --- @class PullRequest
 --- @field author table
 --- @field baseRefName string
@@ -47,6 +53,7 @@
 --- @field body string
 --- @field changedFiles number
 --- @field comments Comment[]
+--- @field commits PRCommit[]
 --- @field createdAt string
 --- @field headRefName string
 --- @field headRefOid string

@@ -1,5 +1,3 @@
-local async = require('async')
-local config = require('guh.config')
 local state = require('guh.state')
 local util = require('guh.util')
 
@@ -16,6 +14,7 @@ local pr_fields = {
   'body',
   'changedFiles',
   'comments',
+  'commits',
   'createdAt',
   'headRefName',
   'headRefOid',

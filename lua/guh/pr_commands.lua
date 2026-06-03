@@ -140,8 +140,31 @@ function M.merge_pr(admin)
         return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
       end
       vim.schedule(function()
-        local subject = method == 'merge' and ('Merge #%s %s'):format(id, pr.title) or ('%s #%s'):format(pr.title, id)
-        local text = ('%s\n\n%s'):format(subject, pr.body or ''):gsub('\r', '')
+        local subject, body
+        if method == 'merge' then
+          subject = ('Merge #%s %s'):format(id, pr.title)
+          body = pr.body or ''
+        elseif method == 'squash' then -- Prefill body with commit messages instead of PR desc.
+          subject = ('%s #%s'):format(pr.title, id)
+          local cs = pr.commits or {}
+          if #cs == 1 and vim.trim(cs[1].messageHeadline) == vim.trim(pr.title) then
+            -- Single commit: don't append redundant subject line, just use the commit body (like GitHub web).
+            body = cs[1].messageBody
+          else
+            local parts = {}
+            for _, c in ipairs(cs) do
+              local entry = ('* %s'):format(c.messageHeadline)
+              if c.messageBody ~= '' then
+                entry = entry .. '\n\n' .. c.messageBody
+              end
+              table.insert(parts, entry)
+            end
+            body = table.concat(parts, '\n\n')
+          end
+        else
+          error(('unknown method: %s'):format(method))
+        end
+        local text = ('%s\n\n%s'):format(subject, body):gsub('\r', '')
         local content = vim.split(text, '\n', { plain = true })
         local tag = admin and ('[%s, --admin]'):format(method) or ('[%s]'):format(method)
         local msg = ('%s First line = subject; rest = body. ZZ to merge (ZQ to abort).'):format(tag)

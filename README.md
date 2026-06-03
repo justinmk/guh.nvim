@@ -1,4 +1,4 @@
-# guh.nvim (ghlite.nvim fork)
+# guh.nvim
 
 > [!NOTE]
 > This plugin is pretty sweet, but still WIP/beta. PRs/feedback welcome!
