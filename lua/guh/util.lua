@@ -278,7 +278,8 @@ local overlay_ns = vim.api.nvim_create_namespace('guh.info_overlay')
 ---
 --- @param buf integer
 --- @param msg string? Message, or nil to clear the overlay.
-function M.show_info_overlay(buf, msg)
+--- @param hl? string highlight group (default 'Comment').
+function M.show_info_overlay(buf, msg, hl)
   if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
@@ -286,7 +287,7 @@ function M.show_info_overlay(buf, msg)
   if msg then
     vim.api.nvim_buf_set_extmark(buf, overlay_ns, 0, 0, {
       virt_lines_above = true,
-      virt_lines = { { { msg, 'Comment' } } },
+      virt_lines = { { { msg, hl or 'Comment' } } },
     })
   end
 end

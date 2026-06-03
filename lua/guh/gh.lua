@@ -327,8 +327,9 @@ end
 --- @param method 'merge'|'squash'|'rebase'
 --- @param subject? string commit subject (squash/merge only)
 --- @param body? string commit body (squash/merge only)
+--- @param admin? boolean pass `--admin` to bypass branch protections
 --- @param cb fun(ok: boolean, stderr: string)
-function M.merge_pr(id, repo, method, subject, body, cb)
+function M.merge_pr(id, repo, method, subject, body, admin, cb)
   vim.validate('id', id, 'number')
   vim.validate('repo', repo, 'string')
   vim.validate('method', method, function(m)
@@ -336,12 +337,16 @@ function M.merge_pr(id, repo, method, subject, body, cb)
   end, "'merge'|'squash'|'rebase'")
   vim.validate('subject', subject, 'string', true)
   vim.validate('body', body, 'string', true)
+  vim.validate('admin', admin, 'boolean', true)
   local cmd = M.cmd(repo, 'pr', 'merge', tostring(id), '--' .. method)
   if method ~= 'rebase' and subject and subject ~= '' then
     table.insert(cmd, '--subject')
     table.insert(cmd, subject)
     table.insert(cmd, '--body')
     table.insert(cmd, body or '')
+  end
+  if admin then
+    table.insert(cmd, '--admin')
   end
   util.system(cmd, function(_, stderr, code)
     cb(code == 0, stderr or '')
@@ -464,7 +469,5 @@ function M.get_pr_ci_logs(job_id, repo, cb)
     cb(vim.trim(logs))
   end)
 end
-
-M.get_repo_async = async.wrap(1, M.get_repo)
 
 return M

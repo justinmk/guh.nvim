@@ -80,6 +80,8 @@ COMMANDS                                                        *guh-commands*
               - `cra` / `<Plug>(guh-approve)`: approve PR.
               - `crr` / `<Plug>(guh-request-changes)`: request PR changes.
               - `cm` / `<Plug>(guh-merge)`: merge PR. |guh-merge|
+              - `cM` / `<Plug>(guh-merge-admin)`: merge PR with `--admin`
+                (bypass branch protections). |guh-merge|
               - `cc` / `<Plug>(guh-comment)`: comment on a PR/issue/diff line.
                 Also `c` in Visual mode. |guh-comment|
               - `gd` / `<Plug>(guh-diff)`: open diff view. |guh-diff|

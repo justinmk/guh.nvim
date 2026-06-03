@@ -456,7 +456,7 @@ end
 --- @param feat Feat
 --- @param prnum integer
 --- @param content string[] lines to prefill the buffer with
---- @param infomsg? string overlay message; nil = default
+--- @param infomsg? { [1]: string, [2]?: string } overlay message + highlight; nil = default.
 --- @param cb fun(input: string) called only on save-then-close
 function M.edit_comment(feat, prnum, content, infomsg, cb)
   if not state.try_show(feat, prnum) then
@@ -467,7 +467,8 @@ function M.edit_comment(feat, prnum, content, infomsg, cb)
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
-  util.show_info_overlay(buf, infomsg or 'Edit, then ZZ to post (ZQ to abort).')
+  infomsg = infomsg or { 'Edit, then ZZ to post (ZQ to abort).' }
+  util.show_info_overlay(buf, infomsg[1], infomsg[2])
 
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].bufhidden = 'wipe' -- Ensure BufWipeout fires on :q.
