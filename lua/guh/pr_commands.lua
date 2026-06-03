@@ -1,25 +1,26 @@
 local comments = require('guh.comments')
-local config = require('guh.config')
 local gh = require('guh.gh')
 local state = require('guh.state')
 local util = require('guh.util')
 
 local M = {}
 
+--- Defines buffer-local defaults to the global `<Plug>(guh-…)` mappings, if necessary.
+---
 --- @param buf integer
 local function set_pr_view_keymaps(buf)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR or diff', M.comment)
-  util.buf_keymap(buf, 'x', 'c', 'Comment on PR or diff', M.comment)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', '<cmd>GuhDiff<cr>')
-  util.buf_keymap(buf, 'n', 'gl', 'View the CI logs for this PR', M.show_ci_logs)
+  util.map_default(buf, 'n', 'cA', '<Plug>(guh-approve)', 'Approve PR')
+  util.map_default(buf, 'n', 'cR', '<Plug>(guh-request-changes)', 'Request PR changes')
+  util.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
+  util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  util.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
+  util.map_default(buf, 'n', 'gl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
 end
 
 --- @param buf integer
 local function set_issue_view_keymaps(buf)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', '<cmd>GuhComment<cr>')
+  util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on issue')
 end
 
 --- Shows...
@@ -90,6 +91,8 @@ function M.request_changes_pr()
   util.msg('TODO')
 end
 
+--- [count] picks the merge method directly: 1=squash, 2=merge, 3=rebase.
+--- No count → vim.ui.select prompt.
 function M.merge_pr()
   local id = (vim.b.guh or {}).id
   local repo = (vim.b.guh or {}).repo
@@ -109,12 +112,7 @@ function M.merge_pr()
     end)
   end
 
-  vim.ui.select({ 'squash', 'merge', 'rebase' }, {
-    prompt = ('Merge PR #%s by:'):format(id),
-  }, function(method)
-    if not method then
-      return
-    end
+  local function with_method(method)
     if method == 'rebase' then
       return do_merge(method)
     end
@@ -125,13 +123,28 @@ function M.merge_pr()
       vim.schedule(function()
         local text = ('%s\n\n%s'):format(pr.title or '', pr.body or ''):gsub('\r', '')
         local content = vim.split(text, '\n', { plain = true })
-        local infomsg = 'First line = subject; rest = body. :wq to merge (:q! to abort).'
+        local infomsg =
+          ('[%s] First line = subject; rest = body. ZZ to merge (ZQ to abort).'):format(method)
         comments.edit_comment('merge', id, content, infomsg, function(input)
           local subject, body = input:match('^([^\n]*)\n?(.*)$')
           do_merge(method, subject, vim.trim(body or ''))
         end)
       end)
     end)
+  end
+
+  local methods = { 'squash', 'merge', 'rebase' }
+  local count = vim.v.count
+  if count >= 1 and count <= #methods then
+    return with_method(methods[count])
+  end
+
+  vim.ui.select(methods, {
+    prompt = ('Merge PR #%s by:'):format(id),
+  }, function(method)
+    if method then
+      with_method(method)
+    end
   end)
 end
 

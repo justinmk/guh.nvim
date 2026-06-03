@@ -25,7 +25,9 @@ before_each(function()
       cwd_,
       -- vim.fn.getcwd() .. '/test/functional/guh.nvim/',
     }
-    require('guh').setup({})
+    -- plugin/*.lua is auto-sourced at startup only; source manually since we just added the plugin path.
+    vim.cmd('runtime! plugin/*.lua')
+    assert(vim.fn.maparg('<Plug>(guh-diff)', 'n') ~= '', '<Plug>(guh-diff) not registered')
   end, test_cwd)
 end)
 
@@ -248,8 +250,17 @@ describe('features', function()
 end)
 
 describe('commands', function()
-  it(':GuhDiff loads PR diff + comments split window', function()
-    n.command('GuhDiff 1')
+  it(':Guh + gd loads PR diff + comments split window', function()
+    n.command('Guh 1')
+    -- Wait for the PR diff-view.
+    t.retry(nil, 10000, function()
+      assert('' ~= n.fn.maparg('gd', 'n', false))
+    end)
+    -- Invoke the diff-view.
+    n.feed('<Plug>(guh-diff)')
+    t.retry(nil, 10000, function()
+      assert(2 == n.eval("winnr('$')"), tostring(n.eval("execute('map <buffer>')")))
+    end)
 
     t.retry(nil, nil, function()
       n.command('2 wincmd w')
