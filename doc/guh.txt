@@ -36,7 +36,8 @@ To review a PR without doing a checkout in your repo:
   - in the quickfix buffer (use |]q| to navigate).
   - in a 'scrollbind' split window next to the diff window (if the
     scrollbind gets out of sync, try |:syncbind|).
-  - (TODO) as diagnostics
+  - as diagnostics on the diff buffer (severity INFO, source "guh.nvim").
+    Navigate via |]d|/|[d|; peek with |CTRL-W_d|.
 - Hit `cc` or `:GuhComment` to comment on a diff line.
 
 ------------------------------------------------------------------------------
@@ -75,7 +76,7 @@ PR comments are loaded:
 - in the quickfix buffer (use |]q| to navigate).
 - in a 'scrollbind' split window next to the diff window (if the scrollbind
   gets out of sync, try |:syncbind|).
-- (TODO) as diagnostics
+- as diagnostics on the diff buffer (severity INFO, source "guh.nvim"):
   - Navigate using `vim.diagnostic.jump` (|]d| |[d|).
   - See comment details using `<C-w>d` |CTRL-W_d-default|
 
