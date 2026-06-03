@@ -255,12 +255,28 @@ function M.show_issue(id, repo)
   end)
 end
 
+--- Shows PR details + the most-recent commits (since the last force-push).
+---
 --- @param id integer
 --- @param repo string "owner/name"
 function M.show_pr(id, repo)
   local bufid = repo .. '/' .. id
   local buf = state.init_buf('pr', bufid, { id = id, repo = repo })
-  util.run_term_cmd(buf, 'pr', bufid, gh.cmd(repo, 'pr', 'view', '--comments', tostring(id)), function()
+  -- `oid` is the full SHA; slice the first 7 chars. `committedDate` is ISO-8601.
+  local commits_tmpl = '{{"\\nCommits:\\n"}}{{range .commits}}  '
+    .. '{{slice .oid 0 7}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\\n"}}{{end}}'
+  local cmd = {
+    vim.o.shell,
+    vim.o.shellcmdflag,
+    ('gh pr view --comments %s --repo %s && gh pr view %s --repo %s --json commits --template %s'):format(
+      tostring(id),
+      vim.fn.shellescape(repo),
+      tostring(id),
+      vim.fn.shellescape(repo),
+      vim.fn.shellescape(commits_tmpl)
+    ),
+  }
+  util.run_term_cmd(buf, 'pr', bufid, cmd, function()
     set_default_keymaps(buf)
   end)
 end
