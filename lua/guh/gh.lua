@@ -133,7 +133,7 @@ function M.load_comments(type, id, repo, cb)
   util.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, id), function(comments_json)
     local comments = parse_or_default(comments_json, {})
     local function is_valid_comment(comment)
-      return comment.line ~= vim.NIL
+      return not vim.isnil(comment.line)
     end
 
     local nr_before = #comments

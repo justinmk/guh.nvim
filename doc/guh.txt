@@ -32,12 +32,13 @@ To review a PR without doing a checkout in your repo:
 
 - Run `:Guh` to select and view a PR. |guh-commands|
   - Run it anytime later to refresh/reopen the PR view.
-- Hit `gd` to see the diff. PR comments are loaded:
-  - in the quickfix buffer (use |]q| to navigate).
+- Hit `gd` to see the diff. |guh-diff|
+- PR comments are loaded:
   - in a 'scrollbind' split window next to the diff window (if the
     scrollbind gets out of sync, try |:syncbind|).
   - as diagnostics on the diff buffer (severity INFO, source "guh.nvim").
     Navigate via |]d|/|[d|; peek with |CTRL-W_d|.
+  - in the quickfix list ("Guh comments"). |]q| |[q| |:copen|
 - Hit `cc` or `:GuhComment` to comment on a diff line.
 
 ------------------------------------------------------------------------------
@@ -73,12 +74,13 @@ View PR diff                                                        *guh-diff*
 `gd` on a PR view opens the diff + comments in 'scrollbind' split windows.
 
 PR comments are loaded:
-- in the quickfix buffer (use |]q| to navigate).
 - in a 'scrollbind' split window next to the diff window (if the scrollbind
   gets out of sync, try |:syncbind|).
 - as diagnostics on the diff buffer (severity INFO, source "guh.nvim"):
   - Navigate using `vim.diagnostic.jump` (|]d| |[d|).
-  - See comment details using `<C-w>d` |CTRL-W_d-default|
+  - See comment details using `<C-w>d` |CTRL-W_d-default|.
+- in the quickfix list ("Guh comments") via |vim.diagnostic.setqflist()|.
+  Use |]q|/|[q| or |:copen| to browse.
 
 Buffer-local key bindings:
 - `gf` go to file from PR diff. `gf` command will not work if you use `:Guh`

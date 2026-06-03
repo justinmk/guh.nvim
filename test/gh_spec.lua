@@ -181,27 +181,18 @@ describe('comments', function()
         end
       end
 
-      -- Tests real comments response Github.
-      -- Calls load_comments() and asserts that some comments were loaded into quickfix.
+      -- Tests real comments response from Github. Calls load_comments() and
+      -- asserts the grouped structure via the callback.
       local function test_load_comments()
-        -- local result = system_str_async('gh pr list --json number')
-        -- local prs = assert(vim.json.decode(assert(result)), 'failed to get PRs')
-        -- assert(#prs > 0, 'no PRs found')
         local pr_num = 2
-        require('guh.comments').load_comments(pr_num, 'justinmk/guh.nvim', assert_comments)
-
-        -- Wait for quickfix to be populated or timeout
-        local ok, qf = vim.wait(5000, function()
-          local qf = vim.fn.getqflist()
-          return #qf > 0, qf
+        local done = false
+        require('guh.comments').load_comments(pr_num, 'justinmk/guh.nvim', function(grouped)
+          assert_comments(grouped)
+          done = true
         end)
-
-        assert(ok and #qf > 0, 'load_comments did not set quickfix list')
-        -- Check that entries have filename, lnum, text
-        for _, entry in ipairs(qf) do
-          assert(entry.lnum > 0, ('entry lnum not positive: %s'):format(vim.inspect(entry)))
-          assert(entry.text, ('entry missing text: %s'):format(vim.inspect(entry)))
-        end
+        assert(vim.wait(5000, function()
+          return done
+        end), 'load_comments timed out')
       end
 
       test_load_comments()
