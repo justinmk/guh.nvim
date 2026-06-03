@@ -74,14 +74,22 @@ COMMANDS                                                        *guh-commands*
                 gh issue view 42
 <
                                                                 *guh-mappings*
-              Buffer-local key bindings:
+              Buffer-local key bindings (default; remap via `<Plug>` below):
               - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
-              - `cA` to approve PR.
-              - `cm` to merge PR. |guh-merge|
-              - `ca` to write top level PR comment.
-              - `cc` to comment on a line in a PR diff. |guh-comment|
-              - `gd` to open diff view.
-              - `gl` view the most recent CI logs.
+              - `cA` / `<Plug>(guh-approve)`: approve PR.
+              - `cR` / `<Plug>(guh-request-changes)`: request PR changes.
+              - `cm` / `<Plug>(guh-merge)`: merge PR. |guh-merge|
+              - `cc` / `<Plug>(guh-comment)`: comment on a PR/issue/diff line.
+                Also `c` in Visual mode. |guh-comment|
+              - `gd` / `<Plug>(guh-diff)`: open diff view.
+              - `gl` / `<Plug>(guh-logs)`: view the most recent CI logs.
+
+              The `<Plug>(guh-…)` mappings are defined globally at startup.
+              If you don't define a <Plug> mapping then the buffer-local
+              defaults listed above are defined.
+              Example: >vim
+                  nmap <F5> <Plug>(guh-merge)
+<              The default `cm` mapping is then skipped.
 
               HTML comments is the thing too and they look bad in text. To
               render HTML as text `html_comments_command` settings can be used

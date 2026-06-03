@@ -195,6 +195,15 @@ function M.progress(label)
   end
 end
 
+--- Sets a buffer-local `lhs` → `rhs_plug` mapping, unless the user already
+--- mapped that `<Plug>` to a different key (per |hasmapto()|).
+function M.map_default(buf, mode, lhs, rhs_plug, desc)
+  if vim.fn.hasmapto(rhs_plug, mode) ~= 0 then
+    return
+  end
+  vim.keymap.set(mode, lhs, rhs_plug, { buffer = buf, remap = true, silent = true, desc = desc })
+end
+
 function M.buf_keymap(buf, mode, lhs, desc, rhs)
   if not M.is_empty(lhs) then
     local opts = {}

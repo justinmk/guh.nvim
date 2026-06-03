@@ -1,25 +1,26 @@
 local comments = require('guh.comments')
-local config = require('guh.config')
 local gh = require('guh.gh')
 local state = require('guh.state')
 local util = require('guh.util')
 
 local M = {}
 
+--- Defines buffer-local defaults to the global `<Plug>(guh-…)` mappings, if necessary.
+---
 --- @param buf integer
 local function set_pr_view_keymaps(buf)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.approve, 'Approve PR', M.approve_pr)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.request_changes, 'Request PR changes', M.request_changes_pr)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.merge, 'Merge PR in remote repo', M.merge_pr)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on PR or diff', M.comment)
-  util.buf_keymap(buf, 'x', 'c', 'Comment on PR or diff', M.comment)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.diff, 'View the PR diff', '<cmd>GuhDiff<cr>')
-  util.buf_keymap(buf, 'n', 'gl', 'View the CI logs for this PR', M.show_ci_logs)
+  util.map_default(buf, 'n', 'cA', '<Plug>(guh-approve)', 'Approve PR')
+  util.map_default(buf, 'n', 'cR', '<Plug>(guh-request-changes)', 'Request PR changes')
+  util.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
+  util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  util.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
+  util.map_default(buf, 'n', 'gl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
 end
 
 --- @param buf integer
 local function set_issue_view_keymaps(buf)
-  util.buf_keymap(buf, 'n', config.s.keymaps.pr.comment, 'Comment on issue', '<cmd>GuhComment<cr>')
+  util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on issue')
 end
 
 --- Shows...

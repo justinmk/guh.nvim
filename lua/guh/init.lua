@@ -1,10 +1,6 @@
-local config = require('guh.config')
-
 local M = {}
 
-M.setup = function(user_config)
-  config.setup(user_config)
-
+M.setup = function()
   local group = vim.api.nvim_create_augroup('guh.keymaps', { clear = true })
 
   -- ":edit guh://pr/owner/repo/N" (etc.) dispatches to :Guh.
@@ -51,9 +47,15 @@ M.setup = function(user_config)
     end,
   })
 
-  vim.api.nvim_create_user_command('Guh', require('guh.pr_commands').select, { nargs = '?' })
-  vim.api.nvim_create_user_command('GuhDiff', require('guh.pr_commands').show_pr_diff, { nargs = '?' })
-  vim.api.nvim_create_user_command('GuhComment', require('guh.pr_commands').comment, { bang = true, range = true })
+  vim.api.nvim_create_user_command('Guh', function(opts)
+    require('guh.pr_commands').select(opts)
+  end, { nargs = '?' })
+  vim.api.nvim_create_user_command('GuhDiff', function(opts)
+    require('guh.pr_commands').show_pr_diff(opts)
+  end, { nargs = '?' })
+  vim.api.nvim_create_user_command('GuhComment', function(opts)
+    require('guh.pr_commands').comment(opts)
+  end, { bang = true, range = true })
   -- vim.api.nvim_create_user_command('GuhCheckout', require('guh.pr_commands').checkout, { nargs = '?' })
   -- vim.api.nvim_create_user_command('GuhApprove', require('guh.pr_commands').approve_pr, {})
   -- vim.api.nvim_create_user_command('GuhRequestChanges', require('guh.pr_commands').request_changes_pr, {})
