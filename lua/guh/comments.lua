@@ -98,26 +98,45 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
     return p
   end
 
+  -- Find the diff-buf line for `gh_line` of `filename`.
+  local function find_idx(filename, gh_line)
+    if not gh_line or gh_line == vim.NIL then
+      return nil
+    end
+    for i, m in pairs(line_map) do
+      if normalize_diff_path(m.file) == filename and m.new_line == gh_line then
+        return i
+      end
+    end
+    return nil
+  end
+
+  -- Highlights commented regions in the diff buffer:
+  --  - `line_hl_group = 'GuhComment'` on every line of each comment range.
+  --  - `sign_text = '┃'` (`GuhCommentSign`) on the range's first line.
+  vim.api.nvim_set_hl(0, 'GuhComment', { default = true, link = 'DiffChange' })
+  vim.api.nvim_set_hl(0, 'GuhCommentSign', { default = true, link = 'DiagnosticInfo' })
+  local diff_ns = vim.api.nvim_create_namespace('guh.comments.diff')
+  vim.api.nvim_buf_clear_namespace(diff_buf, diff_ns, 0, -1)
+
   for filename, comments_for_file in pairs(comments_list) do
     local normalized_filename = normalize_diff_path(filename)
     for _, comment in ipairs(comments_for_file) do
-      local gh_line = comment.line
-      local idx
-      -- for i, m in pairs(line_map) do
-      --   if i < 10 then
-      --     vim.print({ i = i, file = m.file, old = m.old_line, new = m.new_line })
-      --   else
-      --     break
-      --   end
-      -- end
-      for i, m in pairs(line_map) do
-        local normalized_mfile = normalize_diff_path(m.file)
-        if normalized_mfile == normalized_filename and m.new_line == gh_line then
-          idx = i
-          break
+      local end_idx = find_idx(normalized_filename, comment.line)
+      if end_idx then
+        local start_idx = find_idx(normalized_filename, comment.start_line) or end_idx
+        if start_idx > end_idx then
+          start_idx, end_idx = end_idx, start_idx
         end
-      end
-      if idx then
+        for li = start_idx, end_idx do
+          vim.api.nvim_buf_set_extmark(diff_buf, diff_ns, li - 1, 0, {
+            line_hl_group = 'GuhComment',
+            sign_text = (li == start_idx) and '┃' or nil,
+            sign_hl_group = (li == start_idx) and 'GuhCommentSign' or nil,
+            priority = 200,
+          })
+        end
+
         local body
         if comment.body then
           body = comment.body
@@ -132,8 +151,8 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
         if body and body ~= '' then
           local author = comment.user or comment.comments[1].user
           local date = comment.updated_at or comment.comments[1].updated_at
-          local prefix = ('%s %s `%s:%d`\n'):format(author, date, filename, gh_line)
-          lines[idx] = (lines[idx] ~= '' and lines[idx] .. '\n' or '') .. prefix .. body
+          local prefix = ('%s %s `%s:%d`\n'):format(author, date, filename, comment.line)
+          lines[end_idx] = (lines[end_idx] ~= '' and lines[end_idx] .. '\n' or '') .. prefix .. body
         end
       end
     end
