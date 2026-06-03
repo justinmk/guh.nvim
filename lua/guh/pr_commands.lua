@@ -9,8 +9,8 @@ local M = {}
 ---
 --- @param buf integer
 local function set_pr_view_keymaps(buf)
-  util.map_default(buf, 'n', 'cA', '<Plug>(guh-approve)', 'Approve PR')
-  util.map_default(buf, 'n', 'cR', '<Plug>(guh-request-changes)', 'Request PR changes')
+  util.map_default(buf, 'n', 'cra', '<Plug>(guh-approve)', 'Approve PR')
+  util.map_default(buf, 'n', 'crr', '<Plug>(guh-request-changes)', 'Request PR changes')
   util.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
   util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
   util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')

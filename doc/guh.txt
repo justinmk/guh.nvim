@@ -77,8 +77,8 @@ COMMANDS                                                        *guh-commands*
                                                                 *guh-mappings*
               Buffer-local key bindings (default; remap via `<Plug>` below):
               - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
-              - `cA` / `<Plug>(guh-approve)`: approve PR.
-              - `cR` / `<Plug>(guh-request-changes)`: request PR changes.
+              - `cra` / `<Plug>(guh-approve)`: approve PR.
+              - `crr` / `<Plug>(guh-request-changes)`: request PR changes.
               - `cm` / `<Plug>(guh-merge)`: merge PR. |guh-merge|
               - `cc` / `<Plug>(guh-comment)`: comment on a PR/issue/diff line.
                 Also `c` in Visual mode. |guh-comment|
@@ -119,7 +119,7 @@ PR comments are loaded:
 Buffer-local key bindings:
 - `gf` go to file from PR diff. `gf` command will not work if you use `:Guh`
   command and branch is not checked out.
-- `cA` to approve PR
+- `cra` to approve PR
 
 
 ==============================================================================
