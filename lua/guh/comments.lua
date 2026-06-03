@@ -7,33 +7,6 @@ local M = {}
 
 local severity = vim.diagnostic.severity
 
-local function load_comments_to_quickfix_list(comments_list)
-  local qf_entries = {}
-
-  for filename, comments_in_file in vim.spairs(comments_list) do
-    table.sort(comments_in_file, function(a, b)
-      return a.line < b.line
-    end)
-    for _, comment in pairs(comments_in_file) do
-      local cs = comment.comments
-      if #cs > 0 then
-        table.insert(qf_entries, {
-          filename = filename,
-          lnum = comment.line,
-          -- text = comment.content,
-          text = cs[1].body .. (cs[2] and (' (+%s more)'):format(vim.tbl_count(cs)) or ''),
-        })
-      end
-    end
-  end
-
-  if #qf_entries > 0 then
-    vim.fn.setqflist(qf_entries, 'u')
-  else
-    util.msg('No GH comments loaded.')
-  end
-end
-
 --- Loads comments for a given diff in a vertical window, where each comment is vertically aligned
 --- with the diff line that it annotates.
 local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
@@ -100,7 +73,7 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
 
   -- Find the diff-buf line for `gh_line` of `filename`.
   local function find_idx(filename, gh_line)
-    if not gh_line or gh_line == vim.NIL then
+    if vim.isnil(gh_line) then
       return nil
     end
     for i, m in pairs(line_map) do
@@ -152,7 +125,10 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
     end
   end
 
-  vim.diagnostic.set(vim.api.nvim_create_namespace('guh.comments'), diff_buf, diagnostics)
+  local ns = vim.api.nvim_create_namespace('guh.comments')
+  vim.diagnostic.set(ns, diff_buf, diagnostics)
+  -- This does setqflist(…,"u"), so this won't "pollute" the quickfix list on each refresh.
+  vim.diagnostic.setqflist({ namespace = ns, title = 'Guh comments' })
 
   ---------------------------------------------------------------------------
   -- Step 3: Write to buffer
@@ -199,7 +175,7 @@ end
 --- @param comments Comment[]
 local function prepare_content(comments)
   local lines = {}
-  if #comments > 0 and comments[1].start_line ~= vim.NIL and comments[1].start_line ~= comments[1].line then
+  if #comments > 0 and not vim.isnil(comments[1].start_line) and comments[1].start_line ~= comments[1].line then
     table.insert(lines, ('📓 Comment on lines %d to %d\n\n'):format(comments[1].start_line, comments[1].line))
   end
 
@@ -286,7 +262,6 @@ function M.load_comments(prnum, repo, cb)
         if cb then
           cb(grouped)
         end
-        load_comments_to_quickfix_list(grouped)
         show_comments_in_scrollbind_win(prnum, vim.api.nvim_get_current_win(), grouped)
         progress('success')
       end)
