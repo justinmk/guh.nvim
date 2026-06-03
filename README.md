@@ -1,8 +1,7 @@
 # guh.nvim (ghlite.nvim fork)
 
-> [!WARNING]
-> This plugin is buns (aka not working, aka "WIP").
-> It is just a pre-alpha currently. PRs welcome!
+> [!NOTE]
+> This plugin is pretty sweet, but still WIP/beta. PRs/feedback welcome!
 
 Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI with a minimalist yet
 effective workflow.
@@ -19,6 +18,7 @@ Run `:Guh 42` to view PR or issue 42. Also accepts a GitHub URL or
     :Guh 42
     :Guh https://github.com/justinmk/guh.nvim/pull/13
     :Guh neovim/neovim#20632
+    :Guh guh://pr/justinmk/guh.nvim/2
 
 Inside any `guh://` buffer, press `<CR>` to run `:Guh` on the target at cursor.
 
@@ -44,15 +44,17 @@ Requirements:
 
 ## How it works
 
-1. Show `gh` output in a `:terminal` buffer.
-2. Set keymaps on the buffer.
-3. PR diff comments are loaded in a 'scrollbind' split window.
-4. View CI logs.
-5. (TODO) Show PR comments as Nvim "diagnostics".
-6. (TODO) Fetch the git data into `.git` (without doing a checkout).
-7. (TODO) When viewing the diff, user can navigate to the git object (file)
+1. Shows `gh` output in a `:terminal` buffer.
+2. Sets global `<Plug>(guh-…)` keymaps. Provides default buffer-local mappings
+   if you don't set any mappings to the `<Plug>` mappings.
+3. `:Guh` is the main entrypoint. It shows status, or views a given item (PR, issue).
+4. Presents PR diff comments in a 'scrollbind' split window.
+5. Loads most-recent CI logs for all "jobs" in the CI matrix.
+6. (TODO) Show PR comments as Nvim "diagnostics".
+7. (TODO) Fetch the git data into `.git` (without doing a checkout).
+8. (TODO) When viewing the diff, user can navigate to the git object (file)
    without doing a checkout.
-8. (TODO) PR comments will display on relevant git objects.
+9. (TODO) PR comments will display on relevant git objects.
 
 ## Development
 
