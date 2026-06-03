@@ -67,11 +67,11 @@ local function get_info(cmd, b_field, cb)
       if stderr and stderr:match('Unknown JSON field') then
         error(('Unknown JSON field: %s'):format(stderr))
       end
-      config.log('get_info error', stderr)
+      util.log('get_info error', stderr)
       cb(nil)
       return
     end
-    config.log('get_info resp', result)
+    util.log('get_info resp', result)
 
     local r = parse_or_default(result, nil)
     state.set_b_guh(buf, { [b_field] = r })
@@ -139,7 +139,7 @@ function M.load_comments(type, id, repo, cb)
 
     local nr_before = #comments
     comments = vim.tbl_filter(is_valid_comment, comments)
-    config.log(('%s comments (valid: %s, discarded: %s)'):format(log_type, #comments, nr_before - #comments), comments)
+    util.log(('%s comments (valid: %s, discarded: %s)'):format(log_type, #comments, nr_before - #comments), comments)
 
     cb(comments)
   end)
@@ -159,12 +159,12 @@ function M.reply_to_comment(prnum, body, reply_to, repo, cb)
     '-F',
     'in_reply_to=' .. reply_to,
   }
-  config.log('reply_to_comment request', request)
+  util.log('reply_to_comment request', request)
 
   util.system(request, function(result)
     local resp = parse_or_default(result, { errors = {} })
 
-    config.log('reply_to_comment resp', resp)
+    util.log('reply_to_comment resp', resp)
     cb(resp)
   end)
 end
@@ -197,11 +197,11 @@ function M.new_comment(pr, body, path, start_line, line, repo, cb)
     table.insert(request, 'start_line=' .. start_line)
   end
 
-  config.log('new_comment request', request)
+  util.log('new_comment request', request)
 
   util.system(request, function(result)
     local resp = parse_or_default(result, { errors = {} })
-    config.log('new_comment resp', resp)
+    util.log('new_comment resp', resp)
     cb(resp)
   end)
 end
@@ -216,10 +216,10 @@ function M.new_pr_comment(pr, body, cb)
     body,
   }
 
-  config.log('new_pr_comment request', request)
+  util.log('new_pr_comment request', request)
 
   local result = util.system(request, function(result)
-    config.log('new_pr_comment resp', result)
+    util.log('new_pr_comment resp', result)
     cb(result)
   end)
 end
@@ -236,11 +236,11 @@ function M.update_comment(comment_id, body, repo, cb)
     '-f',
     'body=' .. body,
   }
-  config.log('update_comment request', request)
+  util.log('update_comment request', request)
 
   util.system(request, function(result)
     local resp = parse_or_default(result, { errors = {} })
-    config.log('update_comment resp', resp)
+    util.log('update_comment resp', resp)
     cb(resp)
   end)
 end
@@ -255,10 +255,10 @@ function M.delete_comment(comment_id, repo, cb)
     'DELETE',
     f('repos/%s/pulls/comments/%s', repo, comment_id),
   }
-  config.log('delete_comment request', request)
+  util.log('delete_comment request', request)
 
   util.system(request, function(resp)
-    config.log('delete_comment resp', resp)
+    util.log('delete_comment resp', resp)
     cb(resp)
   end)
 end
@@ -267,7 +267,7 @@ end
 function M.get_pr_list(cb)
   local cmd = 'gh pr list --json ' .. table.concat(pr_fields, ',')
   util.system_str(cmd, function(resp, stderr)
-    config.log('get_pr_list resp', resp)
+    util.log('get_pr_list resp', resp)
     local prefix = 'Unknown JSON field'
     if string.sub(stderr, 1, #prefix) == prefix then
       -- Without "baseRefOid" field.
@@ -278,7 +278,7 @@ function M.get_pr_list(cb)
         end)
         :totable()
       util.system_str('gh pr list --json ' .. table.concat(fields, ','), function(resp2)
-        config.log('get_pr_list resp', resp2)
+        util.log('get_pr_list resp', resp2)
         cb(parse_or_default(resp2, {}))
       end)
     else
@@ -308,10 +308,10 @@ function M.request_changes_pr(number, body, cb)
     body,
   }
 
-  config.log('request_changes_pr request', request)
+  util.log('request_changes_pr request', request)
 
   local result = util.system(request, function(result)
-    config.log('request_changes_pr resp', result)
+    util.log('request_changes_pr resp', result)
     cb(result)
   end)
 end

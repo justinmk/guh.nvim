@@ -266,7 +266,7 @@ function M.load_comments(prnum, repo, cb)
     group_comments(
       comments,
       vim.schedule_wrap(function(grouped)
-        config.log(('grouped %s comments (total: %s)'):format(log_type, vim.tbl_count(grouped)), grouped)
+        util.log(('grouped %s comments (total: %s)'):format(log_type, vim.tbl_count(grouped)), grouped)
 
         if cb then
           cb(grouped)
@@ -287,14 +287,14 @@ end
 -- TODO: Somewhere we probably want to call this based on the quickfix filename:comments mapping.
 M.load_comments_into_diagnostics = function(bufnr, filename, comments_list)
   vim.schedule(function()
-    config.log('load_comments_into_diagnostics:', filename)
+    util.log('load_comments_into_diagnostics:', filename)
     if not comments_list or comments_list[filename] == nil then
       util.msg(('comments_list[%s] is empty'):format(filename))
     else
       local diagnostics = {}
       for _, comment in pairs(comments_list[filename]) do
         if #comment.comments > 0 then
-          config.log('comment to diagnostics', comment)
+          util.log('comment to diagnostics', comment)
           table.insert(diagnostics, {
             lnum = comment.line - 1,
             col = 0,
