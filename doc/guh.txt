@@ -42,12 +42,12 @@ To review a PR without doing a checkout in your repo:
 
 - Run `:Guh` to select and view a PR.
   - Run it anytime later to refresh/reopen the PR view.
-- Run `:GuhDiff` to see the diff. PR comments are loaded:
+- Hit `gd` to see the diff. PR comments are loaded:
   - in the quickfix buffer (use |]q| to navigate).
   - in a 'scrollbind' split window next to the diff window (if the
     scrollbind gets out of sync, try |:syncbind|).
   - (TODO) as diagnostics
-- Type `cc` or `:GuhComment` to comment on a diff line.
+- Hit `cc` or `:GuhComment` to comment on a diff line.
 
 ==============================================================================
 COMMANDS                                                        *guh-commands*
@@ -81,7 +81,7 @@ COMMANDS                                                        *guh-commands*
               - `cm` / `<Plug>(guh-merge)`: merge PR. |guh-merge|
               - `cc` / `<Plug>(guh-comment)`: comment on a PR/issue/diff line.
                 Also `c` in Visual mode. |guh-comment|
-              - `gd` / `<Plug>(guh-diff)`: open diff view.
+              - `gd` / `<Plug>(guh-diff)`: open diff view. |guh-diff|
               - `gl` / `<Plug>(guh-logs)`: view the most recent CI logs.
 
               The `<Plug>(guh-…)` mappings are defined globally at startup.
@@ -101,27 +101,29 @@ COMMANDS                                                        *guh-commands*
               through `html_comments_command`. You can disable this
               functionality by setting `html_comments_command` as `false`.
 
-                                                                    *:GuhDiff*
-:GuhDiff      Shows PR diff and its comments.
+==============================================================================
+View PR diff                                                        *guh-diff*
 
-              PR comments are loaded:
-              - in the quickfix buffer (use |]q| to navigate).
-              - in a 'scrollbind' split window next to the diff window (if the
-                scrollbind gets out of sync, try |:syncbind|).
-              - (TODO) as diagnostics
-                - Navigate using `vim.diagnostic.jump` (|]d| |[d|).
-                - See comment details using `<C-w>d` |CTRL-W_d-default|
+`gd` on a PR view opens the diff + comments in 'scrollbind' split windows.
 
-              Buffer-local key bindings:
-              - `gf` go to file from PR diff. `gf` command will not work if
-                you use `:Guh` command and branch is not checked out.
-              - `cA` to approve PR
+PR comments are loaded:
+- in the quickfix buffer (use |]q| to navigate).
+- in a 'scrollbind' split window next to the diff window (if the scrollbind
+  gets out of sync, try |:syncbind|).
+- (TODO) as diagnostics
+  - Navigate using `vim.diagnostic.jump` (|]d| |[d|).
+  - See comment details using `<C-w>d` |CTRL-W_d-default|
+
+Buffer-local key bindings:
+- `gf` go to file from PR diff. `gf` command will not work if you use `:Guh`
+  command and branch is not checked out.
+- `cA` to approve PR
 
 
 ==============================================================================
 Comment on issues, PRs, and diffs                                *guh-comment*
 
-Opens an editable `guh://comment/<N>` buffer. To submit:
+`cc` on a PR or its diff opens an editable `guh://comment/<N>` buffer. To submit:
 - `:wq` (or `ZZ`) posts the comment.
 - `:q!` (or `ZQ`) discards. Also if buffer is empty.
 

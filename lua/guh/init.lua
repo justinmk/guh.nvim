@@ -50,18 +50,9 @@ M.setup = function()
   vim.api.nvim_create_user_command('Guh', function(opts)
     require('guh.pr_commands').select(opts)
   end, { nargs = '?' })
-  vim.api.nvim_create_user_command('GuhDiff', function(opts)
-    require('guh.pr_commands').show_pr_diff(opts)
-  end, { nargs = '?' })
   vim.api.nvim_create_user_command('GuhComment', function(opts)
     require('guh.pr_commands').comment(opts)
   end, { bang = true, range = true })
-  -- vim.api.nvim_create_user_command('GuhCheckout', require('guh.pr_commands').checkout, { nargs = '?' })
-  -- vim.api.nvim_create_user_command('GuhApprove', require('guh.pr_commands').approve_pr, {})
-  -- vim.api.nvim_create_user_command('GuhRequestChanges', require('guh.pr_commands').request_changes_pr, {})
-  -- vim.api.nvim_create_user_command('GuhMerge', require('guh.pr_commands').merge_pr, {})
-  -- vim.api.nvim_create_user_command('GuhCommentEdit', comments.update_comment, { range = true })
-  -- vim.api.nvim_create_user_command('GuhCommentDelete', comments.delete_comment, { range = true })
 end
 
 return M
