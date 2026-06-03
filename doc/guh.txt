@@ -13,35 +13,24 @@ Tenets:
 - All mappings work in all Guh buffers ("guh://…").
 
 ==============================================================================
-REQUIREMENTS                                                *guh-requirements*
-
-- nvim 0.12+
-- ["gh" (GitHub CLI)](https://cli.github.com/)
-<
-==============================================================================
 INSTALLATION                                                     *guh-install*
 
- To install:
->lua
+Requirements:
+- nvim 0.12+
+- ["gh" (GitHub CLI)](https://cli.github.com/)
+
+Install:
   vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
 
 ==============================================================================
-CONFIGURATION                                                     *guh-config*
+WORKFLOW                                                           *guh-usage*
 
-Default config is below. You can change any of these options, or skip this if
-you don't want to change the defaults. >lua
-
-  require('guh').setup({
-    debug = false, -- if set to true debugging information is written to stdpath(log)/.guh.log file
-  })
-<
-
-==============================================================================
-WORKFLOW                                                        *guh-workflow*
+Guh does not provide a setup() function. Instead it defines a plugin/guh.lua
+file which Nvim automatically runs at startup. |lua-plugin-init|
 
 To review a PR without doing a checkout in your repo:
 
-- Run `:Guh` to select and view a PR.
+- Run `:Guh` to select and view a PR. |guh-commands|
   - Run it anytime later to refresh/reopen the PR view.
 - Hit `gd` to see the diff. PR comments are loaded:
   - in the quickfix buffer (use |]q| to navigate).
@@ -50,63 +39,34 @@ To review a PR without doing a checkout in your repo:
   - (TODO) as diagnostics
 - Hit `cc` or `:GuhComment` to comment on a diff line.
 
-==============================================================================
-COMMANDS                                                        *guh-commands*
+------------------------------------------------------------------------------
+Keymaps                                                         *guh-mappings*
 
-                                                                        *:Guh*
-:Guh [target]
-              Without `[target]`: shows a status dashboard.
-              - Top part shows `gh pr status`.
-              - Bottom part shows info for the current repo (derived from the
-                current `guh://` buffer or |current-directory|).
-              - Hit <Enter> to view any PR/issue at cursor. |guh-mappings|
+Guh defines global `<Plug>(guh-…)` keys at startup. You can map anything to
+those |<Plug>| keys to "override" the default Guh keymaps. When a `guh://`
+buffer is opened it sets buffer-local default mappings unless you have defined
+such an "override".
 
-              With `[target]`: views or refreshes the PR or issue given by:
-              - PR or issue number (current repo): `:Guh 123`
-              - GitHub URL: `:Guh https://github.com/neovim/neovim/issues/20632`
-              - Slug ("owner/repo#123") >
-                :Guh neovim/neovim#20632
-                :Guh #20632
+Example: the `<Plug>(guh-merge)` feature is mapped to "cm" by default, but you
+can override it by mapping it to <F5>, then Guh will not map it to "cm": >vim
+  nmap <F5> <Plug>(guh-merge)
 <
-              Related gh commands: >
-                gh status
-                gh pr status
-                gh pr view 42
-                gh issue view 42
-<
-                                                                *guh-mappings*
-              Buffer-local key bindings (default; remap via `<Plug>` below):
-              - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
-              - `cra` / `<Plug>(guh-approve)`: approve PR.
-              - `crr` / `<Plug>(guh-request-changes)`: request PR changes.
-              - `cm` / `<Plug>(guh-merge)`: merge PR. |guh-merge|
-              - `cM` / `<Plug>(guh-merge-admin)`: merge PR with `--admin`
-                (bypass branch protections). |guh-merge|
-              - `cc` / `<Plug>(guh-comment)`: comment on a PR/issue/diff line.
-                Also `c` in Visual mode. |guh-comment|
-              - `gd` / `<Plug>(guh-diff)`: open diff view. |guh-diff|
-              - `gl` / `<Plug>(guh-logs)`: view the most recent CI logs.
-              - `g?` / `<Plug>(guh-help)`: open this help section.
-              - `R` / `<Plug>(guh-refresh)`: refresh the current `guh://*` buffer.
+Default mappings (local to `guh://` buffers):
+- `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
+- `cra` / `<Plug>(guh-approve)`: approve PR.
+- `crr` / `<Plug>(guh-request-changes)`: request PR changes.
+- `cm` / `<Plug>(guh-merge)`: merge PR. |guh-merge|
+- `cM` / `<Plug>(guh-merge-admin)`: merge PR with `--admin` (bypass branch
+  protections). |guh-merge|
+- `cc` / `<Plug>(guh-comment)`: comment on a PR/issue/diff line. Also `c` in
+  Visual mode. |guh-comment|
+- `gd` / `<Plug>(guh-diff)`: open diff view. |guh-diff|
+- `gl` / `<Plug>(guh-logs)`: view the most recent CI logs.
+- `g?` / `<Plug>(guh-help)`: open this help section.
+- `R` / `<Plug>(guh-refresh)`: refresh the current `guh://*` buffer.
 
-              The `<Plug>(guh-…)` mappings are defined globally at startup.
-              If you don't define a <Plug> mapping then the buffer-local
-              defaults listed above are defined.
-              Example: >vim
-                  nmap <F5> <Plug>(guh-merge)
-<              The default `cm` mapping is then skipped.
 
-              HTML comments is the thing too and they look bad in text. To
-              render HTML as text `html_comments_command` settings can be used
-              to specify command. You can use any command here that accepts
-              html via stdin and outputs text to stdout. By default `lynx` is
-              used, but if something works better for you feel free to use it.
-
-              Plugin searches for html tag and only then passes comment
-              through `html_comments_command`. You can disable this
-              functionality by setting `html_comments_command` as `false`.
-
-==============================================================================
+------------------------------------------------------------------------------
 View PR diff                                                        *guh-diff*
 
 `gd` on a PR view opens the diff + comments in 'scrollbind' split windows.
@@ -124,20 +84,16 @@ Buffer-local key bindings:
   command and branch is not checked out.
 - `cra` to approve PR
 
-
-==============================================================================
+------------------------------------------------------------------------------
 Comment on issues, PRs, and diffs                                *guh-comment*
 
 `cc` on a PR or its diff opens an editable `guh://comment/<N>` buffer. To submit:
 - `:wq` (or `ZZ`) posts the comment.
 - `:q!` (or `ZQ`) discards. Also if buffer is empty.
 
-:GuhComment   With bang "!", comments on PR at top level. Without bang,
-              comments on the current diff line or range. >
-                :[range]GuhComment
+See |:GuhComment|.
 
-<
-==============================================================================
+------------------------------------------------------------------------------
 Merging PRs                                                        *guh-merge*
 
 `cm` on a PR view opens a picker ("squash"/"merge"/"rebase").
@@ -150,6 +106,47 @@ For "squash" and "merge" a `guh://merge/<id>` buffer opens, prefilled with
 the PR title and body. To confirm and merge the PR:
 - `:wq` (or `ZZ`) merges (first line = `--subject`, rest = `--body`).
 - `:q!` (or `ZQ`) aborts. Also if buffer is empty.
+
+==============================================================================
+COMMANDS                                                        *guh-commands*
+
+:Guh [target]                                                           *:Guh*
+
+Without [target]: shows a status dashboard.
+- Top part shows `gh pr status`.
+- Bottom part shows info for the current repo (based on the current `guh://`
+  buffer or |current-directory|).
+- Hit <Enter> to view any PR/issue at cursor. |guh-mappings|
+
+With [target]: views or refreshes the PR or issue given by:
+- PR or issue number (current repo): `:Guh 123`
+- GitHub URL: `:Guh https://github.com/neovim/neovim/issues/20632`
+- Guh buffer name: `:Guh guh://pr/justinmk/guh.nvim/2`
+- Slug ("owner/repo#123") >
+    :Guh neovim/neovim#20632
+    :Guh #20632
+<
+Related gh commands: >
+    gh status
+    gh pr status
+    gh pr view 42
+    gh issue view 42
+<
+
+:[range]GuhComment                                               *:GuhComment*
+
+With bang "!", comments on PR at top level.
+Without bang, comments on the current diff line or range. >
+    :[range]GuhComment
+<
+
+==============================================================================
+DEVELOPMENT                                                          *guh-dev*
+
+>lua
+    require('guh').setup({
+      debug = false, -- if true: logs are written to stdpath(log)/.guh.log file
+    })
 
 
 ------------------------------------------------------------------------------
