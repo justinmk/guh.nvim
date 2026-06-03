@@ -98,26 +98,30 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
     return p
   end
 
+  -- Find the diff-buf line for `gh_line` of `filename`.
+  local function find_idx(filename, gh_line)
+    if not gh_line or gh_line == vim.NIL then
+      return nil
+    end
+    for i, m in pairs(line_map) do
+      if normalize_diff_path(m.file) == filename and m.new_line == gh_line then
+        return i
+      end
+    end
+    return nil
+  end
+
+  local diagnostics = {} ---@type vim.Diagnostic[]
   for filename, comments_for_file in pairs(comments_list) do
     local normalized_filename = normalize_diff_path(filename)
     for _, comment in ipairs(comments_for_file) do
-      local gh_line = comment.line
-      local idx
-      -- for i, m in pairs(line_map) do
-      --   if i < 10 then
-      --     vim.print({ i = i, file = m.file, old = m.old_line, new = m.new_line })
-      --   else
-      --     break
-      --   end
-      -- end
-      for i, m in pairs(line_map) do
-        local normalized_mfile = normalize_diff_path(m.file)
-        if normalized_mfile == normalized_filename and m.new_line == gh_line then
-          idx = i
-          break
+      local end_idx = find_idx(normalized_filename, comment.line)
+      if end_idx then
+        local start_idx = find_idx(normalized_filename, comment.start_line) or end_idx
+        if start_idx > end_idx then
+          start_idx, end_idx = end_idx, start_idx
         end
-      end
-      if idx then
+
         local body
         if comment.body then
           body = comment.body
@@ -132,12 +136,23 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
         if body and body ~= '' then
           local author = comment.user or comment.comments[1].user
           local date = comment.updated_at or comment.comments[1].updated_at
-          local prefix = ('%s %s `%s:%d`\n'):format(author, date, filename, gh_line)
-          lines[idx] = (lines[idx] ~= '' and lines[idx] .. '\n' or '') .. prefix .. body
+          local prefix = ('%s %s `%s:%d`\n'):format(author, date, filename, comment.line)
+          lines[end_idx] = (lines[end_idx] ~= '' and lines[end_idx] .. '\n' or '') .. prefix .. body
+
+          table.insert(diagnostics, {
+            lnum = start_idx - 1,
+            end_lnum = end_idx - 1,
+            col = 0,
+            message = body,
+            severity = severity.INFO,
+            source = 'guh.nvim',
+          })
         end
       end
     end
   end
+
+  vim.diagnostic.set(vim.api.nvim_create_namespace('guh.comments'), diff_buf, diagnostics)
 
   ---------------------------------------------------------------------------
   -- Step 3: Write to buffer
@@ -283,33 +298,6 @@ M.update_comment = function(opts)
   util.msg('TODO')
 end
 
--- TODO: fix this, code is outdated after big refactor.
--- TODO: Somewhere we probably want to call this based on the quickfix filename:comments mapping.
-M.load_comments_into_diagnostics = function(bufnr, filename, comments_list)
-  vim.schedule(function()
-    util.log('load_comments_into_diagnostics:', filename)
-    if not comments_list or comments_list[filename] == nil then
-      util.msg(('comments_list[%s] is empty'):format(filename))
-    else
-      local diagnostics = {}
-      for _, comment in pairs(comments_list[filename]) do
-        if #comment.comments > 0 then
-          util.log('comment to diagnostics', comment)
-          table.insert(diagnostics, {
-            lnum = comment.line - 1,
-            col = 0,
-            message = comment.content,
-            severity = severity.INFO,
-            source = 'guh.nvim',
-          })
-        end
-      end
-
-      vim.diagnostic.set(vim.api.nvim_create_namespace('guh.comments'), bufnr, diagnostics, {})
-    end
-  end)
-end
-
 --- Prepare info for commenting on a range in the current diff.
 --- This does not make a network request; it just returns metadata.
 ---
@@ -449,9 +437,9 @@ function M.do_comment(line1, line2)
   end)
 end
 
---- Opens a markdown buffer prefilled with `content`. The user edits, then:
---- - `:wq` (or `ZZ`) → callback runs with the buffer contents.
---- - `:q!` (close without writing) → callback does not run.
+--- Opens a markdown buffer prefilled with `content`.
+--- - Write-and-save (fugitive-style) confirms the action (invokes `cb`);
+--- - Close-without-write or write-empty-buffer aborts the action.
 ---
 --- @param feat Feat
 --- @param prnum integer
