@@ -5,9 +5,27 @@ local M = {}
 M.setup = function(user_config)
   config.setup(user_config)
 
+  local group = vim.api.nvim_create_augroup('guh.keymaps', { clear = true })
+
+  -- ":edit guh://pr/owner/repo/N" (etc.) dispatches to :Guh.
+  -- Wipe the placeholder buffer that :edit created.
+  vim.api.nvim_create_autocmd('BufReadCmd', {
+    pattern = 'guh://*',
+    group = group,
+    callback = function(args)
+      local uri = args.match
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(args.buf) then
+          vim.api.nvim_buf_delete(args.buf, { force = true })
+        end
+        vim.cmd('Guh ' .. vim.fn.fnameescape(uri))
+      end)
+    end,
+  })
+
   vim.api.nvim_create_autocmd('BufFilePost', {
     pattern = 'guh://*',
-    group = vim.api.nvim_create_augroup('guh.keymaps', { clear = true }),
+    group = group,
     callback = function(args)
       vim.keymap.set('n', '<CR>', function()
         local util = require('guh.util')
