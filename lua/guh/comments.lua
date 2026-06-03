@@ -467,7 +467,7 @@ function M.edit_comment(feat, prnum, content, infomsg, cb)
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
-  util.show_info_overlay(buf, infomsg or 'Edit, then :wq to post (:q! to abort).')
+  util.show_info_overlay(buf, infomsg or 'Edit, then ZZ to post (ZQ to abort).')
 
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].bufhidden = 'wipe' -- Ensure BufWipeout fires on :q.
