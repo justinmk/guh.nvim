@@ -128,7 +128,7 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
   local ns = vim.api.nvim_create_namespace('guh.comments')
   vim.diagnostic.set(ns, diff_buf, diagnostics)
   -- This does setqflist(…,"u"), so this won't "pollute" the quickfix list on each refresh.
-  vim.diagnostic.setqflist({ namespace = ns, title = 'Guh comments' })
+  vim.diagnostic.setqflist({ namespace = ns, title = 'Guh comments', open = false })
 
   ---------------------------------------------------------------------------
   -- Step 3: Write to buffer
