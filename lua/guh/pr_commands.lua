@@ -7,20 +7,19 @@ local M = {}
 
 --- Defines buffer-local defaults to the global `<Plug>(guh-…)` mappings, if necessary.
 ---
+--- These defaults are shared across all `guh://*` views (status, PR, issue, diff).
+---
 --- @param buf integer
-local function set_pr_view_keymaps(buf)
-  util.map_default(buf, 'n', 'cA', '<Plug>(guh-approve)', 'Approve PR')
-  util.map_default(buf, 'n', 'cR', '<Plug>(guh-request-changes)', 'Request PR changes')
+local function set_default_keymaps(buf)
+  util.map_default(buf, 'n', 'cra', '<Plug>(guh-approve)', 'Approve PR')
+  util.map_default(buf, 'n', 'crr', '<Plug>(guh-request-changes)', 'Request PR changes')
   util.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
   util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
   util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
   util.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
   util.map_default(buf, 'n', 'gl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
-end
-
---- @param buf integer
-local function set_issue_view_keymaps(buf)
-  util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on issue')
+  util.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
+  util.map_default(buf, 'n', 'R', '<Plug>(guh-refresh)', 'Refresh this guh:// buffer')
 end
 
 --- Shows...
@@ -89,6 +88,22 @@ end
 
 function M.request_changes_pr()
   util.msg('TODO')
+end
+
+--- Refreshes the current `guh://*` buffer by invoking `:Guh <bufname>`.
+function M.refresh()
+  local feat = (vim.b.guh or {}).feat
+  if feat == 'status' then
+    return M.show_status()
+  end
+  local name = vim.api.nvim_buf_get_name(0)
+  if name:match('^guh://') then
+    -- Drop cached data so the underlying `get_info` re-fetches from gh.
+    state.set_b_guh(0, { pr_data = nil, issue_data = nil })
+    M.select({ args = name })
+  else
+    util.msg('Not a guh:// buffer', vim.log.levels.ERROR)
+  end
 end
 
 --- [count] picks the merge method directly: 1=squash, 2=merge, 3=rebase.
@@ -197,7 +212,9 @@ function M.show_status()
       ),
     }
   end
-  util.run_term_cmd(buf, 'status', 'all', cmd)
+  util.run_term_cmd(buf, 'status', 'all', cmd, function()
+    set_default_keymaps(buf)
+  end)
 end
 
 --- @param id integer
@@ -205,8 +222,9 @@ end
 function M.show_issue(id, repo)
   local bufid = repo .. '/' .. id
   local buf = state.init_buf('issue', bufid, { id = id, repo = repo })
-  util.run_term_cmd(buf, 'issue', bufid, gh.cmd(repo, 'issue', 'view', tostring(id)))
-  set_issue_view_keymaps(buf)
+  util.run_term_cmd(buf, 'issue', bufid, gh.cmd(repo, 'issue', 'view', tostring(id)), function()
+    set_default_keymaps(buf)
+  end)
 end
 
 --- @param id integer
@@ -215,7 +233,7 @@ function M.show_pr(id, repo)
   local bufid = repo .. '/' .. id
   local buf = state.init_buf('pr', bufid, { id = id, repo = repo })
   util.run_term_cmd(buf, 'pr', bufid, gh.cmd(repo, 'pr', 'view', '--comments', tostring(id)), function()
-    set_pr_view_keymaps(buf)
+    set_default_keymaps(buf)
   end)
 end
 
@@ -227,7 +245,7 @@ function M.show_pr_diff(opts)
   util.run_term_cmd(buf, 'diff', bufid, gh.cmd(repo, 'pr', 'diff', tostring(id)), function()
     M.load_comments()
     vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
-    set_pr_view_keymaps(buf)
+    set_default_keymaps(buf)
   end)
 end
 

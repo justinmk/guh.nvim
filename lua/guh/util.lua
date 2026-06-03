@@ -197,11 +197,19 @@ end
 
 --- Sets a buffer-local `lhs` → `rhs_plug` mapping, unless the user already
 --- mapped that `<Plug>` to a different key (per |hasmapto()|).
-function M.map_default(buf, mode, lhs, rhs_plug, desc)
+---
+--- @param extra? table extra keymap opts (e.g. `{ nowait = true }`).
+function M.map_default(buf, mode, lhs, rhs_plug, desc, extra)
   if vim.fn.hasmapto(rhs_plug, mode) ~= 0 then
     return
   end
-  vim.keymap.set(mode, lhs, rhs_plug, { buffer = buf, remap = true, silent = true, desc = desc })
+  local opts = vim.tbl_extend('keep', extra or {}, {
+    buffer = buf,
+    remap = true,
+    silent = true,
+    desc = desc,
+  })
+  vim.keymap.set(mode, lhs, rhs_plug, opts)
 end
 
 function M.buf_keymap(buf, mode, lhs, desc, rhs)

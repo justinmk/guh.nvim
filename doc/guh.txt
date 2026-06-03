@@ -10,6 +10,7 @@ Tenets:
 - Never lose data.
 - Avoid messing with the workspace at all. Try to work with buffers and PR
   data without requiring a checkout.
+- All mappings work in all Guh buffers ("guh://…").
 
 ==============================================================================
 REQUIREMENTS                                                *guh-requirements*
@@ -76,13 +77,15 @@ COMMANDS                                                        *guh-commands*
                                                                 *guh-mappings*
               Buffer-local key bindings (default; remap via `<Plug>` below):
               - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
-              - `cA` / `<Plug>(guh-approve)`: approve PR.
-              - `cR` / `<Plug>(guh-request-changes)`: request PR changes.
+              - `cra` / `<Plug>(guh-approve)`: approve PR.
+              - `crr` / `<Plug>(guh-request-changes)`: request PR changes.
               - `cm` / `<Plug>(guh-merge)`: merge PR. |guh-merge|
               - `cc` / `<Plug>(guh-comment)`: comment on a PR/issue/diff line.
                 Also `c` in Visual mode. |guh-comment|
               - `gd` / `<Plug>(guh-diff)`: open diff view. |guh-diff|
               - `gl` / `<Plug>(guh-logs)`: view the most recent CI logs.
+              - `g?` / `<Plug>(guh-help)`: open this help section.
+              - `R` / `<Plug>(guh-refresh)`: refresh the current `guh://*` buffer.
 
               The `<Plug>(guh-…)` mappings are defined globally at startup.
               If you don't define a <Plug> mapping then the buffer-local
@@ -117,7 +120,7 @@ PR comments are loaded:
 Buffer-local key bindings:
 - `gf` go to file from PR diff. `gf` command will not work if you use `:Guh`
   command and branch is not checked out.
-- `cA` to approve PR
+- `cra` to approve PR
 
 
 ==============================================================================
