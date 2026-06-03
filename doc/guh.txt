@@ -77,7 +77,7 @@ COMMANDS                                                        *guh-commands*
               Buffer-local key bindings:
               - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
               - `cA` to approve PR.
-              - `cM` to merge PR. |guh-merge|
+              - `cm` to merge PR. |guh-merge|
               - `ca` to write top level PR comment.
               - `cc` to comment on a line in a PR diff. |guh-comment|
               - `gd` to open diff view.
@@ -125,7 +125,7 @@ Opens an editable `guh://comment/<N>` buffer. To submit:
 ==============================================================================
 Merging PRs                                                        *guh-merge*
 
-`cM` on a PR view opens a method picker ("squash"/"merge"/"rebase"). For
+`cm` on a PR view opens a method picker ("squash"/"merge"/"rebase"). For
 "squash" and "merge" a `guh://merge/<id>` buffer opens, prefilled with the PR
 title and body. To confirm and merge the PR:
 - `:wq` (or `ZZ`) merges (first line = `--subject`, rest = `--body`).

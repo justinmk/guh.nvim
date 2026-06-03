@@ -22,7 +22,7 @@ M.s = {
     pr = {
       approve = 'cA',
       request_changes = 'cR',
-      merge = 'cM',
+      merge = 'cm',
       comment = 'cc',
       diff = 'gd',
     },
