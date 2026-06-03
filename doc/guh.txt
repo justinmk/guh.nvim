@@ -10,6 +10,7 @@ Tenets:
 - Never lose data.
 - Avoid messing with the workspace at all. Try to work with buffers and PR
   data without requiring a checkout.
+- All mappings work in all Guh buffers ("guh://…").
 
 ==============================================================================
 REQUIREMENTS                                                *guh-requirements*
@@ -83,6 +84,7 @@ COMMANDS                                                        *guh-commands*
                 Also `c` in Visual mode. |guh-comment|
               - `gd` / `<Plug>(guh-diff)`: open diff view. |guh-diff|
               - `gl` / `<Plug>(guh-logs)`: view the most recent CI logs.
+              - `g?` / `<Plug>(guh-help)`: open this help section.
 
               The `<Plug>(guh-…)` mappings are defined globally at startup.
               If you don't define a <Plug> mapping then the buffer-local

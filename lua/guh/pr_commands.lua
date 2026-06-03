@@ -16,11 +16,13 @@ local function set_pr_view_keymaps(buf)
   util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
   util.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
   util.map_default(buf, 'n', 'gl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
+  util.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help')
 end
 
 --- @param buf integer
 local function set_issue_view_keymaps(buf)
   util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on issue')
+  util.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help')
 end
 
 --- Shows...
