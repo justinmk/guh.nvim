@@ -18,7 +18,8 @@ local function set_default_keymaps(buf)
   util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
   util.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
   util.map_default(buf, 'n', 'gl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
-  util.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help')
+  util.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
+  util.map_default(buf, 'n', 'R', '<Plug>(guh-refresh)', 'Refresh this guh:// buffer')
 end
 
 --- Shows...
@@ -87,6 +88,22 @@ end
 
 function M.request_changes_pr()
   util.msg('TODO')
+end
+
+--- Refreshes the current `guh://*` buffer by invoking `:Guh <bufname>`.
+function M.refresh()
+  local feat = (vim.b.guh or {}).feat
+  if feat == 'status' then
+    return M.show_status()
+  end
+  local name = vim.api.nvim_buf_get_name(0)
+  if name:match('^guh://') then
+    -- Drop cached data so the underlying `get_info` re-fetches from gh.
+    state.set_b_guh(0, { pr_data = nil, issue_data = nil })
+    M.select({ args = name })
+  else
+    util.msg('Not a guh:// buffer', vim.log.levels.ERROR)
+  end
 end
 
 --- [count] picks the merge method directly: 1=squash, 2=merge, 3=rebase.

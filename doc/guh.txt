@@ -85,6 +85,7 @@ COMMANDS                                                        *guh-commands*
               - `gd` / `<Plug>(guh-diff)`: open diff view. |guh-diff|
               - `gl` / `<Plug>(guh-logs)`: view the most recent CI logs.
               - `g?` / `<Plug>(guh-help)`: open this help section.
+              - `R` / `<Plug>(guh-refresh)`: refresh the current `guh://*` buffer.
 
               The `<Plug>(guh-…)` mappings are defined globally at startup.
               If you don't define a <Plug> mapping then the buffer-local
