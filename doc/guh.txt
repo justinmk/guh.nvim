@@ -55,17 +55,26 @@ can override it by mapping it to <F5>, then Guh will not map it to "cm": >vim
 <
 Default mappings (local to `guh://` buffers):
 - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
-- `cra` / `<Plug>(guh-approve)`: approve PR.
-- `crr` / `<Plug>(guh-request-changes)`: request PR changes.
-- `cm` / `<Plug>(guh-merge)`: merge PR. |guh-merge|
-- `cM` / `<Plug>(guh-merge-admin)`: merge PR with `--admin` (bypass branch
-  protections). |guh-merge|
-- `cc` / `<Plug>(guh-comment)`: comment on a PR/issue/diff line. Also `c` in
-  Visual mode. |guh-comment|
-- `gd` / `<Plug>(guh-diff)`: open diff view. |guh-diff|
-- `gl` / `<Plug>(guh-logs)`: view the most recent CI logs.
-- `g?` / `<Plug>(guh-help)`: open this help section.
-- `R` / `<Plug>(guh-refresh)`: refresh the current `guh://*` buffer.
+- `cra`: Approve PR.
+  <Plug>(guh-approve)
+- `crr`: Request PR changes.
+  <Plug>(guh-request-changes)
+- `cm`: Merge PR. |guh-merge|
+  <Plug>(guh-merge)
+- `cM`: Merge PR with `--admin` (bypass branch protections). |guh-merge|
+  <Plug>(guh-merge-admin)
+- `cc`: Comment on a PR/issue/diff line. Also `c` in Visual mode. |guh-comment|
+  <Plug>(guh-comment)
+- `cC`: Comment on the PR/issue overview (top-level). |guh-comment|
+  <Plug>(guh-comment-overview)
+- `gd`: View PR diff + comments. |guh-diff|
+  <Plug>(guh-diff)
+- `gl`: View the most recent CI logs.
+  <Plug>(guh-logs)
+- `g?`: View this help section.
+  <Plug>(guh-help)
+- `R`: Refresh the current `guh://` buffer.
+  <Plug>(guh-refresh)
 
 
 ------------------------------------------------------------------------------

@@ -205,21 +205,19 @@ function M.new_comment(pr, body, path, start_line, line, repo, cb)
   end)
 end
 
-function M.new_pr_comment(pr, body, cb)
-  local request = {
-    'gh',
-    'pr',
-    'comment',
-    f('%d', pr.number),
-    '--body',
-    body,
-  }
-
-  util.log('new_pr_comment request', request)
-
-  local result = util.system(request, function(result)
-    util.log('new_pr_comment resp', result)
-    cb(result)
+--- Posts a top-level comment on a PR or issue overview.
+---
+--- @param kind 'pr'|'issue'
+--- @param id integer
+--- @param repo string "owner/name"
+--- @param body string
+--- @param cb fun(ok: boolean, stderr?: string)
+function M.new_overview_comment(kind, id, repo, body, cb)
+  local request = M.cmd(repo, kind, 'comment', tostring(id), '--body', body)
+  util.log('new_overview_comment request', request)
+  util.system(request, function(stdout, stderr, code)
+    util.log('new_overview_comment resp', { stdout = stdout, stderr = stderr, code = code })
+    cb(code == 0, stderr)
   end)
 end
 

@@ -17,6 +17,7 @@ local function set_default_keymaps(buf)
   util.map_default(buf, 'n', 'cM', '<Plug>(guh-merge-admin)', 'Merge PR (--admin)')
   util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
   util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  util.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-overview)', 'Comment on PR/issue overview')
   util.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
   util.map_default(buf, 'n', 'gl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
   util.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
@@ -293,17 +294,39 @@ function M.show_pr_diff(opts)
   end)
 end
 
---- Comment on a diff line/range, or PR overview (bang "!").
+--- Comment on a diff line/range, or PR/issue overview (bang "!").
 M.comment = function(args)
   assert(args and args.line1 and args.line2)
-  if args.bang and args.range then
+  if args.bang and (args.range or 0) > 0 then
     return util.msg('Cannot use bang and range together.', vim.log.levels.ERROR)
   end
   if args.bang then
-    return util.msg(':GuhComment! (bang) not implemented yet', vim.log.levels.ERROR)
-  else
-    comments.do_comment(args.line1, args.line2)
+    return M.comment_overview()
   end
+  comments.do_comment(args.line1, args.line2)
+end
+
+--- Posts a top-level comment on the current PR or issue.
+function M.comment_overview()
+  local b = vim.b.guh or {}
+  local id = b.id
+  local repo = b.repo
+  local feat = b.feat
+  if not id or not repo or not feat then
+    return util.msg('Not in a PR/issue buffer', vim.log.levels.ERROR)
+  end
+  local kind = feat == 'issue' and 'issue' or 'pr'
+
+  comments.edit_comment('comment', id, { '' }, nil, function(input)
+    local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
+    gh.new_overview_comment(kind, id, repo, input, function(ok, stderr)
+      if ok then
+        progress('success', nil, 'Comment sent.')
+      else
+        progress('failed', nil, ('Failed to send comment: %s'):format(vim.trim(stderr or '')))
+      end
+    end)
+  end)
 end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
