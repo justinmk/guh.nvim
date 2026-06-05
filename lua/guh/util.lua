@@ -9,6 +9,29 @@ local M = {}
 --- into one row.
 local progress_echo_id = nil ---@type integer?
 
+--- Builds an argv that runs `string.format(cmdstring, ...)` through a shell.
+---
+--- The purpose of this is to linearize a bunch of `cmd1 && cmd2 && …` shell commands into one terminal invocation.
+---
+--- TODO: this would not be needed if Nvim allowed appending-to a buftype=terminal buffer.
+---
+--- @param cmdstring string `string.format`-style script: "cmd1 && cmd2 && …"
+--- @param ... string|number values to quote and substitute into `cmdstring`.
+--- @return string[] argv
+function M.shell_cmd(cmdstring, ...)
+  local shell, flag, q
+  if vim.fn.has('win32') == 1 then
+    shell, flag, q = 'cmd.exe', '/c', '"'
+  else
+    shell, flag, q = 'sh', '-c', "'"
+  end
+  local args = { ... }
+  for i, v in ipairs(args) do
+    args[i] = q .. tostring(v) .. q
+  end
+  return { shell, flag, cmdstring:format(unpack(args)) }
+end
+
 --- Runs a command asynchronously via `vim.system`. The callback is deferred (`vim.schedule_wrap`).
 ---
 --- @param cmd string[] argv list.
