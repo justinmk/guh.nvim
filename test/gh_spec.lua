@@ -186,13 +186,16 @@ describe('comments', function()
       local function test_load_comments()
         local pr_num = 2
         local done = false
-        require('guh.comments').load_comments(pr_num, 'justinmk/guh.nvim', function(grouped)
+        require('guh.comments').get_comments(pr_num, 'justinmk/guh.nvim', function(grouped)
           assert_comments(grouped)
           done = true
         end)
-        assert(vim.wait(5000, function()
-          return done
-        end), 'load_comments timed out')
+        assert(
+          vim.wait(5000, function()
+            return done
+          end),
+          'load_comments timed out'
+        )
       end
 
       test_load_comments()
@@ -253,6 +256,7 @@ describe('commands', function()
       assert(2 == n.eval("winnr('$')"), tostring(n.eval("execute('map <buffer>')")))
     end)
 
+    n.command('set nowrap signcolumn=no')
     t.retry(nil, nil, function()
       n.command('2 wincmd w')
     end)
@@ -321,10 +325,7 @@ describe('util', function()
       { owner = 'justinmk', repo = 'guh.nvim', id = 24, is_pr = true },
       parse_target('guh://diff/justinmk/guh.nvim/24')
     )
-    t.eq(
-      { owner = 'neovim', repo = 'neovim', id = 24 },
-      parse_target('guh://issue/neovim/neovim/24')
-    )
+    t.eq({ owner = 'neovim', repo = 'neovim', id = 24 }, parse_target('guh://issue/neovim/neovim/24'))
 
     t.eq(nil, parse_target('garbage'))
     t.eq(nil, parse_target(''))

@@ -10,12 +10,14 @@
 --- @field body string
 --- @field diff_hunk string
 --- @field id number
---- @field line number
---- @field path string
+--- @field line number GitHub file-line (already remapped to original_line for `outdated`).
+--- @field path string For `outdated`: a synthetic key `outdated-<thread_id>:<real_path>`.
 --- @field start_line number
 --- @field updated_at string
 --- @field url string
 --- @field user string
+--- @field outdated? boolean true if the thread is outdated (line no longer in HEAD).
+--- @field thread_id? number GraphQL thread id (root comment databaseId).
 
 --- @class GroupedComment
 --- @field comments Comment[]

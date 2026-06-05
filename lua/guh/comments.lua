@@ -6,9 +6,68 @@ local M = {}
 
 local severity = vim.diagnostic.severity
 
---- Loads comments for a given diff in a vertical window, where each comment is vertically aligned
---- with the diff line that it annotates.
-local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
+local outdated_banner_start = {
+  '================================================================================',
+  'OUTDATED',
+  '',
+}
+local outdated_banner_end = {
+  '================================================================================',
+  'END OUTDATED',
+  '',
+}
+
+--- Builds a self-contained mini-diff for the outdated threads in `comments_list`.
+--- Each thread becomes a quasi-file section (`diff --git` + `+++ b/<synthetic>` + hunk) using the
+--- synthetic per-thread path the caller stashed on the group. Example:
+---
+---     diff --git a/outdated-3271868956:runtime/lua/vim/_core/options.lua b/outdated-3271868956:runtime/lua/vim/_core/options.lua
+---     --- a/outdated-3271868956:runtime/lua/vim/_core/options.lua
+---     +++ b/outdated-3271868956:runtime/lua/vim/_core/options.lua
+---
+--- Returns `{}` when nothing is outdated.
+---
+--- @param comments_list table<string, GroupedComment[]>
+--- @return string[]
+function M.get_outdated_diff(comments_list)
+  local entries = {}
+  for synthetic, groups in pairs(comments_list) do
+    for _, g in ipairs(groups) do
+      if g.comments[1].outdated then
+        table.insert(entries, { synthetic = synthetic, group = g })
+      end
+    end
+  end
+  if #entries == 0 then
+    return {}
+  end
+  -- Stable ordering (pairs() is unordered).
+  table.sort(entries, function(a, b)
+    return a.synthetic < b.synthetic
+  end)
+
+  local lines = {}
+  vim.list_extend(lines, outdated_banner_start)
+  for _, e in ipairs(entries) do
+    local first = e.group.comments[1]
+    table.insert(lines, ('diff --git a/%s b/%s'):format(e.synthetic, e.synthetic))
+    table.insert(lines, ('--- a/%s'):format(e.synthetic))
+    table.insert(lines, ('+++ b/%s'):format(e.synthetic))
+    for hunk_line in (first.diff_hunk or ''):gmatch('[^\n]+') do
+      table.insert(lines, hunk_line)
+    end
+  end
+  vim.list_extend(lines, outdated_banner_end)
+  return lines
+end
+
+--- Renders `comments_list` in a 'scrollbind' split next to `diff_win`, with each
+--- comment vertically aligned to the diff line it annotates.
+---
+--- @param id integer PR number.
+--- @param diff_win integer window of the diff buffer.
+--- @param comments_list table<string, GroupedComment[]>
+function M.show_scrollbind(id, diff_win, comments_list)
   local diff_buf = vim.api.nvim_win_get_buf(diff_win)
   local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
@@ -108,7 +167,9 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
         if body and body ~= '' then
           local author = comment.user or comment.comments[1].user
           local date = comment.updated_at or comment.comments[1].updated_at
-          local prefix = ('%s %s `%s:%d`\n'):format(author, date, filename, comment.line)
+          local first = comment.comments[1]
+          local tag = first.outdated and ' [outdated]' or ''
+          local prefix = ('%s %s `%s:%d`%s\n'):format(author, date, filename, comment.line, tag)
           lines[start_idx] = (lines[start_idx] ~= '' and lines[start_idx] .. '\n' or '') .. prefix .. body
 
           table.insert(diagnostics, {
@@ -220,68 +281,72 @@ local function convert_comment(comment)
   return extended
 end
 
+--- Reshapes the flat list of GitHub review comments into per-file threads. Each `GroupedComment` is
+--- a thread identified by `in_reply_to_id`.
+---
+--- @param gh_comments table[] flat list from `gh.load_comments`.
+--- @param cb fun(grouped: table<string, GroupedComment[]>)
 local function group_comments(gh_comments, cb)
-  util.get_git_root(function(git_root)
-    --- @type table<number, Comment[]>
-    local comment_groups = {}
-    local base = {}
+  --- @type table<number, Comment[]>
+  local comment_groups = {}
+  local base = {}
 
-    for _, comment in pairs(gh_comments) do
-      if comment.in_reply_to_id == nil then
-        comment_groups[comment.id] = { convert_comment(comment) }
-        base[comment.id] = comment.id
-      else
-        table.insert(comment_groups[base[comment.in_reply_to_id]], convert_comment(comment))
-        base[comment.id] = base[comment.in_reply_to_id]
-      end
+  for _, comment in pairs(gh_comments) do
+    if comment.in_reply_to_id == nil then
+      comment_groups[comment.id] = { convert_comment(comment) }
+      base[comment.id] = comment.id
+    else
+      table.insert(comment_groups[base[comment.in_reply_to_id]], convert_comment(comment))
+      base[comment.id] = base[comment.in_reply_to_id]
     end
+  end
 
-    --- @type table<string, GroupedComment[]>
-    local result = {}
-    for _, comments in pairs(comment_groups) do
-      --- @type GroupedComment
-      local grouped_comments = {
-        id = comments[1].id,
-        line = comments[1].line,
-        start_line = comments[1].start_line,
-        url = comments[#comments].url,
-        content = prepare_content(comments),
-        comments = comments,
-      }
+  --- @type table<string, GroupedComment[]>
+  local result = {}
+  for _, comments in pairs(comment_groups) do
+    --- @type GroupedComment
+    local grouped_comments = {
+      id = comments[1].id,
+      line = comments[1].line,
+      start_line = comments[1].start_line,
+      url = comments[#comments].url,
+      content = prepare_content(comments),
+      comments = comments,
+    }
 
-      local filepath = comments[1].path -- Relative file path as given in the unified diff.
-      if result[filepath] == nil then
-        result[filepath] = { grouped_comments }
-      else
-        table.insert(result[filepath], grouped_comments)
-      end
+    local filepath = comments[1].path -- Relative file path as given in the unified diff.
+    if result[filepath] == nil then
+      result[filepath] = { grouped_comments }
+    else
+      table.insert(result[filepath], grouped_comments)
     end
+  end
 
-    cb(result)
-  end)
+  cb(result)
 end
 
----@param prnum integer
----@param repo? string "owner/name" for non-local repo.
----@param cb? function
-function M.load_comments(prnum, repo, cb)
-  local progress = util.new_progress_report('Loading comments', vim.fn.bufnr())
+--- Fetches review comments and groups them by path.
+---
+--- @param prnum integer
+--- @param repo string "owner/name"
+--- @param cb fun(grouped: table<string, GroupedComment[]>)
+function M.get_comments(prnum, repo, cb)
   assert(type(prnum) == 'number')
-  local resource = 'pulls' -- TODO: support 'issues'
-  local log_type = resource == 'pulls' and 'pr' or 'issue'
-  gh.load_comments(resource, prnum, repo, function(comments)
-    group_comments(
-      comments,
-      vim.schedule_wrap(function(grouped)
-        util.log(('grouped %s comments (total: %s)'):format(log_type, vim.tbl_count(grouped)), grouped)
-
-        if cb then
-          cb(grouped)
-        end
-        show_comments_in_scrollbind_win(prnum, vim.api.nvim_get_current_win(), grouped)
-        progress('success')
-      end)
-    )
+  gh.load_comments(prnum, assert(repo), function(comments)
+    -- Reassign outdated comments to synthetic per-thread paths so they
+    -- 1. group into their own GroupedComment buckets and
+    -- 2. match the synthesized `+++ b/<synthetic>` we prepend on the diff.
+    -- Example: "runtime/lua/vim/_core/options.lua" with thread_id 3271868956
+    --       → "outdated-3271868956:runtime/lua/vim/_core/options.lua"
+    for _, c in ipairs(comments) do
+      if c.outdated and c.thread_id then
+        c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
+      end
+    end
+    group_comments(comments, function(grouped)
+      util.log(('grouped pr comments (total: %s)'):format(vim.tbl_count(grouped)), grouped)
+      cb(grouped)
+    end)
   end)
 end
 
@@ -326,6 +391,10 @@ function M.prepare_to_comment(line1, line2)
   end
   if not file then
     util.msg('Could not determine file from diff', vim.log.levels.WARN)
+    return nil
+  end
+  if file:match('^outdated%-%d+:') then
+    util.msg('Cannot comment on an outdated hunk', vim.log.levels.WARN)
     return nil
   end
 
@@ -418,7 +487,8 @@ function M.do_comment(line1, line2)
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.repo, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
-            M.load_comments(info.pr_id, info.repo) -- Reload comments.
+            -- Reload the diff+comments view.
+            require('guh.pr_commands').show_pr_diff(info.pr_id)
           else
             progress('failed', nil, 'Failed to send comment.')
           end

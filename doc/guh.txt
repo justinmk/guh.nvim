@@ -81,6 +81,8 @@ Default mappings (local to `guh://` buffers):
 View PR diff                                                        *guh-diff*
 
 `gd` on a PR view opens the diff + comments in 'scrollbind' split windows.
+The old, outdated diff is shown as necessary for old, unresolved comments.
+If all old comments are resolved, then only the current diff is shown.
 
 PR comments are loaded:
 - in a 'scrollbind' split window next to the diff window (if the scrollbind
