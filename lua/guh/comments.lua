@@ -224,10 +224,16 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
     local max_lines = math.min(next_anchor - anchor, #diff_lines - anchor + 1)
     if #thread_entries > max_lines then
       thread_entries = vim.list_slice(thread_entries, 1, max_lines)
-      thread_entries[max_lines] = thread_entries[max_lines] .. ' [truncated]'
+      thread_entries[max_lines] = (thread_entries[max_lines] or '') .. ' [truncated]'
     end
     for j, line in ipairs(thread_entries) do
       out[anchor + j - 1] = line
+    end
+  end
+
+  for i = 1, #diff_lines do
+    if type(out[i]) ~= 'string' then
+      out[i] = ''
     end
   end
 
