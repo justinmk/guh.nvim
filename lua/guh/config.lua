@@ -1,7 +1,7 @@
 local M = {}
 
 -- Default config.
--- Keymaps are defined as `<Plug>(Guh…)` in `pr_commands.lua`.
+-- Keymaps are defined as `<Plug>(Guh…)` in `pr.lua`.
 M.s = {
   debug = false,
 }

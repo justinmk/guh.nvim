@@ -504,7 +504,7 @@ function M.do_comment(line1, line2)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
             -- Reload the diff+comments view.
-            require('guh.pr_commands').show_pr_diff(info.pr_id)
+            require('guh.pr').show_pr_diff(info.pr_id)
           else
             progress('failed', nil, 'Failed to send comment.')
           end
