@@ -7,8 +7,6 @@ local bufs = {
   ---@type table<string, integer>
   comment = {},
   ---@type table<string, integer>
-  diff = {},
-  ---@type table<string, integer>
   issue = {},
   ---@type table<string, integer>
   logs = {},
@@ -18,6 +16,8 @@ local bufs = {
   pr = {},
   ---@type table<string, integer>
   prcomments = {},
+  ---@type table<string, integer>
+  prdiff = {},
   ---@type table<string, integer>
   review = {},
   ---@type table<string, integer>

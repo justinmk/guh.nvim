@@ -5,24 +5,6 @@ local util = require('guh.util')
 
 local M = {}
 
---- Defines buffer-local defaults to the global `<Plug>(guh-…)` mappings, if necessary.
----
---- These defaults are shared across all `guh://*` views (status, PR, issue, diff).
----
---- @param buf integer
-local function set_default_keymaps(buf)
-  util.map_default(buf, 'n', 'cr', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
-  util.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
-  util.map_default(buf, 'n', 'cM', '<Plug>(guh-merge-admin)', 'Merge PR (--admin)')
-  util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
-  util.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
-  util.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-overview)', 'Comment on PR/issue overview')
-  util.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
-  util.map_default(buf, 'n', 'gl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
-  util.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
-  util.map_default(buf, 'n', 'R', '<Plug>(guh-refresh)', 'Refresh this guh:// buffer')
-end
-
 --- Shows...
 --- - Status (if no args given)
 --- - PR detail
@@ -260,7 +242,7 @@ function M.show_status()
     )
   end
   util.run_term_cmd(buf, cmd, function()
-    set_default_keymaps(buf)
+    util.set_default_keymaps(buf)
   end)
 end
 
@@ -269,7 +251,7 @@ end
 function M.show_issue(id, repo)
   local buf = state.init_buf('issue', repo, id)
   util.run_term_cmd(buf, gh.cmd(repo, 'issue', 'view', tostring(id)), function()
-    set_default_keymaps(buf)
+    util.set_default_keymaps(buf)
   end)
 end
 
@@ -280,8 +262,13 @@ end
 function M.show_pr(id, repo)
   local buf = state.init_buf('pr', repo, id)
   -- `oid` is the full SHA; slice the first 7 chars. `committedDate` is ISO-8601.
-  local commits_tmpl = '{{"\\nCommits:\\n"}}{{range .commits}}  '
-    .. '{{slice .oid 0 7}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\\n"}}{{end}}'
+  local commits_tmpl = vim.text.indent(
+    0,
+    [[
+    {{"\nCommits:\n" -}}
+    {{range .commits}}  {{slice .oid 0 7}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
+  ]]
+  )
   local cmd = util.shell_cmd(
     'gh pr view --comments %s --repo %s && gh pr view %s --repo %s --json commits --template %s',
     id,
@@ -291,7 +278,7 @@ function M.show_pr(id, repo)
     commits_tmpl
   )
   util.run_term_cmd(buf, cmd, function()
-    set_default_keymaps(buf)
+    util.set_default_keymaps(buf)
   end)
 end
 
@@ -303,7 +290,7 @@ function M.show_pr_diff(opts)
   local id =
     assert((type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts) or (vim.b.guh or {}).id)
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
-  local buf = state.init_buf('diff', repo, id)
+  local buf = state.init_buf('prdiff', repo, id)
   local diff_win = vim.api.nvim_get_current_win()
 
   local progress = util.new_progress_report('Loading PR diff...', buf)
@@ -322,7 +309,7 @@ function M.show_pr_diff(opts)
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
     vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
-    set_default_keymaps(buf)
+    util.set_default_keymaps(buf)
     comments.show_scrollbind(id, repo, diff_win, assert(grouped))
     progress('success')
   end

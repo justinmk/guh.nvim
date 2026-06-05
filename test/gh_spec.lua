@@ -17,7 +17,7 @@ before_each(function()
   n.exec [[
     set laststatus=2
   ]]
-  screen = Screen.new(80, 10)
+  screen = Screen.new(100, 10)
   n.exec_lua(function(cwd_)
     vim.cmd.cd(cwd_)
     -- TODO: do this in global test setup
@@ -210,11 +210,11 @@ describe('features', function()
       local state = require('guh.state')
 
       local pr_id = 42
-      local buf = state.get_buf('diff', pr_id)
+      local buf = state.get_buf('prdiff', pr_id)
       state.show_buf(buf)
       state.set_b_guh(buf, {
         id = pr_id,
-        feat = 'diff',
+        feat = 'prdiff',
         repo = 'justinmk/guh.nvim',
       })
 
@@ -274,7 +274,7 @@ describe('commands', function()
         +++ {MATCH:.*}|
         @@ {MATCH:.*} @@ {MATCH:.*}|
         {MATCH:.*}|*2
-        {MATCH:guh://.*/diff/1 .* guh://.*/prcomments/1 +}|
+        {MATCH:guh://.*/prdiff/1 .* guh://.*/prcomments/1 +}|
         {MATCH:.*}|
       ]],
     }
@@ -323,7 +323,7 @@ describe('util', function()
     )
     t.eq(
       { owner = 'justinmk', repo = 'guh.nvim', id = 24, is_pr = true },
-      parse_target('guh://justinmk/guh.nvim/diff/24')
+      parse_target('guh://justinmk/guh.nvim/prdiff/24')
     )
     t.eq({ owner = 'neovim', repo = 'neovim', id = 24 }, parse_target('guh://neovim/neovim/issue/24'))
 

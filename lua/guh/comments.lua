@@ -241,6 +241,8 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
   vim.api.nvim_win_call(win, function()
     vim.cmd [[setlocal scrollbind]]
   end)
+
+  util.set_default_keymaps(buf)
 end
 
 --- @param comment Comment

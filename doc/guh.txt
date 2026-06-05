@@ -149,12 +149,12 @@ Without [target]: shows a status dashboard.
 - Hit <Enter> to view any PR/issue at cursor. |guh-mappings|
 
 With [target]: views or refreshes the PR or issue given by:
-- PR or issue number (current repo): `:Guh 123`
-- GitHub URL: `:Guh https://github.com/neovim/neovim/issues/20632`
-- Guh buffer name: `:Guh guh://justinmk/guh.nvim/pr/2`
+- PR or issue number (current repo): `:Guh 35951`
+- GitHub URL: `:Guh https://github.com/neovim/neovim/issues/35951`
+- Guh buffer name: `:Guh guh://neovim/neovim/pr/35951`
 - Slug ("owner/repo#123") >
-    :Guh neovim/neovim#20632
-    :Guh #20632
+    :Guh neovim/neovim#35951
+    :Guh #35951
 <
 Related gh commands: >
     gh status
