@@ -47,8 +47,8 @@ end
 ---   - bare number: `"13"`
 ---   - GitHub URL: `"https://github.com/owner/repo/pull/13"` or `"…/issues/13"`
 ---   - slug: `"owner/repo#13"`
----   - guh URI: `"guh://pr/owner/repo/13"`, `"guh://issue/owner/repo/13"`,
----     `"guh://diff/owner/repo/13"`
+---   - guh URI: `"guh://owner/repo/pr/13"`, `"guh://owner/repo/issue/13"`,
+---     `"guh://owner/repo/diff/13"`, …
 ---
 --- @param arg string
 --- @return { owner?: string, repo?: string, id: integer, is_pr?: boolean }?
@@ -65,8 +65,8 @@ function M.parse_target(arg)
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = false }
   end
 
-  feat, owner, repo, num = arg:match('^guh://(%w+)/([%w%._-]+)/([%w%._-]+)/(%d+)$')
-  if feat then
+  owner, repo, feat, num = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/(%w+)/(%d+)$')
+  if owner then
     local is_pr = (feat == 'pr' or feat == 'diff') or nil
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = is_pr }
   end
@@ -221,19 +221,23 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
 end
 
 --- Overwrites the current :terminal buffer with the given cmd.
---- @param buf integer
---- @param feat Feat
---- @param id any
+---
+--- The buffer must have been initialized via `state.init_buf()` (`b:guh` is used to re-apply
+--- the `guh://…` name on term exit, since Nvim stomps it).
+---
+--- @param buf integer (must have `b:guh` set by `state.init_buf()`)
 --- @param cmd string[]
 --- @param on_done? fun()
-function M.run_term_cmd(buf, feat, id, cmd, on_done)
+function M.run_term_cmd(buf, cmd, on_done)
+  -- Fail fast if b:guh is invalid (init_buf() wasn't called?).
+  local b_guh = vim.b[buf].guh
+  assert(b_guh and b_guh.feat and b_guh.bufkey, ('run_term_cmd: invalid b:guh on buf %d'):format(buf))
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
   vim.schedule(function()
     local isempty = 1 == vim.fn.line('$') and '' == vim.fn.getline(1)
     assert(isempty or not vim.api.nvim_buf_is_loaded(buf) or (vim.o.buftype == 'terminal' and not not vim.b[buf].guh))
     vim.o.modifiable = true
-    -- vim.api.nvim_buf_set_lines(buf, 1, 1, false, { 'Loading...' })
     vim.o.modified = false
     vim.fn.jobstart(cmd, {
       term = true,
@@ -246,7 +250,7 @@ function M.run_term_cmd(buf, feat, id, cmd, on_done)
         if ns and vim.api.nvim_buf_is_valid(buf) then
           vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
         end
-        state.set_buf_name(buf, feat, id)
+        state.set_buf_name(buf, b_guh.feat, b_guh.bufkey)
         if on_done then
           on_done()
         end

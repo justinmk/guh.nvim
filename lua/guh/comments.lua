@@ -65,16 +65,17 @@ end
 --- comment vertically aligned to the diff line it annotates.
 ---
 --- @param id integer PR number.
+--- @param repo string "owner/name"
 --- @param diff_win integer window of the diff buffer.
 --- @param comments_list table<string, GroupedComment[]>
-function M.show_scrollbind(id, diff_win, comments_list)
+function M.show_scrollbind(id, repo, diff_win, comments_list)
   local diff_buf = vim.api.nvim_win_get_buf(diff_win)
   local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
-  if not state.try_show('comments', id) then
+  if not state.try_show('prcomments', repo, id) then
     vim.cmd [[botright vertical split]]
   end
-  local buf = state.init_buf('comments', id)
+  local buf = state.init_buf('prcomments', repo, id)
 
   local win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(win, buf)
@@ -515,16 +516,17 @@ end
 --- - Write-and-save (fugitive-style) confirms the action (invokes `cb`);
 --- - Close-without-write or write-empty-buffer aborts the action.
 ---
---- @param feat Feat
+--- @param feat 'comment'|'merge'|'review' kind of edit; each has its own per-PR buffer.
 --- @param prnum integer
 --- @param content string[] lines to prefill the buffer with
 --- @param infomsg? { [1]: string, [2]?: string } overlay message + highlight; nil = default.
 --- @param cb fun(input: string) called only on save-then-close
 function M.edit_comment(feat, prnum, content, infomsg, cb)
-  if not state.try_show(feat, prnum) then
+  local repo = assert((vim.b.guh or {}).repo, 'edit_comment: not in a guh:// buffer (no b:guh.repo)')
+  if not state.try_show(feat, repo, prnum) then
     vim.cmd [[split]]
   end
-  local buf = state.init_buf(feat, prnum)
+  local buf = state.init_buf(feat, repo, prnum)
   vim._with({ buf = buf }, function()
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)

@@ -4,11 +4,8 @@ require('guh').setup({})
 -- at plugin-load time without pulling pr_commands into startup. The actual
 -- handlers are required lazily on first invocation.
 local opts = { silent = true }
-vim.keymap.set('n', '<Plug>(guh-approve)', function()
-  require('guh.pr_commands').approve_pr()
-end, opts)
-vim.keymap.set('n', '<Plug>(guh-request-changes)', function()
-  require('guh.pr_commands').request_changes_pr()
+vim.keymap.set('n', '<Plug>(guh-review)', function()
+  require('guh.pr_commands').review_pr()
 end, opts)
 vim.keymap.set('n', '<Plug>(guh-merge)', function()
   require('guh.pr_commands').merge_pr()

@@ -11,8 +11,7 @@ local M = {}
 ---
 --- @param buf integer
 local function set_default_keymaps(buf)
-  util.map_default(buf, 'n', 'cra', '<Plug>(guh-approve)', 'Approve PR')
-  util.map_default(buf, 'n', 'crr', '<Plug>(guh-request-changes)', 'Request PR changes')
+  util.map_default(buf, 'n', 'cr', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
   util.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
   util.map_default(buf, 'n', 'cM', '<Plug>(guh-merge-admin)', 'Merge PR (--admin)')
   util.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
@@ -79,17 +78,50 @@ function M.select(opts)
   end
 end
 
---- Performs checkout. Shows PR info.
-function M.checkout(opts)
-  util.msg('TODO')
-end
+--- Performs the "review PR" action. Shows a vim.ui.select picker unless `[count]` was given.
+---
+--- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
+function M.review_pr()
+  local id = (vim.b.guh or {}).id
+  local repo = (vim.b.guh or {}).repo
+  if not id or not repo then
+    return util.msg('Not in a PR buffer', vim.log.levels.ERROR)
+  end
 
-function M.approve_pr()
-  util.msg('TODO')
-end
+  local labels = {
+    ['approve'] = { gerund = 'Approving', past = 'Approved' },
+    ['request-changes'] = { gerund = 'Requesting changes on', past = 'Requested changes on' },
+    ['comment'] = { gerund = 'Posting review on', past = 'Posted review on' },
+  }
 
-function M.request_changes_pr()
-  util.msg('TODO')
+  local function do_action(action)
+    local L = labels[action]
+    local msg = ('%s PR #%s. ZZ to submit (ZQ to abort).'):format(L.gerund, id)
+    comments.edit_comment('review', id, { '' }, { msg }, function(input)
+      local body = vim.trim(input)
+      local done = util.progress(('%s PR #%s…'):format(L.gerund, id))
+      gh.review_pr(id, repo, action, body, function(ok, stderr)
+        done(ok and 'success' or 'failed')
+        if ok then
+          util.msg(('%s PR #%s'):format(L.past, id))
+        else
+          util.msg(('Review failed: %s'):format(vim.trim(stderr)), vim.log.levels.ERROR)
+        end
+      end)
+    end)
+  end
+
+  local actions = { 'approve', 'request-changes', 'comment' }
+  local count = vim.v.count
+  if count >= 1 and count <= #actions then
+    return do_action(actions[count])
+  end
+
+  vim.ui.select(actions, { prompt = ('Review PR #%s by:'):format(id) }, function(action)
+    if action then
+      do_action(action)
+    end
+  end)
 end
 
 --- Refreshes the current `guh://*` buffer by invoking `:Guh <bufname>`.
@@ -108,8 +140,7 @@ function M.refresh()
   end
 end
 
---- [count] picks the merge method directly: 1=squash, 2=merge, 3=rebase.
---- No count → vim.ui.select prompt.
+--- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
 ---
 --- @param admin? boolean pass `--admin` to bypass branch protections.
 function M.merge_pr(admin)
@@ -194,7 +225,7 @@ end
 
 function M.show_status()
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
-  local buf = state.init_buf('status', 'all', { repo = repo })
+  local buf = state.init_buf('status', nil, 'all', { repo = repo })
   local cmd = { 'gh', 'status' }
   if repo then
     local owner, name = repo:match('^([^/]+)/(.+)$')
@@ -231,7 +262,7 @@ function M.show_status()
       ),
     }
   end
-  util.run_term_cmd(buf, 'status', 'all', cmd, function()
+  util.run_term_cmd(buf, cmd, function()
     set_default_keymaps(buf)
   end)
 end
@@ -239,9 +270,8 @@ end
 --- @param id integer
 --- @param repo string "owner/name"
 function M.show_issue(id, repo)
-  local bufid = repo .. '/' .. id
-  local buf = state.init_buf('issue', bufid, { id = id, repo = repo })
-  util.run_term_cmd(buf, 'issue', bufid, gh.cmd(repo, 'issue', 'view', tostring(id)), function()
+  local buf = state.init_buf('issue', repo, id)
+  util.run_term_cmd(buf, gh.cmd(repo, 'issue', 'view', tostring(id)), function()
     set_default_keymaps(buf)
   end)
 end
@@ -251,8 +281,7 @@ end
 --- @param id integer
 --- @param repo string "owner/name"
 function M.show_pr(id, repo)
-  local bufid = repo .. '/' .. id
-  local buf = state.init_buf('pr', bufid, { id = id, repo = repo })
+  local buf = state.init_buf('pr', repo, id)
   -- `oid` is the full SHA; slice the first 7 chars. `committedDate` is ISO-8601.
   local commits_tmpl = '{{"\\nCommits:\\n"}}{{range .commits}}  '
     .. '{{slice .oid 0 7}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\\n"}}{{end}}'
@@ -267,7 +296,7 @@ function M.show_pr(id, repo)
       vim.fn.shellescape(commits_tmpl)
     ),
   }
-  util.run_term_cmd(buf, 'pr', bufid, cmd, function()
+  util.run_term_cmd(buf, cmd, function()
     set_default_keymaps(buf)
   end)
 end
@@ -283,8 +312,7 @@ function M.show_pr_diff(opts)
       or (vim.b.guh or {}).id
   )
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
-  local bufid = repo .. '/' .. id
-  local buf = state.init_buf('diff', bufid, { id = id, repo = repo })
+  local buf = state.init_buf('diff', repo, id)
   local diff_win = vim.api.nvim_get_current_win()
 
   local progress = util.new_progress_report('Loading PR diff...', buf)
@@ -304,7 +332,7 @@ function M.show_pr_diff(opts)
     vim.bo[buf].readonly = true
     vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
     set_default_keymaps(buf)
-    comments.show_scrollbind(id, diff_win, assert(grouped))
+    comments.show_scrollbind(id, repo, diff_win, assert(grouped))
     progress('success')
   end
 
@@ -399,7 +427,7 @@ function M.show_ci_logs(opts)
         gh.get_pr_ci_logs(picked.databaseId, repo, function(logs, err)
           assert(logs, ('failed to get CI log: %s'):format(err))
 
-          local buf = state.init_buf('logs', id)
+          local buf = state.init_buf('logs', repo, id)
           vim.cmd.buffer(buf)
           -- Logs from `gh run view --log` contain termcodes. Open the buffer as a terminal so it renders nicely.
           local chan = vim.api.nvim_open_term(0, {})

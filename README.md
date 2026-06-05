@@ -50,11 +50,11 @@ Requirements:
 3. `:Guh` is the main entrypoint. It shows status, or views a given item (PR, issue).
 4. Presents PR diff comments in a 'scrollbind' split window.
 5. Loads most-recent CI logs for all "jobs" in the CI matrix.
-6. (TODO) Show PR comments as Nvim "diagnostics".
+6. Provide PR comments as Nvim "diagnostics".
 7. (TODO) Fetch the git data into `.git` (without doing a checkout).
 8. (TODO) When viewing the diff, user can navigate to the git object (file)
    without doing a checkout.
-9. (TODO) PR comments will display on relevant git objects.
+9. (TODO) PR comments will display on relevant *local* git objects.
 
 ## Development
 
