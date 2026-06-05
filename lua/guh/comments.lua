@@ -477,6 +477,19 @@ function M.do_comment(line1, line2)
     return
   end
 
+  -- Flash the range so the user can see what they're commenting on.
+  vim.hl.range(
+    info.buf,
+    vim.api.nvim_create_namespace('guh.comment_hl'),
+    'Visual',
+    { line1 - 1, 0 },
+    { line2 - 1, -1 },
+    {
+      priority = 300, -- Overrule diffs.nvim: https://github.com/barrettruth/diffs.nvim/blob/d280baf3e937a487038766f51156dd41ceb0f8e7/lua/diffs/config.lua#L124-L129
+      timeout = 200,
+    }
+  )
+
   gh.get_pr_info(info.pr_id, info.repo, function(pr)
     if not pr then
       return util.msg(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)

@@ -401,13 +401,9 @@ function M.show_ci_logs(opts)
 
           local buf = state.init_buf('logs', id)
           vim.cmd.buffer(buf)
-          vim.bo[buf].buftype = 'nofile'
-          vim.bo[buf].bufhidden = 'hide'
-          vim.bo[buf].swapfile = false
-          vim.bo[buf].modifiable = true
-          vim.api.nvim_paste(logs, false, -1)
-          vim.bo[buf].modified = false
-          vim.bo[buf].modifiable = false
+          -- Logs from `gh run view --log` contain termcodes. Open the buffer as a terminal so it renders nicely.
+          local chan = vim.api.nvim_open_term(0, {})
+          vim.api.nvim_chan_send(chan, logs)
           vim.cmd.norm [[gg0]]
         end)
       end)
