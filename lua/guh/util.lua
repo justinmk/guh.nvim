@@ -1,4 +1,3 @@
-local config = require('guh.config')
 local state = require('guh.state')
 
 local M = {}
@@ -94,12 +93,12 @@ function M.is_empty(value)
 end
 
 --- Appends a debug log entry to `stdpath('log')/guh.log` when
---- `config.s.debug` is true. No-op otherwise.
+--- `vim.g.guh_debug` is true. No-op otherwise.
 ---
 --- @param key string
 --- @param message any
 function M.log(key, message)
-  if not config.s.debug then
+  if not vim.g.guh_debug then
     return
   end
   local log_file_name = vim.fn.stdpath('log') .. '/guh.log'

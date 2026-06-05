@@ -174,9 +174,7 @@ Without bang, comments on the current diff line or range. >
 DEVELOPMENT                                                          *guh-dev*
 
 >lua
-    require('guh').setup({
-      debug = false, -- if true: logs are written to stdpath(log)/.guh.log file
-    })
+    vim.g.guh_debug = true
 
 
 ------------------------------------------------------------------------------
