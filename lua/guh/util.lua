@@ -92,24 +92,6 @@ function M.is_empty(value)
   return value == nil or value == '' or value == 0 or #value == 0
 end
 
-function M.get_git_root(cb)
-  M.system_str('git rev-parse --show-toplevel', function(result)
-    cb(vim.split(result, '\n')[1])
-  end)
-end
-
-function M.get_git_merge_base(baseCommitId, headCommitId, cb)
-  M.system_str('git merge-base ' .. baseCommitId .. ' ' .. headCommitId, function(result)
-    cb(vim.split(result, '\n')[1])
-  end)
-end
-
-function M.get_current_git_branch_name(cb)
-  M.system_str('git branch --show-current', function(result)
-    cb(vim.split(result, '\n')[1])
-  end)
-end
-
 --- Appends a debug log entry to `stdpath('log')/guh.log` when
 --- `config.s.debug` is true. No-op otherwise.
 ---

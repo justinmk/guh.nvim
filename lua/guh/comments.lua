@@ -281,45 +281,48 @@ local function convert_comment(comment)
   return extended
 end
 
+--- Reshapes the flat list of GitHub review comments into per-file threads. Each `GroupedComment` is
+--- a thread identified by `in_reply_to_id`.
+---
+--- @param gh_comments table[] flat list from `gh.load_comments`.
+--- @param cb fun(grouped: table<string, GroupedComment[]>)
 local function group_comments(gh_comments, cb)
-  util.get_git_root(function(git_root)
-    --- @type table<number, Comment[]>
-    local comment_groups = {}
-    local base = {}
+  --- @type table<number, Comment[]>
+  local comment_groups = {}
+  local base = {}
 
-    for _, comment in pairs(gh_comments) do
-      if comment.in_reply_to_id == nil then
-        comment_groups[comment.id] = { convert_comment(comment) }
-        base[comment.id] = comment.id
-      else
-        table.insert(comment_groups[base[comment.in_reply_to_id]], convert_comment(comment))
-        base[comment.id] = base[comment.in_reply_to_id]
-      end
+  for _, comment in pairs(gh_comments) do
+    if comment.in_reply_to_id == nil then
+      comment_groups[comment.id] = { convert_comment(comment) }
+      base[comment.id] = comment.id
+    else
+      table.insert(comment_groups[base[comment.in_reply_to_id]], convert_comment(comment))
+      base[comment.id] = base[comment.in_reply_to_id]
     end
+  end
 
-    --- @type table<string, GroupedComment[]>
-    local result = {}
-    for _, comments in pairs(comment_groups) do
-      --- @type GroupedComment
-      local grouped_comments = {
-        id = comments[1].id,
-        line = comments[1].line,
-        start_line = comments[1].start_line,
-        url = comments[#comments].url,
-        content = prepare_content(comments),
-        comments = comments,
-      }
+  --- @type table<string, GroupedComment[]>
+  local result = {}
+  for _, comments in pairs(comment_groups) do
+    --- @type GroupedComment
+    local grouped_comments = {
+      id = comments[1].id,
+      line = comments[1].line,
+      start_line = comments[1].start_line,
+      url = comments[#comments].url,
+      content = prepare_content(comments),
+      comments = comments,
+    }
 
-      local filepath = comments[1].path -- Relative file path as given in the unified diff.
-      if result[filepath] == nil then
-        result[filepath] = { grouped_comments }
-      else
-        table.insert(result[filepath], grouped_comments)
-      end
+    local filepath = comments[1].path -- Relative file path as given in the unified diff.
+    if result[filepath] == nil then
+      result[filepath] = { grouped_comments }
+    else
+      table.insert(result[filepath], grouped_comments)
     end
+  end
 
-    cb(result)
-  end)
+  cb(result)
 end
 
 --- Fetches review comments and groups them by path.
@@ -340,10 +343,10 @@ function M.get_comments(prnum, repo, cb)
         c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
       end
     end
-    group_comments(comments, vim.schedule_wrap(function(grouped)
+    group_comments(comments, function(grouped)
       util.log(('grouped pr comments (total: %s)'):format(vim.tbl_count(grouped)), grouped)
       cb(grouped)
-    end))
+    end)
   end)
 end
 
