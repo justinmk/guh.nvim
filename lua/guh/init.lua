@@ -48,10 +48,10 @@ M.setup = function()
   })
 
   vim.api.nvim_create_user_command('Guh', function(opts)
-    require('guh.pr_commands').select(opts)
+    require('guh.pr').select(opts)
   end, { nargs = '?' })
   vim.api.nvim_create_user_command('GuhComment', function(opts)
-    require('guh.pr_commands').comment(opts)
+    require('guh.pr').comment(opts)
   end, { bang = true, range = true })
 end
 

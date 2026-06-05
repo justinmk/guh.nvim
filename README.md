@@ -12,13 +12,12 @@ Run `:Guh` to see status.
 
     :Guh
 
-Run `:Guh 42` to view PR or issue 42. Also accepts a GitHub URL or
-`owner/repo#123` slug:
+Run `:Guh 42` to view PR/issue 42. Also accepts a GitHub URL or `owner/repo#123` slug:
 
-    :Guh 42
-    :Guh https://github.com/justinmk/guh.nvim/pull/13
-    :Guh neovim/neovim#20632
-    :Guh guh://pr/justinmk/guh.nvim/2
+    :Guh 35951
+    :Guh https://github.com/neovim/neovim/pull/35951
+    :Guh neovim/neovim#35951
+    :Guh guh://neovim/neovim/pr/35951
 
 Inside any `guh://` buffer, press `<CR>` to run `:Guh` on the target at cursor.
 

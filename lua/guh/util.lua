@@ -68,7 +68,7 @@ function M.parse_target(arg)
 
   owner, repo, feat, num = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/(%w+)/(%d+)$')
   if owner then
-    local is_pr = (feat == 'pr' or feat == 'diff') or nil
+    local is_pr = (feat == 'pr' or feat == 'prdiff') or nil
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = is_pr }
   end
 
@@ -193,6 +193,23 @@ function M.map_default(buf, mode, lhs, rhs_plug, desc, extra)
     desc = desc,
   })
   vim.keymap.set(mode, lhs, rhs_plug, opts)
+end
+
+--- Defines buffer-local defaults for the global `<Plug>(guh-…)` mappings, if necessary.
+--- These defaults are shared across all `guh://*` views (status, PR, issue, prdiff, prcomments).
+---
+--- @param buf integer
+function M.set_default_keymaps(buf)
+  M.map_default(buf, 'n', 'cr', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
+  M.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
+  M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge-admin)', 'Merge PR (--admin)')
+  M.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  M.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-overview)', 'Comment on PR/issue overview')
+  M.map_default(buf, 'n', 'gd', '<Plug>(guh-diff)', 'View the PR diff')
+  M.map_default(buf, 'n', 'gl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
+  M.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
+  M.map_default(buf, 'n', 'R', '<Plug>(guh-refresh)', 'Refresh this guh:// buffer')
 end
 
 function M.buf_keymap(buf, mode, lhs, desc, rhs)

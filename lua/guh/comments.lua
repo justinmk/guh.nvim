@@ -241,6 +241,8 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
   vim.api.nvim_win_call(win, function()
     vim.cmd [[setlocal scrollbind]]
   end)
+
+  util.set_default_keymaps(buf)
 end
 
 --- @param comment Comment
@@ -502,7 +504,7 @@ function M.do_comment(line1, line2)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
             -- Reload the diff+comments view.
-            require('guh.pr_commands').show_pr_diff(info.pr_id)
+            require('guh.pr').show_pr_diff(info.pr_id)
           else
             progress('failed', nil, 'Failed to send comment.')
           end
