@@ -263,12 +263,13 @@ describe('commands', function()
       timeout = 10000,
       attr_ids = {}, -- Don't care about colors.
       grid = [[
-        diff --git {MATCH:a/.* b/.*}│Empty line = no comment {MATCH:.*}|
-        index {MATCH:.*}│^{MATCH:.*}|
+        {MATCH:PR diff.*}│{MATCH:Empty line.*}|
+        diff --git {MATCH:a/.* b/.*}│^{MATCH:.*}|
+        index {MATCH:.*}|
         --- {MATCH:.*}|
         +++ {MATCH:.*}|
         @@ {MATCH:.*} @@ {MATCH:.*}|
-        {MATCH:.*}|*3
+        {MATCH:.*}|*2
         {MATCH:guh://diff/.*/1 .* guh://comments/1 +}|
         {MATCH:.*}|
       ]],
