@@ -9,28 +9,6 @@ local M = {}
 --- into one row.
 local progress_echo_id = nil ---@type integer?
 
---- Runs a shell command (split on spaces) asynchronously via `vim.system`.
---- On non-zero exit with stderr: logs, notifies, and raises an error.
----
---- @deprecated Use `util.system()` instead.
----
---- @param cmd string Command string; split on spaces into argv.
---- @param cb? fun(stdout: string, stderr: string)
-function M.system_str(cmd, cb)
-  local cmd_split = vim.split(cmd, ' ')
-  vim.system(cmd_split, { text = true }, function(result)
-    if type(cb) == 'function' then
-      if result.code ~= 0 and #result.stderr > 0 then
-        M.log('system_str error', result.stderr)
-        M.msg(result.stderr, vim.log.levels.ERROR)
-        error(result.stderr)
-      end
-
-      cb(result.stdout, result.stderr)
-    end
-  end)
-end
-
 --- Runs a command asynchronously via `vim.system`. The callback is deferred (`vim.schedule_wrap`).
 ---
 --- @param cmd string[] argv list.

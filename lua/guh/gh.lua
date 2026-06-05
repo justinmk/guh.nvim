@@ -114,11 +114,11 @@ end
 function M.get_repo(cb)
   local progress = util.new_progress_report('Loading...', 0)
   progress('running')
-  util.system_str('gh repo view --json nameWithOwner -q .nameWithOwner', function(result)
-    if result == nil then
+  util.system({ 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' }, function(stdout, _, code)
+    if code ~= 0 then
       progress('failed')
     else
-      cb(vim.split(result, '\n')[1])
+      cb(vim.split(stdout, '\n')[1])
       progress('success')
     end
   end)
@@ -395,9 +395,9 @@ function M.review_pr(id, repo, action, body, cb)
 end
 
 function M.get_user(cb)
-  util.system_str('gh api user -q .login', function(result)
-    if result ~= nil then
-      cb(vim.split(result, '\n')[1])
+  util.system({ 'gh', 'api', 'user', '-q', '.login' }, function(stdout, _, code)
+    if code == 0 then
+      cb(vim.split(stdout, '\n')[1])
     end
   end)
 end

@@ -37,12 +37,12 @@ describe('guh.gh', function()
       local async = require('async')
       local gh = require('guh.gh')
       local util = require('guh.util')
-      local system_str_async = async.wrap(2, util.system_str)
+      local system_async = async.wrap(2, util.system)
       local get_pr_info_async = async.wrap(3, gh.get_pr_info)
 
       local function test_get_pr_info()
         return async.run(function()
-          local result = assert(system_str_async('gh pr list --json number'))
+          local result = assert(system_async({ 'gh', 'pr', 'list', '--json', 'number' }))
           local pr_num = assert(vim.json.decode(result)[1].number, 'failed to get a repo issue')
 
           async.await(vim.schedule)
@@ -67,14 +67,14 @@ describe('guh.gh', function()
       local logs = nil
       local err = nil
 
-      util.system_str('gh pr view 9 --json number,headRefOid', function(result)
-        if not result then
+      util.system({ 'gh', 'pr', 'view', '9', '--json', 'number,headRefOid' }, function(stdout, _, code)
+        if code ~= 0 then
           err = 'failed to get PR'
           done = true
           return
         end
 
-        local pr = vim.json.decode(result)
+        local pr = vim.json.decode(stdout)
         if not pr then
           err = 'failed to parse PR'
           done = true
@@ -118,12 +118,12 @@ describe('guh.gh', function()
       local async = require('async')
       local gh = require('guh.gh')
       local util = require('guh.util')
-      local system_str_async = async.wrap(2, util.system_str)
+      local system_async = async.wrap(2, util.system)
       local get_issue_async = async.wrap(3, gh.get_issue)
 
       local function test_get_issue()
         return async.run(function()
-          local result = system_str_async('gh issue list --json number')
+          local result = system_async({ 'gh', 'issue', 'list', '--json', 'number' })
           local issue_num = assert(vim.json.decode(assert(result))[1].number, 'failed to get a repo issue')
 
           async.await(vim.schedule)
