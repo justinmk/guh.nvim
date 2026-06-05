@@ -250,17 +250,14 @@ function M.show_status()
       {{range .data.repository.issues.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end}}
     ]]
     )
-    cmd = {
-      vim.o.shell,
-      vim.o.shellcmdflag,
-      ('gh status && gh pr status --repo %s && gh api graphql -f owner=%s -f name=%s -f query=%s --template %s'):format(
-        vim.fn.shellescape(repo),
-        vim.fn.shellescape(owner),
-        vim.fn.shellescape(name),
-        vim.fn.shellescape(query),
-        vim.fn.shellescape(tmpl)
-      ),
-    }
+    cmd = util.shell_cmd(
+      'gh status && gh pr status --repo %s && gh api graphql -f owner=%s -f name=%s -f query=%s --template %s',
+      repo,
+      owner,
+      name,
+      query,
+      tmpl
+    )
   end
   util.run_term_cmd(buf, cmd, function()
     set_default_keymaps(buf)
@@ -285,17 +282,14 @@ function M.show_pr(id, repo)
   -- `oid` is the full SHA; slice the first 7 chars. `committedDate` is ISO-8601.
   local commits_tmpl = '{{"\\nCommits:\\n"}}{{range .commits}}  '
     .. '{{slice .oid 0 7}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\\n"}}{{end}}'
-  local cmd = {
-    vim.o.shell,
-    vim.o.shellcmdflag,
-    ('gh pr view --comments %s --repo %s && gh pr view %s --repo %s --json commits --template %s'):format(
-      tostring(id),
-      vim.fn.shellescape(repo),
-      tostring(id),
-      vim.fn.shellescape(repo),
-      vim.fn.shellescape(commits_tmpl)
-    ),
-  }
+  local cmd = util.shell_cmd(
+    'gh pr view --comments %s --repo %s && gh pr view %s --repo %s --json commits --template %s',
+    id,
+    repo,
+    id,
+    repo,
+    commits_tmpl
+  )
   util.run_term_cmd(buf, cmd, function()
     set_default_keymaps(buf)
   end)
@@ -306,11 +300,8 @@ end
 --- - Current diff + comments are shown after that.
 --- - Diff + comments are presented as 2 'scrollbind' windows.
 function M.show_pr_diff(opts)
-  local id = assert(
-    (type(opts) == 'table' and opts.args and tonumber(opts.args))
-      or tonumber(opts)
-      or (vim.b.guh or {}).id
-  )
+  local id =
+    assert((type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts) or (vim.b.guh or {}).id)
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
   local buf = state.init_buf('diff', repo, id)
   local diff_win = vim.api.nvim_get_current_win()
@@ -396,11 +387,8 @@ end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
-  local id = assert(
-    (type(opts) == 'table' and opts.args and tonumber(opts.args))
-      or tonumber(opts)
-      or (vim.b.guh or {}).id
-  )
+  local id =
+    assert((type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts) or (vim.b.guh or {}).id)
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
   gh.get_pr_info(id, repo, function(pr)
     if not pr then

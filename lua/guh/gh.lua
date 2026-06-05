@@ -381,9 +381,7 @@ function M.review_pr(id, repo, action, body, cb)
     return a == 'approve' or a == 'request-changes' or a == 'comment'
   end, "'approve'|'request-changes'|'comment'")
   vim.validate('body', body, 'string', true)
-  local flag = action == 'approve' and '--approve'
-    or action == 'request-changes' and '--request-changes'
-    or '--comment'
+  local flag = action == 'approve' and '--approve' or action == 'request-changes' and '--request-changes' or '--comment'
   local cmd = M.cmd(repo, 'pr', 'review', tostring(id), flag)
   if body and body ~= '' then
     table.insert(cmd, '--body')
