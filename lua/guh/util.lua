@@ -182,7 +182,10 @@ end
 ---
 --- @param extra? table extra keymap opts (e.g. `{ nowait = true }`).
 function M.map_default(buf, mode, lhs, rhs_plug, desc, extra)
-  if vim.fn.hasmapto(rhs_plug, mode) ~= 0 then
+  local has = vim.api.nvim_buf_call(buf, function()
+    return vim.fn.hasmapto(rhs_plug, mode) ~= 0
+  end)
+  if has then
     return
   end
   local opts = vim.tbl_extend('keep', extra or {}, {
