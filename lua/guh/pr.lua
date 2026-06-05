@@ -250,7 +250,7 @@ end
 --- @param repo string "owner/name"
 function M.show_issue(id, repo)
   local buf = state.init_buf('issue', repo, id)
-  util.run_term_cmd(buf, gh.cmd(repo, 'issue', 'view', tostring(id)), function()
+  util.run_term_cmd(buf, gh.cmd(repo, 'issue', 'view', tostring(id), '--comments'), function()
     util.set_default_keymaps(buf)
   end)
 end
