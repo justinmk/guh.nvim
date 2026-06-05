@@ -124,23 +124,98 @@ function M.get_repo(cb)
   end)
 end
 
---- @param type 'pulls'|'issues'
---- @param repo? string "owner/name" for non-local repo.
-function M.load_comments(type, id, repo, cb)
+--- Fetches review comments via the GraphQL `reviewThreads` API so we get per-thread `isOutdated` / `isResolved`. Drops
+--- resolved threads; flags each comment with its thread's `outdated` so the caller can handle outdated threads.
+---
+--- @param id integer
+--- @param repo string "owner/name"
+--- @param cb fun(comments: table[])
+function M.load_comments(id, repo, cb)
   assert(cb)
-  local log_type = type == 'pulls' and 'pr' or 'issue'
   vim.validate('repo', repo, 'string')
-  util.system_str(f('gh api repos/%s/%s/%d/comments', repo, type, id), function(comments_json)
-    local comments = parse_or_default(comments_json, {})
-    local function is_valid_comment(comment)
-      return not vim.isnil(comment.line)
+  local owner, name = repo:match('^([^/]+)/(.+)$')
+  if not owner then
+    util.log('load_comments invalid repo', repo)
+    cb({})
+    return
+  end
+  local query = [[
+    query($owner:String!,$name:String!,$number:Int!){
+      repository(owner:$owner,name:$name){
+        pullRequest(number:$number){
+          reviewThreads(first:100){
+            nodes{
+              isOutdated isResolved
+              comments(first:100){
+                nodes{
+                  databaseId body diffHunk path
+                  line originalLine startLine originalStartLine
+                  url updatedAt
+                  author{login}
+                  replyTo{databaseId}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]]
+  local cmd = {
+    'gh',
+    'api',
+    'graphql',
+    '-F',
+    'owner=' .. owner,
+    '-F',
+    'name=' .. name,
+    '-F',
+    f('number=%d', id),
+    '-f',
+    'query=' .. query,
+  }
+  util.system(cmd, function(stdout, stderr, code)
+    if code ~= 0 then
+      util.log('load_comments error', stderr)
+      cb({})
+      return
     end
-
-    local nr_before = #comments
-    comments = vim.tbl_filter(is_valid_comment, comments)
-    util.log(('%s comments (valid: %s, discarded: %s)'):format(log_type, #comments, nr_before - #comments), comments)
-
-    cb(comments)
+    local resp = parse_or_default(stdout, {})
+    local threads = vim.tbl_get(resp, 'data', 'repository', 'pullRequest', 'reviewThreads', 'nodes') or {}
+    local result = {}
+    for _, thread in ipairs(threads) do
+      -- Drop resolved threads entirely.
+      if not thread.isResolved then
+        local nodes = vim.tbl_get(thread, 'comments', 'nodes') or {}
+        local thread_id = nodes[1] and nodes[1].databaseId
+        for _, c in ipairs(nodes) do
+          local effective_line = thread.isOutdated and c.originalLine or c.line
+          local effective_start = thread.isOutdated and c.originalStartLine or c.startLine
+          if not vim.isnil(effective_line) and not vim.isnil(c.path) then
+            local reply_to
+            if not vim.isnil(c.replyTo) and c.replyTo.databaseId then
+              reply_to = c.replyTo.databaseId
+            end
+            table.insert(result, {
+              id = c.databaseId,
+              html_url = c.url,
+              user = { login = (not vim.isnil(c.author)) and c.author.login or '?' },
+              body = c.body or '',
+              diff_hunk = c.diffHunk or '',
+              path = c.path,
+              line = effective_line,
+              start_line = effective_start,
+              updated_at = c.updatedAt,
+              in_reply_to_id = reply_to,
+              outdated = thread.isOutdated or false,
+              thread_id = thread_id,
+            })
+          end
+        end
+      end
+    end
+    util.log('load_comments resp', { count = #result })
+    cb(result)
   end)
 end
 

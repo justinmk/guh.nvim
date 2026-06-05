@@ -192,16 +192,6 @@ function M.merge_pr(admin)
   end)
 end
 
-function M.load_comments(opts)
-  local prnum = opts and opts.args and tonumber(opts.args) or (vim.b.guh or {}).id
-  if not prnum then
-    util.msg('No PR number provided', vim.log.levels.ERROR)
-    return
-  end
-  local repo = (vim.b.guh or {}).repo or resolve_local_repo()
-  comments.load_comments(prnum, repo)
-end
-
 function M.show_status()
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
   local buf = state.init_buf('status', 'all', { repo = repo })
@@ -282,15 +272,62 @@ function M.show_pr(id, repo)
   end)
 end
 
+--- Shows PR diff + comments.
+--- - Outdated-unresolved diff + comments are shown at top.
+--- - Current diff + comments are shown after that.
+--- - Diff + comments are presented as 2 'scrollbind' windows.
 function M.show_pr_diff(opts)
-  local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
+  local id = assert(
+    (type(opts) == 'table' and opts.args and tonumber(opts.args))
+      or tonumber(opts)
+      or (vim.b.guh or {}).id
+  )
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
   local bufid = repo .. '/' .. id
   local buf = state.init_buf('diff', bufid, { id = id, repo = repo })
-  util.run_term_cmd(buf, 'diff', bufid, gh.cmd(repo, 'pr', 'diff', tostring(id)), function()
-    M.load_comments()
+  local diff_win = vim.api.nvim_get_current_win()
+
+  local progress = util.new_progress_report('Loading PR diff...', buf)
+  progress('running')
+
+  local outdated_lines, current_diff_lines, grouped
+  local function try_render()
+    if not outdated_lines or not current_diff_lines then
+      return
+    end
+    vim.bo[buf].buftype = 'nofile'
+    vim.bo[buf].swapfile = false
+    vim.bo[buf].modifiable = true
+    local all = vim.list_extend(vim.list_extend({}, outdated_lines), current_diff_lines)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, all)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].readonly = true
     vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
     set_default_keymaps(buf)
+    comments.show_scrollbind(id, diff_win, assert(grouped))
+    progress('success')
+  end
+
+  -- 1. Get outdated diff (for _unresolved_ comments on outdated diff hunks).
+  --    Empty if all old comments where resolved.
+  comments.get_comments(id, repo, function(g)
+    grouped = g
+    outdated_lines = comments.get_outdated_diff(g)
+    try_render()
+  end)
+
+  -- 2. Get the current PR diff.
+  util.system(gh.cmd(repo, 'pr', 'diff', tostring(id)), function(stdout, stderr, code)
+    if code ~= 0 then
+      progress('failed', nil, vim.trim(stderr or ''))
+      return
+    end
+    local lines = vim.split(stdout or '', '\n', { plain = true })
+    if lines[#lines] == '' then -- drop trailing empty from terminating "\n"
+      table.remove(lines)
+    end
+    current_diff_lines = lines
+    try_render()
   end)
 end
 
@@ -331,7 +368,11 @@ end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
-  local id = assert(opts and opts.args and tonumber(opts.args) or tonumber(opts) or (vim.b.guh or {}).id)
+  local id = assert(
+    (type(opts) == 'table' and opts.args and tonumber(opts.args))
+      or tonumber(opts)
+      or (vim.b.guh or {}).id
+  )
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
   gh.get_pr_info(id, repo, function(pr)
     if not pr then
