@@ -41,6 +41,14 @@ To review a PR without doing a checkout in your repo:
   - in the quickfix list ("Guh comments"). |]q| |[q| |:copen|
 - Hit `cc` or `:GuhComment` to comment on a diff line.
 
+                                                                 *guh-confirm*
+To confirm an action (such as "merge", "post comment", "approve", etc.) which
+accepts a (potentially optional) text input, Guh presents a "guh://…/edit".
+- To confirm the action, just save-and-close the buffer: `:wq`, `ZZ`, etc.
+- To cancel/abort the action, close-without-write (`:q!` or `ZQ`). Or if the
+  action requires non-empty content, writing an empty buffer will also abort.
+
+
 ------------------------------------------------------------------------------
 Keymaps                                                         *guh-mappings*
 
@@ -55,10 +63,8 @@ can override it by mapping it to <F5>, then Guh will not map it to "cm": >vim
 <
 Default mappings (local to `guh://` buffers):
 - `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
-- `cra`: Approve PR.
-  <Plug>(guh-approve)
-- `crr`: Request PR changes.
-  <Plug>(guh-request-changes)
+- `cr`: Review PR (approve / request-changes / comment).
+  <Plug>(guh-review)
 - `cm`: Merge PR. |guh-merge|
   <Plug>(guh-merge)
 - `cM`: Merge PR with `--admin` (bypass branch protections). |guh-merge|
@@ -101,9 +107,8 @@ Buffer-local key bindings:
 ------------------------------------------------------------------------------
 Comment on issues, PRs, and diffs                                *guh-comment*
 
-`cc` on a PR or its diff opens an editable `guh://comment/<N>` buffer. To submit:
-- `:wq` (or `ZZ`) posts the comment.
-- `:q!` (or `ZQ`) discards. Also if buffer is empty.
+`cc` on a PR or its diff opens an editable `guh://…/comment/<id>` buffer.
+Write-and-close to post comment. |guh-confirm|
 
 See |:GuhComment|.
 
@@ -111,15 +116,26 @@ See |:GuhComment|.
 Merging PRs                                                        *guh-merge*
 
 `cm` on a PR view opens a picker ("squash"/"merge"/"rebase").
-`[count]` skips the picker:
+`[count]cm` skips the picker:
 - `1cm` = squash
 - `2cm` = merge
 - `3cm` = rebase
 
-For "squash" and "merge" a `guh://merge/<id>` buffer opens, prefilled with
-the PR title and body. To confirm and merge the PR:
-- `:wq` (or `ZZ`) merges (first line = `--subject`, rest = `--body`).
-- `:q!` (or `ZQ`) aborts. Also if buffer is empty.
+For "squash" and "merge", Guh presents a `guh://…/merge/<id>` buffer,
+prefilled with the PR title and body (first line = `--subject`, rest = `--body`).
+Write-and-close to confirm the "merge" action. |guh-confirm|
+
+------------------------------------------------------------------------------
+Review PRs: approve, request changes, or reject                   *guh-review*
+
+`cr` on a PR view opens a picker ("approve"/"request-changes"/"comment").
+`[count]cr` skips the picker:
+- `1cr` = approve
+- `2cr` = request-changes
+- `3cr` = comment
+
+To confirm the "review" action, Guh presents a `guh://…/review/<id>` buffer.
+Write-and-close to confirm the "review" action. |guh-confirm|
 
 ==============================================================================
 COMMANDS                                                        *guh-commands*
@@ -135,7 +151,7 @@ Without [target]: shows a status dashboard.
 With [target]: views or refreshes the PR or issue given by:
 - PR or issue number (current repo): `:Guh 123`
 - GitHub URL: `:Guh https://github.com/neovim/neovim/issues/20632`
-- Guh buffer name: `:Guh guh://pr/justinmk/guh.nvim/2`
+- Guh buffer name: `:Guh guh://justinmk/guh.nvim/pr/2`
 - Slug ("owner/repo#123") >
     :Guh neovim/neovim#20632
     :Guh #20632

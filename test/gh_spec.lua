@@ -274,7 +274,7 @@ describe('commands', function()
         +++ {MATCH:.*}|
         @@ {MATCH:.*} @@ {MATCH:.*}|
         {MATCH:.*}|*2
-        {MATCH:guh://diff/.*/1 .* guh://comments/1 +}|
+        {MATCH:guh://.*/diff/1 .* guh://.*/prcomments/1 +}|
         {MATCH:.*}|
       ]],
     }
@@ -319,13 +319,13 @@ describe('util', function()
     t.eq({ owner = 'neovim', repo = 'neovim', id = 20632 }, parse_target('neovim/neovim#20632'))
     t.eq(
       { owner = 'justinmk', repo = 'guh.nvim', id = 24, is_pr = true },
-      parse_target('guh://pr/justinmk/guh.nvim/24')
+      parse_target('guh://justinmk/guh.nvim/pr/24')
     )
     t.eq(
       { owner = 'justinmk', repo = 'guh.nvim', id = 24, is_pr = true },
-      parse_target('guh://diff/justinmk/guh.nvim/24')
+      parse_target('guh://justinmk/guh.nvim/diff/24')
     )
-    t.eq({ owner = 'neovim', repo = 'neovim', id = 24 }, parse_target('guh://issue/neovim/neovim/24'))
+    t.eq({ owner = 'neovim', repo = 'neovim', id = 24 }, parse_target('guh://neovim/neovim/issue/24'))
 
     t.eq(nil, parse_target('garbage'))
     t.eq(nil, parse_target(''))

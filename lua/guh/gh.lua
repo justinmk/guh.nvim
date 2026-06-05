@@ -335,63 +335,6 @@ function M.delete_comment(comment_id, repo, cb)
   end)
 end
 
---- @param cb fun(prs: PullRequest[])
-function M.get_pr_list(cb)
-  local cmd = 'gh pr list --json ' .. table.concat(pr_fields, ',')
-  util.system_str(cmd, function(resp, stderr)
-    util.log('get_pr_list resp', resp)
-    local prefix = 'Unknown JSON field'
-    if string.sub(stderr, 1, #prefix) == prefix then
-      -- Without "baseRefOid" field.
-      local fields = vim
-        .iter(pr_fields)
-        :filter(function(v)
-          return v ~= 'baseRefOid'
-        end)
-        :totable()
-      util.system_str('gh pr list --json ' .. table.concat(fields, ','), function(resp2)
-        util.log('get_pr_list resp', resp2)
-        cb(parse_or_default(resp2, {}))
-      end)
-    else
-      cb(parse_or_default(resp, {}))
-    end
-  end)
-end
-
---- @param pr PullRequest
-function M.checkout_pr(pr, cb)
-  local branch = ('pr%s-%s'):format(pr.number, pr.author.login):gsub(' ', '_')
-  util.system_str(f('gh pr checkout --force --branch %s %d', branch, pr.number), cb)
-end
-
-function M.approve_pr(number, cb)
-  util.system_str(f('gh pr review %s -a', number), cb)
-end
-
-function M.request_changes_pr(number, body, cb)
-  local request = {
-    'gh',
-    'pr',
-    'review',
-    f('%d', number),
-    '-r',
-    '--body',
-    body,
-  }
-
-  util.log('request_changes_pr request', request)
-
-  local result = util.system(request, function(result)
-    util.log('request_changes_pr resp', result)
-    cb(result)
-  end)
-end
-
-function M.get_pr_diff(number, cb)
-  util.system_str(f('gh pr diff %s', number), cb)
-end
-
 --- Merges a PR via `gh pr merge`.
 ---
 --- @param id integer
@@ -419,6 +362,32 @@ function M.merge_pr(id, repo, method, subject, body, admin, cb)
   end
   if admin then
     table.insert(cmd, '--admin')
+  end
+  util.system(cmd, function(_, stderr, code)
+    cb(code == 0, stderr or '')
+  end)
+end
+
+--- Submits a PR review.
+--- @param id integer
+--- @param repo string "owner/name"
+--- @param action 'approve'|'request-changes'|'comment'
+--- @param body? string review body (required for `request-changes` and `comment`).
+--- @param cb fun(ok: boolean, stderr: string)
+function M.review_pr(id, repo, action, body, cb)
+  vim.validate('id', id, 'number')
+  vim.validate('repo', repo, 'string')
+  vim.validate('action', action, function(a)
+    return a == 'approve' or a == 'request-changes' or a == 'comment'
+  end, "'approve'|'request-changes'|'comment'")
+  vim.validate('body', body, 'string', true)
+  local flag = action == 'approve' and '--approve'
+    or action == 'request-changes' and '--request-changes'
+    or '--comment'
+  local cmd = M.cmd(repo, 'pr', 'review', tostring(id), flag)
+  if body and body ~= '' then
+    table.insert(cmd, '--body')
+    table.insert(cmd, body)
   end
   util.system(cmd, function(_, stderr, code)
     cb(code == 0, stderr or '')
