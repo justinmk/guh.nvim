@@ -80,8 +80,7 @@ end
 
 --- Performs the "review PR" action. Shows a vim.ui.select picker unless `[count]` was given.
 ---
---- Per action: `'approve'` confirms via yes/no; `'request-changes'`/`'comment'`
---- open an editable buffer for the body (GitHub requires non-empty).
+--- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
 function M.review_pr()
   local id = (vim.b.guh or {}).id
   local repo = (vim.b.guh or {}).repo
@@ -97,7 +96,9 @@ function M.review_pr()
 
   local function do_action(action)
     local L = labels[action]
-    local function send(body)
+    local msg = ('%s PR #%s. ZZ to submit (ZQ to abort).'):format(L.gerund, id)
+    comments.edit_comment('review', id, { '' }, { msg }, function(input)
+      local body = vim.trim(input)
       local done = util.progress(('%s PR #%s…'):format(L.gerund, id))
       gh.review_pr(id, repo, action, body, function(ok, stderr)
         done(ok and 'success' or 'failed')
@@ -107,20 +108,7 @@ function M.review_pr()
           util.msg(('Review failed: %s'):format(vim.trim(stderr)), vim.log.levels.ERROR)
         end
       end)
-    end
-
-    if action == 'approve' then
-      vim.ui.select({ 'yes', 'no' }, { prompt = ('Approve PR #%s?'):format(id) }, function(choice)
-        if choice == 'yes' then
-          send('')
-        end
-      end)
-    else
-      local msg = ('%s PR #%s. ZZ to submit (ZQ to abort).'):format(L.gerund, id)
-      comments.edit_comment('review', id, { '' }, { msg }, function(input)
-        send(vim.trim(input))
-      end)
-    end
+    end)
   end
 
   local actions = { 'approve', 'request-changes', 'comment' }
