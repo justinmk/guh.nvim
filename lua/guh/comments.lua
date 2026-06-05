@@ -1,4 +1,3 @@
-local config = require('guh.config')
 local gh = require('guh.gh')
 local state = require('guh.state')
 local util = require('guh.util')
@@ -110,7 +109,7 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
           local author = comment.user or comment.comments[1].user
           local date = comment.updated_at or comment.comments[1].updated_at
           local prefix = ('%s %s `%s:%d`\n'):format(author, date, filename, comment.line)
-          lines[end_idx] = (lines[end_idx] ~= '' and lines[end_idx] .. '\n' or '') .. prefix .. body
+          lines[start_idx] = (lines[start_idx] ~= '' and lines[start_idx] .. '\n' or '') .. prefix .. body
 
           table.insert(diagnostics, {
             lnum = start_idx - 1,
@@ -135,21 +134,38 @@ local function show_comments_in_scrollbind_win(id, diff_win, comments_list)
   ---------------------------------------------------------------------------
   vim.bo[buf].modifiable = true
 
-  -- Flatten multiline entries into individual lines
-  local out = {}
-  for _, v in ipairs(lines) do
-    if v == '' then
-      table.insert(out, '')
-    else
-      for sub in v:gmatch('[^\n]+') do
-        table.insert(out, sub)
-      end
+  -- Each comment starts at its anchored diff line so 'scrollbind' lines up. If a
+  -- comment body overflows into the next anchored slot, truncate and mark it so
+  -- a sibling comment isn't silently pushed down.
+  local anchors = {}
+  for i = 1, #diff_lines do
+    if lines[i] ~= '' then
+      table.insert(anchors, i)
     end
   end
-  -- error(vim.inspect(buf))
+
+  local out = {}
+  for i = 1, #diff_lines do
+    out[i] = ''
+  end
+
+  for i, anchor in ipairs(anchors) do
+    local content_lines = vim.split(lines[anchor], '\n', { plain = true })
+    local next_anchor = anchors[i + 1] or (#diff_lines + 1)
+    local max_lines = math.min(next_anchor - anchor, #diff_lines - anchor + 1)
+    if #content_lines > max_lines then
+      content_lines = vim.list_slice(content_lines, 1, max_lines)
+      content_lines[max_lines] = content_lines[max_lines] .. ' [truncated]'
+    end
+    for j, line in ipairs(content_lines) do
+      out[anchor + j - 1] = line
+    end
+  end
+
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
 
   vim.cmd [[wincmd p]] -- Return to diff window.
+  util.show_info_overlay(diff_buf, 'PR diff (`cc` to comment)')
   util.show_info_overlay(buf, 'Empty line = no comment on that diff line')
 
   -- vim.bo[buf].modifiable = false
