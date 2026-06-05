@@ -1,3 +1,5 @@
+vim.api.nvim_set_hl(0, 'GuhHeading', { default = true, link = 'PmenuSel' })
+
 local group = vim.api.nvim_create_augroup('guh.keymaps', { clear = true })
 
 -- ":edit guh://pr/owner/repo/N" (etc.) dispatches to :Guh.
