@@ -244,11 +244,11 @@ describe('features', function()
 end)
 
 describe('commands', function()
-  it(':Guh + gd loads PR diff + comments split window', function()
+  it(':Guh + dd loads PR diff + comments split window', function()
     n.command('Guh 1')
     -- Wait for the PR diff-view.
     t.retry(nil, 10000, function()
-      assert('' ~= n.fn.maparg('gd', 'n', false))
+      assert('' ~= n.fn.maparg('dd', 'n', false))
     end)
     -- Invoke the diff-view.
     n.feed('<Plug>(guh-diff)')

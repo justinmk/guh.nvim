@@ -372,6 +372,22 @@ function M.comment_overview()
   end)
 end
 
+--- Runs `gh pr edit <id>` (or `gh issue edit <id>`) in a :terminal.
+function M.edit_pr()
+  local b = vim.b.guh or {}
+  local id = b.id
+  local repo = b.repo
+  local feat = b.feat
+  if not id or not repo or not feat then
+    return util.msg('Not in a PR/issue buffer', vim.log.levels.ERROR)
+  end
+  local kind = feat == 'issue' and 'issue' or 'pr'
+  local buf = state.init_buf('edit', repo, id)
+  util.run_term_cmd(buf, gh.cmd(repo, kind, 'edit', tostring(id)), function()
+    util.set_default_keymaps(buf)
+  end)
+end
+
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
   local id =
