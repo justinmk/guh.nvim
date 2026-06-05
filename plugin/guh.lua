@@ -1,4 +1,5 @@
 vim.api.nvim_set_hl(0, 'GuhHeading', { default = true, link = 'PmenuSel' })
+vim.api.nvim_set_hl(0, 'GuhWarning', { default = true, link = 'SpellBad' })
 
 local group = vim.api.nvim_create_augroup('guh.keymaps', { clear = true })
 

@@ -310,7 +310,7 @@ function M.show_pr_diff(opts)
     vim.bo[buf].readonly = true
     vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
     util.set_default_keymaps(buf)
-    comments.show_scrollbind(id, repo, diff_win, assert(grouped))
+    comments.show(id, repo, diff_win, assert(grouped))
     progress('success')
   end
 
