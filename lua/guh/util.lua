@@ -237,6 +237,10 @@ function M.run_term_cmd(buf, feat, id, cmd, on_done)
     vim.o.modified = false
     vim.fn.jobstart(cmd, {
       term = true,
+      env = {
+        GH_PAGER = 'cat',
+        PAGER = 'cat',
+      },
       on_exit = function()
         local ns = vim.api.nvim_get_namespaces()['nvim.terminal.exitmsg']
         if ns and vim.api.nvim_buf_is_valid(buf) then
