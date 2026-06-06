@@ -32,28 +32,28 @@ before_each(function()
 end)
 
 describe('guh.gh', function()
-  it('get_pr_info', function()
+  it('get_pr_data', function()
     n.exec_lua(function()
       local async = require('async')
       local gh = require('guh.gh')
       local util = require('guh.util')
       local system_async = async.wrap(2, util.system)
-      local get_pr_info_async = async.wrap(3, gh.get_pr_info)
+      local get_pr_data_async = async.wrap(4, gh.get_pr_data)
 
-      local function test_get_pr_info()
+      local function test_get_pr_data()
         return async.run(function()
           local result = assert(system_async({ 'gh', 'pr', 'list', '--json', 'number' }))
           local pr_num = assert(vim.json.decode(result)[1].number, 'failed to get a repo issue')
 
           async.await(vim.schedule)
-          local pr = get_pr_info_async(pr_num, 'justinmk/guh.nvim')
+          local pr = get_pr_data_async(pr_num, 'justinmk/guh.nvim', nil)
           assert(pr, 'pr is nil')
           assert(type(pr.number) == 'number', 'pr.number not number')
           assert(type(pr.title) == 'string', 'pr.title not string')
           assert(type(pr.author) == 'table', 'pr.author not table')
         end)
       end
-      local task = test_get_pr_info()
+      local task = test_get_pr_data()
       task:wait(5000)
     end)
   end)
@@ -155,18 +155,20 @@ describe('pr + comments view', function()
       end
 
       -- Tests real PR data from Github. Mirrors the flow in pr.show_pr_diff:
-      -- gh.get_pr_data → outdated-path rewrite → comments.to_threads.
-      local function test_get_pr_data()
+      -- gh.get_pr_data (force) → outdated-path rewrite → comments.to_threads.
+      local function test_get_pr_data_full()
         local pr_num = 2
         local done = false
-        require('guh.gh').get_pr_data(pr_num, 'justinmk/guh.nvim', function(raw_comments, viewed)
-          assert(type(viewed) == 'table', 'viewed should be table')
-          for _, c in ipairs(raw_comments) do
+        require('guh.gh').get_pr_data(pr_num, 'justinmk/guh.nvim', { force = true }, function(pr)
+          assert(pr, 'pr is nil')
+          assert(type(pr.viewed) == 'table', 'pr.viewed should be table')
+          assert(type(pr.raw_comments) == 'table', 'pr.raw_comments should be table')
+          for _, c in ipairs(pr.raw_comments) do
             if c.outdated and c.thread_id then
               c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
             end
           end
-          require('guh.comments').to_threads(raw_comments, function(threads_by_path)
+          require('guh.comments').to_threads(pr.raw_comments, function(threads_by_path)
             assert_threads(threads_by_path)
             done = true
           end)
@@ -179,7 +181,7 @@ describe('pr + comments view', function()
         )
       end
 
-      test_get_pr_data()
+      test_get_pr_data_full()
     end)
   end)
 end)
@@ -244,6 +246,7 @@ describe('commands', function()
     -- XXX: jiggle the comments viewport so the overlay appears. Is this a virt_lines bug?
     n.feed('<C-y>')
 
+    -- Note: "Viewed" state is per-user, so we can't assert (N/M viewed) or (viewed) rows.
     screen:expect {
       timeout = 10000,
       attr_ids = {}, -- Don't care about colors.

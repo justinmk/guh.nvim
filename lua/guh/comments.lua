@@ -512,7 +512,7 @@ function M.do_comment(line1, line2)
     }
   )
 
-  gh.get_pr_info(info.pr_id, info.repo, function(pr)
+  gh.get_pr_data(info.pr_id, info.repo, nil, function(pr)
     if not pr then
       return util.msg(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
     end

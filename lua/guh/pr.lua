@@ -154,8 +154,15 @@ function M.refresh()
   if feat == 'status' then
     return M.show_status()
   end
-  -- Drop cached data so the underlying `get_info` re-fetches from gh.
+  -- Drop cached pr_data on the current buffer AND on the sibling "/pr/…" buf, so `gh.get_pr_data` doesn't use stale data.
+  local b = vim.b.guh or {}
   state.set_b_guh(0, { pr_data = nil })
+  if b.repo and b.id then
+    local pr_buf = state.get_buf('pr', ('%s/%s'):format(b.repo, b.id), true)
+    if pr_buf then
+      state.set_b_guh(pr_buf, { pr_data = nil })
+    end
+  end
   M.select({ args = vim.api.nvim_buf_get_name(0) })
 end
 
@@ -185,7 +192,7 @@ function M.merge_pr(admin)
     if method == 'rebase' then
       return do_merge(method)
     end
-    gh.get_pr_info(id, repo, function(pr)
+    gh.get_pr_data(id, repo, nil, function(pr)
       if not pr then
         return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
       end
@@ -314,7 +321,7 @@ function M.show_pr(id, repo)
     commits_tmpl
   )
   -- XXX: Prefetch pr_data into b:guh.pr_data so later actions are fast.
-  gh.get_pr_info(id, repo, function() end)
+  gh.get_pr_data(id, repo, nil, function() end)
   util.run_term_cmd(buf, cmd, function()
     util.set_default_keymaps(buf)
   end)
@@ -386,24 +393,26 @@ function M.show_pr_diff(opts)
     progress('success')
   end
 
-  -- 1. Get review comments + per-file "viewed" state (single GraphQL round-trip).
-  --    Outdated diff is built from the comments' diff_hunks; empty if all old comments were resolved.
-  gh.get_pr_data(id, repo, function(raw_comments, v)
+  -- 1. Fetch PR data (force API request, skip cache).
+  gh.get_pr_data(id, repo, { force = true }, function(pr)
+    if not pr then
+      return progress('failed')
+    end
     -- Reassign outdated comments to synthetic per-thread paths so they:
     -- 1. group into their own CommentThread buckets and
     -- 2. match the synthesized `+++ b/<synthetic>` we prepend on the diff.
     -- Example: "runtime/lua/vim/_core/options.lua" with thread_id 3271868956
     --       → "outdated-3271868956:runtime/lua/vim/_core/options.lua"
-    for _, c in ipairs(raw_comments) do
+    for _, c in ipairs(pr.raw_comments) do
       -- Rename "outdated" paths as `outdated-<id>:<path>`.
       if c.outdated and c.thread_id then
         c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
       end
     end
-    comments.to_threads(raw_comments, function(threads)
+    comments.to_threads(pr.raw_comments, function(threads)
       util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
       file_threads = threads
-      viewed = v
+      viewed = pr.viewed
       outdated_lines = comments.get_outdated_diff(threads)
       try_render()
     end)
@@ -470,7 +479,7 @@ function M.show_ci_logs(opts)
   local id =
     assert((type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts) or (vim.b.guh or {}).id)
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
-  gh.get_pr_info(id, repo, function(pr)
+  gh.get_pr_data(id, repo, nil, function(pr)
     if not pr then
       return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
     end

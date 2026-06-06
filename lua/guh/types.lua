@@ -54,7 +54,6 @@
 --- @field baseRefOid string
 --- @field body string
 --- @field changedFiles number
---- @field comments Comment[]
 --- @field commits PRCommit[]
 --- @field createdAt string
 --- @field headRefName string
@@ -66,3 +65,5 @@
 --- @field reviews table
 --- @field title string
 --- @field url string
+--- @field raw_comments Comment[] Flat per-comment list from `flatten_review_threads`.
+--- @field viewed table<string, boolean> Per-file "Viewed" flag.

@@ -7,26 +7,6 @@ local f = string.format
 
 local M = {}
 
-local pr_fields = {
-  'author',
-  'baseRefName',
-  'baseRefOid',
-  'body',
-  'changedFiles',
-  'comments',
-  'commits',
-  'createdAt',
-  'headRefName',
-  'headRefOid',
-  'isDraft',
-  'labels',
-  'number',
-  'reviewDecision',
-  'reviews',
-  'title',
-  'url',
-}
-
 local function parse_or_default(str, default)
   local success, result = pcall(vim.json.decode, str)
   if success then
@@ -36,35 +16,91 @@ local function parse_or_default(str, default)
   return default
 end
 
---- Gets details for one "thing" from `gh` and parses the JSON response into an object.
---- Skips the API call if b:guh is defined.
+--- Takes nested threads (GraphQL: `reviewThreads.nodes`) and produces a flat list of comments.
 ---
---- @param cmd string[] gh command
---- @param b_field string b:guh field to check for (and store) cached data.
-local function get_info(cmd, b_field, cb)
-  -- Use b:guh cache on the current buffer, if available.
-  local b_guh = vim.b.guh
-  if b_guh and b_guh[b_field] then
-    cb(b_guh[b_field])
-    return
-  end
-
-  local buf = vim.api.nvim_get_current_buf()
-  util.system(cmd, function(result, stderr, code)
-    if code ~= 0 then
-      if stderr and stderr:match('Unknown JSON field') then
-        error(('Unknown JSON field: %s'):format(stderr))
+--- @return Comment[]
+local function flatten_threads_to_comments(threads)
+  local out = {}
+  for _, thread in ipairs(threads or {}) do
+    -- Drop resolved threads entirely.
+    if not thread.isResolved then
+      local nodes = vim.tbl_get(thread, 'comments', 'nodes') or {}
+      local thread_id = nodes[1] and nodes[1].databaseId
+      -- Reply comments on outdated threads carry no originalLine of their own;
+      -- inherit from the head comment so they aren't filtered out below.
+      local head_line = nodes[1] and nodes[1].originalLine
+      local head_start = nodes[1] and nodes[1].originalStartLine
+      local head_path = nodes[1] and nodes[1].path
+      for _, c in ipairs(nodes) do
+        local c_path = (not vim.isnil(c.path)) and c.path or head_path
+        local effective_line = c.line
+        local effective_start = c.startLine
+        if thread.isOutdated then
+          effective_line = (not vim.isnil(c.originalLine)) and c.originalLine or head_line
+          effective_start = (not vim.isnil(c.originalStartLine)) and c.originalStartLine or head_start
+        end
+        if not vim.isnil(effective_line) and not vim.isnil(c_path) then
+          local reply_to
+          if not vim.isnil(c.replyTo) and c.replyTo.databaseId then
+            reply_to = c.replyTo.databaseId
+          end
+          table.insert(out, {
+            id = c.databaseId,
+            html_url = c.url,
+            user = { login = (not vim.isnil(c.author)) and c.author.login or '?' },
+            body = c.body or '',
+            diff_hunk = c.diffHunk or '',
+            path = c_path,
+            line = effective_line,
+            start_line = effective_start,
+            updated_at = c.updatedAt,
+            in_reply_to_id = reply_to,
+            outdated = thread.isOutdated or false,
+            thread_id = thread_id,
+          })
+        end
       end
-      util.log('get_info error', stderr)
-      cb(nil)
-      return
     end
-    util.log('get_info resp', result)
+  end
+  return out
+end
 
-    local r = parse_or_default(result, nil)
-    state.set_b_guh(buf, { [b_field] = r })
-    cb(r)
-  end)
+--- Builds a PR object from a `get_pr_data` result (GraphQL: `pullRequest`).
+---
+--- @return PullRequest
+local function to_pr(node)
+  local commits = {}
+  for _, n in ipairs(vim.tbl_get(node, 'commits', 'nodes') or {}) do
+    table.insert(commits, n.commit)
+  end
+  local viewed = {}
+  for _, n in ipairs(vim.tbl_get(node, 'files', 'nodes') or {}) do
+    if n.viewerViewedState == 'VIEWED' then
+      viewed[n.path] = true
+    end
+  end
+  local flattened_comments = flatten_threads_to_comments(vim.tbl_get(node, 'reviewThreads', 'nodes') or {})
+
+  return {
+    author = node.author,
+    baseRefName = node.baseRefName,
+    baseRefOid = node.baseRefOid,
+    body = node.body,
+    changedFiles = node.changedFiles,
+    commits = commits,
+    createdAt = node.createdAt,
+    headRefName = node.headRefName,
+    headRefOid = node.headRefOid,
+    isDraft = node.isDraft,
+    labels = vim.tbl_get(node, 'labels', 'nodes') or {},
+    number = node.number,
+    reviewDecision = node.reviewDecision,
+    reviews = vim.tbl_get(node, 'reviews', 'nodes') or {},
+    title = node.title,
+    url = node.url,
+    raw_comments = flattened_comments,
+    viewed = viewed,
+  }
 end
 
 --- Builds a `gh` argv with a `--repo <repo>` suffix.
@@ -80,63 +116,61 @@ function M.cmd(repo, ...)
   return argv
 end
 
---- Gets PR data from b:guh on curbuf, else tries the `/pr/…` buffer for
---- the given `(repo, prnum)` key, else requests it from the API.
+--- Gets PR data via a single GraphQL query: metadata + comments + per-file "Viewed" state.
 ---
---- @param prnum string|number PR number, or empty for "current PR"
+--- - Drops resolved threads.
+--- - Provides a per-comment `outdated` field, so the caller doesn't need to walk the "thread".
+--- - Provides a map of  `viewed` files.
+--- - Threads and files are limited to 100.
+---
+--- If `force` is not true, skips the API call and gets data from b:guh on curbuf, else tries
+--- the `/pr/…` buffer for the given `(repo, prnum)` key.
+---
+--- @param prnum string|number PR number.
 --- @param repo string "owner/name".
+--- @param opts? { force?: boolean }
 --- @param cb fun(pr?: PullRequest)
-function M.get_pr_info(prnum, repo, cb)
-  local b_guh = vim.b.guh or {}
-  if not b_guh.pr_data then
+function M.get_pr_data(prnum, repo, opts, cb)
+  vim.validate('repo', repo, 'string')
+  opts = opts or {}
+  if not opts.force then
+    local b_guh = vim.b.guh or {}
+    if b_guh.pr_data then
+      return cb(b_guh.pr_data)
+    end
     -- Try to get b:guh.pr_data from the `/pr/…` buffer.
     local pr_buf = state.get_buf('pr', ('%s/%s'):format(repo, prnum), true)
     if pr_buf then
       local pr_data = (vim.b[pr_buf].guh or {}).pr_data
       if pr_data then
         state.set_b_guh(0, { pr_data = pr_data })
+        return cb(pr_data)
       end
     end
   end
-  get_info(M.cmd(repo, 'pr', 'view', tostring(prnum), '--json', table.concat(pr_fields, ',')), 'pr_data', cb)
-end
-
-function M.get_repo(cb)
-  local progress = util.new_progress_report('Loading...', 0)
-  progress('running')
-  util.system({ 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' }, function(stdout, _, code)
-    if code ~= 0 then
-      progress('failed')
-    else
-      cb(vim.split(stdout, '\n')[1])
-      progress('success')
-    end
-  end)
-end
-
---- Fetches PR review comments + per-file "viewed" state in one GraphQL round-trip.
---- - Drops resolved threads.
---- - Provides a per-comment `outdated` field, so the caller doesn't need to walk the "thread".
---- - Provides a map of  `viewed` files.
----
---- Note: review threads and files are each capped at 100.
----
---- @param id integer
---- @param repo string "owner/name"
---- @param cb fun(comments: table[], viewed: table<string,boolean>)
-function M.get_pr_data(id, repo, cb)
-  assert(cb)
-  vim.validate('repo', repo, 'string')
   local owner, name = repo:match('^([^/]+)/(.+)$')
   if not owner then
     util.log('get_pr_data invalid repo', repo)
-    cb({}, {})
-    return
+    return cb(nil)
   end
   local query = [[
     query($owner:String!,$name:String!,$number:Int!){
       repository(owner:$owner,name:$name){
         pullRequest(number:$number){
+          author{login}
+          baseRefName baseRefOid
+          body
+          changedFiles
+          commits(first:100){ nodes{ commit{ oid committedDate messageHeadline messageBody } } }
+          createdAt
+          headRefName headRefOid
+          isDraft
+          labels(first:20){ nodes{ name } }
+          number
+          reviewDecision
+          reviews(first:20){ nodes{ state body author{login} submittedAt } }
+          title
+          url
           reviewThreads(first:100){
             nodes{
               isOutdated isResolved
@@ -167,69 +201,39 @@ function M.get_pr_data(id, repo, cb)
     '-F',
     'name=' .. name,
     '-F',
-    f('number=%d', id),
+    f('number=%d', prnum),
     '-f',
     'query=' .. query,
   }
+  local buf = vim.api.nvim_get_current_buf()
   util.system(cmd, function(stdout, stderr, code)
     if code ~= 0 then
       util.log('get_pr_data error', stderr)
-      cb({}, {})
-      return
+      return cb(nil)
     end
     local resp = parse_or_default(stdout, {})
-    local threads = vim.tbl_get(resp, 'data', 'repository', 'pullRequest', 'reviewThreads', 'nodes') or {}
-    local file_nodes = vim.tbl_get(resp, 'data', 'repository', 'pullRequest', 'files', 'nodes') or {}
-    local viewed = {}
-    for _, n in ipairs(file_nodes) do
-      if n.viewerViewedState == 'VIEWED' then
-        viewed[n.path] = true
-      end
+    local node = vim.tbl_get(resp, 'data', 'repository', 'pullRequest')
+    if not node then
+      util.log('get_pr_data empty', resp)
+      return cb(nil)
     end
-    local result = {}
-    for _, thread in ipairs(threads) do
-      -- Drop resolved threads entirely.
-      if not thread.isResolved then
-        local nodes = vim.tbl_get(thread, 'comments', 'nodes') or {}
-        local thread_id = nodes[1] and nodes[1].databaseId
-        -- Reply comments on outdated threads carry no originalLine of their own;
-        -- inherit from the head comment so they aren't filtered out below.
-        local head_line = nodes[1] and nodes[1].originalLine
-        local head_start = nodes[1] and nodes[1].originalStartLine
-        local head_path = nodes[1] and nodes[1].path
-        for _, c in ipairs(nodes) do
-          local c_path = (not vim.isnil(c.path)) and c.path or head_path
-          local effective_line = c.line
-          local effective_start = c.startLine
-          if thread.isOutdated then
-            effective_line = (not vim.isnil(c.originalLine)) and c.originalLine or head_line
-            effective_start = (not vim.isnil(c.originalStartLine)) and c.originalStartLine or head_start
-          end
-          if not vim.isnil(effective_line) and not vim.isnil(c_path) then
-            local reply_to
-            if not vim.isnil(c.replyTo) and c.replyTo.databaseId then
-              reply_to = c.replyTo.databaseId
-            end
-            table.insert(result, {
-              id = c.databaseId,
-              html_url = c.url,
-              user = { login = (not vim.isnil(c.author)) and c.author.login or '?' },
-              body = c.body or '',
-              diff_hunk = c.diffHunk or '',
-              path = c_path,
-              line = effective_line,
-              start_line = effective_start,
-              updated_at = c.updatedAt,
-              in_reply_to_id = reply_to,
-              outdated = thread.isOutdated or false,
-              thread_id = thread_id,
-            })
-          end
-        end
-      end
+    local pr = to_pr(node)
+    state.set_b_guh(buf, { pr_data = pr })
+    util.log('get_pr_data resp', { comments = #pr.raw_comments, viewed = vim.tbl_count(pr.viewed) })
+    cb(pr)
+  end)
+end
+
+function M.get_repo(cb)
+  local progress = util.new_progress_report('Loading...', 0)
+  progress('running')
+  util.system({ 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' }, function(stdout, _, code)
+    if code ~= 0 then
+      progress('failed')
+    else
+      cb(vim.split(stdout, '\n')[1])
+      progress('success')
     end
-    util.log('get_pr_data resp', { comments = #result, viewed = vim.tbl_count(viewed) })
-    cb(result, viewed)
   end)
 end
 
