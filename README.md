@@ -6,6 +6,9 @@
 Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI with a minimalist yet
 effective workflow.
 
+Guh is ~2k lines of code, leveraging builtin Nvim mechanisms such as diagnostics
+and 'scrollbind' buffers, and otherwise delegating to the `gh` CLI.
+
 ## Usage
 
 Run `:Guh` to see status.
@@ -38,8 +41,10 @@ vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
 See help for default config.
 
 Requirements:
-- nvim 0.12+
+- nvim 0.13+
 - ["gh" (GitHub CLI)](https://cli.github.com/)
+- For working with Git, use any Git plugin such as [vim-fugitive](https://github.com/tpope/vim-fugitive).
+- For highlighting diffs, use a plugin such as [diffs.nvim](https://github.com/barrettruth/diffs.nvim).
 
 ## How it works
 
@@ -47,13 +52,14 @@ Requirements:
 2. Sets global `<Plug>(guh-…)` keymaps. Provides default buffer-local mappings
    if you don't set any mappings to the `<Plug>` mappings.
 3. `:Guh` is the main entrypoint. It shows status, or views a given item (PR, issue).
-4. Presents PR diff comments in a 'scrollbind' split window.
+4. Presents PR diff comments:
+    - in a 'scrollbind' split window
+    - as "diagnostics" (`vim.diagnostic`), loaded in quickfix
 5. Loads most-recent CI logs for all "jobs" in the CI matrix.
-6. Provide PR comments as Nvim "diagnostics".
-7. (TODO) Fetch the git data into `.git` (without doing a checkout).
-8. (TODO) When viewing the diff, user can navigate to the git object (file)
+6. (TODO) Fetch the git data into `.git` (without doing a checkout).
+7. (TODO) When viewing the diff, user can navigate to the git object (file)
    without doing a checkout.
-9. (TODO) PR comments will display on relevant *local* git objects.
+8. (TODO) PR comments will display on relevant *local* git objects.
 
 ## Development
 

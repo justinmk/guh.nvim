@@ -16,11 +16,14 @@ Tenets:
 INSTALLATION                                                     *guh-install*
 
 Requirements:
-- nvim 0.12+
-- ["gh" (GitHub CLI)](https://cli.github.com/)
+- nvim 0.13+
+- "gh" (GitHub CLI): https://cli.github.com/
+- For working with Git, use any Git plugin such as: https://github.com/tpope/vim-fugitive
+- For highlighting diffs, use a plugin such as: https://github.com/barrettruth/diffs.nvim
 
-Install:
+Install: >lua
   vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
+<
 
 ==============================================================================
 WORKFLOW                                                           *guh-usage*
@@ -30,9 +33,12 @@ file which Nvim automatically runs at startup. |lua-plugin-init|
 
 To review a PR without doing a checkout in your repo:
 
-- Run `:Guh` to select and view a PR. |guh-commands|
-  - Run it anytime later to refresh/reopen the PR view.
-- Hit `dd` to see the diff. |guh-diff|
+- Run `:Guh` to see your status (list of PRs, issues, etc.).
+  - Hit <Enter> on a PR/issue to view it.
+- Run `:Guh [target]` to view a specific PR/issue. |guh-commands|
+  - Hit `R` to refresh the view.
+- All "guh://…" buffers have the same basic mappings. |guh-mappings|
+- From the PR view, hit `dd` to see the diff. |guh-diff|
 - PR comments are loaded:
   - in a 'scrollbind' split window next to the diff window (if the
     scrollbind gets out of sync, try |:syncbind|).
@@ -55,10 +61,10 @@ Keymaps                                                         *guh-mappings*
 Guh defines global `<Plug>(guh-…)` keys at startup. You can map anything to
 those |<Plug>| keys to "override" the default Guh keymaps. When a `guh://`
 buffer is opened it sets buffer-local default mappings unless you have defined
-such an "override".
+such an override.
 
 Example: the `<Plug>(guh-merge)` feature is mapped to "cm" by default, but you
-can override it by mapping it to <F5>, then Guh will not map it to "cm": >vim
+can override it by mapping it to <F5>, then Guh will not map "cm": >vim
   nmap <F5> <Plug>(guh-merge)
 <
 Default mappings (local to `guh://` buffers):
@@ -90,8 +96,9 @@ Default mappings (local to `guh://` buffers):
 View PR diff                                                        *guh-diff*
 
 `dd` on a PR view opens the diff + comments in 'scrollbind' split windows.
-The old, outdated diff is shown as necessary for old, unresolved comments.
-If all old comments are resolved, then only the current diff is shown.
+The old, outdated diff is also shown if necessary for old, unresolved
+comments. If all old comments are resolved, then only the current diff is
+shown.
 
 PR comments are loaded:
 - in a 'scrollbind' split window next to the diff window (if the scrollbind
@@ -102,16 +109,11 @@ PR comments are loaded:
 - in the quickfix list ("Guh comments") via |vim.diagnostic.setqflist()|.
   Use |]q|/|[q| or |:copen| to browse.
 
-Buffer-local key bindings:
-- `gf` go to file from PR diff. `gf` command will not work if you use `:Guh`
-  command and branch is not checked out.
-- `cra` to approve PR
-
 ------------------------------------------------------------------------------
 Comment on issues, PRs, and diffs                                *guh-comment*
 
 `cc` on a PR or its diff opens an editable `guh://…/comment/<id>` buffer.
-Write-and-close to post comment. |guh-confirm|
+Write-and-close to post the comment. |guh-confirm|
 
 See |:GuhComment|.
 
