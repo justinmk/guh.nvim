@@ -134,6 +134,25 @@ function M.msg(message, level)
   end)
 end
 
+--- Returns the named `b:guh` fields in order, as multiple return-values, or emits an error and returns nil if
+--- a required `b:guh` field is missing.
+---
+--- @param required string[] field names that must be non-nil on `b:guh`.
+--- @param errmsg? string Defaults to "Not in a guh:// buffer".
+--- @return any ...
+function M.require_b_guh(required, errmsg)
+  local b_guh = vim.b.guh or {}
+  local vals = {}
+  for i, k in ipairs(required) do
+    if b_guh[k] == nil then
+      M.msg(errmsg or 'Not in a guh:// buffer', vim.log.levels.ERROR)
+      return
+    end
+    vals[i] = b_guh[k]
+  end
+  return unpack(vals)
+end
+
 --- @param action string
 --- @param buf integer
 --- @return fun(status: 'running'|'success'|'failed'|'cancel', percent?: integer, fmt?: string, ...:any): nil

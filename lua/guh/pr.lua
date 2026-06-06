@@ -104,10 +104,9 @@ end
 ---
 --- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
 function M.review_pr()
-  local id = (vim.b.guh or {}).id
-  local repo = (vim.b.guh or {}).repo
-  if not id or not repo then
-    return util.msg('Not in a PR buffer', vim.log.levels.ERROR)
+  local id, repo = util.require_b_guh({ 'id', 'repo' })
+  if not id then
+    return
   end
 
   local labels = {
@@ -166,10 +165,9 @@ end
 ---
 --- @param admin? boolean pass `--admin` to bypass branch protections.
 function M.merge_pr(admin)
-  local id = (vim.b.guh or {}).id
-  local repo = (vim.b.guh or {}).repo
-  if not id or not repo then
-    return util.msg('Not in a PR buffer', vim.log.levels.ERROR)
+  local id, repo = util.require_b_guh({ 'id', 'repo' })
+  if not id then
+    return
   end
 
   local function do_merge(method, subject, body)
@@ -388,12 +386,9 @@ end
 
 --- Posts a top-level comment on the current PR or issue.
 function M.comment_overview()
-  local b = vim.b.guh or {}
-  local id = b.id
-  local repo = b.repo
-  local feat = b.feat
-  if not id or not repo or not feat then
-    return util.msg('Not in a PR/issue buffer', vim.log.levels.ERROR)
+  local id, repo, feat = util.require_b_guh({ 'id', 'repo', 'feat' })
+  if not id then
+    return
   end
   local kind = feat == 'issue' and 'issue' or 'pr'
 
@@ -411,12 +406,9 @@ end
 
 --- Runs `gh pr edit <id>` (or `gh issue edit <id>`) in a :terminal.
 function M.edit_pr()
-  local b = vim.b.guh or {}
-  local id = b.id
-  local repo = b.repo
-  local feat = b.feat
-  if not id or not repo or not feat then
-    return util.msg('Not in a PR/issue buffer', vim.log.levels.ERROR)
+  local id, repo, feat = util.require_b_guh({ 'id', 'repo', 'feat' })
+  if not id then
+    return
   end
   local kind = feat == 'issue' and 'issue' or 'pr'
   local buf = state.init_buf('edit', repo, id)
