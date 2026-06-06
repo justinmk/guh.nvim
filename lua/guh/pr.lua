@@ -70,9 +70,7 @@ end
 --- @param sha string Commit SHA (7-40 hex chars).
 --- @param repo string "owner/name"
 function M.show_commit(sha, repo)
-  local buf = state.init_buf('commit', repo, sha, { id = sha })
-  local progress = util.new_progress_report('Loading commit...', buf)
-  progress('running')
+  local done = util.progress(('Loading commit %s...'):format(sha))
   local cmd = {
     'gh',
     'api',
@@ -82,19 +80,23 @@ function M.show_commit(sha, repo)
   }
   util.system(cmd, function(stdout, stderr, code)
     if code ~= 0 then
-      progress('failed', nil, vim.trim(stderr or ''))
+      done('failed')
       return util.msg(('Failed to load commit %s: %s'):format(sha, vim.trim(stderr or '')), vim.log.levels.ERROR)
     end
+    -- Patch format's first line is "From <full-sha> Mon Sep 17 00:00:00 2001".
+    local full_sha = stdout:match('^From%s+(%x+)') or sha
+    local buf = state.init_buf('commit', repo, full_sha, { id = full_sha })
     vim.bo[buf].buftype = 'nofile'
     vim.bo[buf].swapfile = false
     vim.bo[buf].modifiable = true
-    local lines = vim.split(stdout or '', '\n', { plain = true, trimempty = true })
+    vim.bo[buf].readonly = false
+    local lines = vim.split(stdout, '\n', { plain = true, trimempty = true })
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
     vim.bo[buf].filetype = 'gitcommit'
     util.set_default_keymaps(buf)
-    progress('success')
+    done('success')
   end)
 end
 
@@ -342,11 +344,12 @@ function M.show_pr_diff(opts)
     vim.bo[buf].buftype = 'nofile'
     vim.bo[buf].swapfile = false
     vim.bo[buf].modifiable = true
+    vim.bo[buf].readonly = false
     local all = vim.list_extend(vim.list_extend({}, outdated_lines), current_diff_lines)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, all)
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
-    vim.cmd [[set filetype=gitcommit]] -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
+    vim.bo[buf].filetype = 'gitcommit' -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
     util.set_default_keymaps(buf)
     comments.show(id, repo, diff_win, assert(grouped))
     progress('success')
