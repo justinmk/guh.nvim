@@ -29,16 +29,23 @@ local bufs = {
 }
 
 --- Gets the existing buf or creates a new one, for the given PR + feature.
+---
 --- @param feat Feat
 --- @param pr_or_issue string|number PR or issue number or "all" for special cases (e.g. status).
-function M.get_buf(feat, pr_or_issue)
+--- @param nocreate? boolean If true, return nil instead of creating a new buf.
+--- @return integer? buf
+function M.get_buf(feat, pr_or_issue, nocreate)
   local id = tostring(pr_or_issue)
   local b = bufs[feat][id]
-  if type(b) ~= 'number' or not vim.api.nvim_buf_is_valid(b) then
-    b = vim.api.nvim_create_buf(true, true)
-    bufs[feat][id] = b
-    assert(type(b) == 'number')
+  if type(b) == 'number' and vim.api.nvim_buf_is_valid(b) then
+    return b
   end
+  if nocreate then
+    return nil
+  end
+  b = vim.api.nvim_create_buf(true, true)
+  bufs[feat][id] = b
+  assert(type(b) == 'number')
   return b
 end
 

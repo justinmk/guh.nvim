@@ -80,12 +80,24 @@ function M.cmd(repo, ...)
   return argv
 end
 
---- Gets PR data from b:guh, or requests it from the API.
+--- Gets PR data from b:guh on curbuf, else tries the `/pr/…` buffer for
+--- the given `(repo, prnum)` key, else requests it from the API.
 ---
 --- @param prnum string|number PR number, or empty for "current PR"
 --- @param repo string "owner/name".
 --- @param cb fun(pr?: PullRequest)
 function M.get_pr_info(prnum, repo, cb)
+  local b_guh = vim.b.guh or {}
+  if not b_guh.pr_data then
+    -- Try to get b:guh.pr_data from the `/pr/…` buffer.
+    local pr_buf = state.get_buf('pr', ('%s/%s'):format(repo, prnum), true)
+    if pr_buf then
+      local pr_data = (vim.b[pr_buf].guh or {}).pr_data
+      if pr_data then
+        state.set_b_guh(0, { pr_data = pr_data })
+      end
+    end
+  end
   get_info(M.cmd(repo, 'pr', 'view', tostring(prnum), '--json', table.concat(pr_fields, ',')), 'pr_data', cb)
 end
 

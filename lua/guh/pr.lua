@@ -313,6 +313,8 @@ function M.show_pr(id, repo)
     repo,
     commits_tmpl
   )
+  -- XXX: Prefetch pr_data into b:guh.pr_data so later actions are fast.
+  gh.get_pr_info(id, repo, function() end)
   util.run_term_cmd(buf, cmd, function()
     util.set_default_keymaps(buf)
   end)
