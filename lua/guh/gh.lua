@@ -267,7 +267,7 @@ function M.reply_to_comment(prnum, body, reply_to, repo, cb)
 end
 
 --- @param repo? string "owner/name" for non-local repo.
-function M.new_comment(pr, body, path, start_line, line, repo, cb)
+function M.new_comment(pr, body, path, start_line, line, side, repo, cb)
   local commit_id = assert(pr.headRefOid)
   vim.validate('repo', repo, 'string')
 
@@ -286,7 +286,7 @@ function M.new_comment(pr, body, path, start_line, line, repo, cb)
     '-F',
     'line=' .. line,
     '-f',
-    'side=RIGHT',
+    'side=' .. (side or 'RIGHT'),
   }
 
   if start_line ~= line then

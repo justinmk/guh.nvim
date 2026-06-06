@@ -451,46 +451,57 @@ function M.prepare_to_comment(line1, line2)
   ---------------------------------------------------------------------------
   -- Step 3: Find nearest hunk header (if any)
   ---------------------------------------------------------------------------
-  local hunk_start, new_start
+  local hunk_start, old_start, new_start
   for i = line1, 1, -1 do
     local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
-    local start_new = l and l:match('^@@ [^+]+%+(%d+)')
-    if start_new then
+    local s_old, s_new = (l or ''):match('^@@ %-(%d+),?%d* %+(%d+)')
+    if s_new then
       hunk_start = i
-      new_start = tonumber(start_new)
+      old_start = tonumber(s_old)
+      new_start = tonumber(s_new)
       break
     end
   end
 
-  -- No hunk found → treat as file-level comment
+  -- No hunk found → can't anchor a comment.
   if not new_start then
-    return {
-      buf = buf,
-      pr_id = tonumber(prnum),
-      repo = repo,
-      file = file,
-      line_start = nil,
-      line_end = nil,
-    }
+    util.msg('No hunk found for selection', vim.log.levels.WARN)
+    return nil
   end
 
   ---------------------------------------------------------------------------
-  -- Step 4: Compute new-file line numbers for range
+  -- Step 4: Pick side from the start of the range; compute line nums on that axis.
+  -- - "-" rows = LEFT (old-side line numbering, skip `+`).
+  -- - "+"/" " rows = RIGHT (new-side line numbering, skip `-`).
   ---------------------------------------------------------------------------
-  local function compute_new_line(idx)
-    local line_num = new_start
+  local function row_kind(idx)
+    local l = vim.api.nvim_buf_get_lines(buf, idx - 1, idx, false)[1]
+    return l and l:sub(1, 1) or ''
+  end
+  local side = (row_kind(line1) == '-') and 'LEFT' or 'RIGHT'
+  -- Reject ranges that cross sides — GitHub's API can't represent them.
+  for i = line1, line2 do
+    local k = row_kind(i)
+    if (k == '-' and side == 'RIGHT') or ((k == '+' or k == ' ') and side == 'LEFT') then
+      util.msg('Cannot comment across both sides of the diff', vim.log.levels.ERROR)
+      return nil
+    end
+  end
+
+  local function compute_line(idx)
+    local line_num = (side == 'LEFT') and old_start or new_start
+    local skip = (side == 'LEFT') and '+' or '-'
     for i = hunk_start + 1, idx - 1 do
-      local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
-      local c = l:sub(1, 1)
-      if c ~= '-' then
+      local c = row_kind(i)
+      if c ~= skip then
         line_num = line_num + 1
       end
     end
     return line_num
   end
 
-  local line_start = compute_new_line(line1)
-  local line_end = compute_new_line(line2)
+  local line_start = compute_line(line1)
+  local line_end = compute_line(line2)
 
   ---------------------------------------------------------------------------
   -- Step 5: Return structured info
@@ -500,6 +511,7 @@ function M.prepare_to_comment(line1, line2)
     pr_id = tonumber(prnum),
     repo = repo,
     file = file,
+    side = side,
     -- GH expects 0-indexed lines, end-EXclusive.
     start_line = line_start,
     end_line = line_end,
@@ -536,7 +548,7 @@ function M.do_comment(line1, line2)
     vim.schedule(function()
       M.edit_comment('comment', info.pr_id, { '' }, nil, function(input)
         local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
-        gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.repo, function(resp)
+        gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.side, info.repo, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
             -- Reload the diff+comments view.
