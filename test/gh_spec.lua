@@ -267,7 +267,7 @@ describe('commands', function()
       timeout = 10000,
       attr_ids = {}, -- Don't care about colors.
       grid = [[
-        {MATCH:PR diff.*}│{MATCH:Empty line.*}|
+        {MATCH:PR diff.*}│{MATCH:PR comments.*}|
         diff --git {MATCH:a/.* b/.*}│^{MATCH:.*}|
         index {MATCH:.*}|
         --- {MATCH:.*}|

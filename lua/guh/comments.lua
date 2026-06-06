@@ -120,10 +120,9 @@ function M.show(id, repo, diff_win, comments_list)
   ---------------------------------------------------------------------------
   -- Step 2: Build text lines for the comment buffer
   ---------------------------------------------------------------------------
-  -- entries[i] = { 'line', 'line', … } for diff row i, or nil if nothing
-  -- anchored there. Heading lines are prefixed with `▎ ` so a syntax match
-  -- can highlight them (see Step 3).
-  local HEADING_PREFIX = '▎ '
+  -- entries[i] = { 'line', 'line', … } for diff row i, or nil if nothing anchored there.
+  -- Heading lines are prefixed with "▎" so a syntax match can easily highlight them (Step 3).
+  local heading_prefix = '▎ '
   local entries = {} ---@type table<integer, string[]>
 
   local function normalize_diff_path(p)
@@ -163,8 +162,15 @@ function M.show(id, repo, diff_win, comments_list)
         local thread_entries = entries[start_idx] or {}
         for ci, c in ipairs(thread_comments) do
           local heading = (ci == 1)
-              and ('%s%s%s %s `%s:%d`'):format(HEADING_PREFIX, tag, c.user or '?', c.updated_at or '', filename, thread.line)
-            or ('%s%s %s'):format(HEADING_PREFIX, c.user or '?', c.updated_at or '')
+              and ('%s%s%s %s %s:%d'):format(
+                heading_prefix,
+                tag,
+                c.user or '?',
+                c.updated_at or '',
+                filename,
+                thread.line
+              )
+            or ('%s%s %s'):format(heading_prefix, c.user or '?', c.updated_at or '')
           table.insert(thread_entries, heading)
           if c.body and c.body ~= '' then
             for _, bl in ipairs(vim.split(c.body, '\n', { plain = true })) do
@@ -241,8 +247,8 @@ function M.show(id, repo, diff_win, comments_list)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
 
   vim.cmd [[wincmd p]] -- Return to diff window.
-  util.show_info_overlay(diff_buf, 'PR diff (`cc` to comment)')
-  util.show_info_overlay(buf, 'Empty line = no comment on that diff line')
+  util.show_info_overlay(diff_buf, 'PR diff (`g?` for help)')
+  util.show_info_overlay(buf, 'PR comments (`g?` for help)')
 
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true

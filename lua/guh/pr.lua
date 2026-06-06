@@ -41,6 +41,11 @@ function M.select(opts)
     return
   end
 
+  if target.sha then
+    M.show_commit(target.sha, repo)
+    return
+  end
+
   -- URL form already tells us PR vs issue; skip the API probe.
   if target.is_pr ~= nil then
     if target.is_pr then
@@ -58,6 +63,39 @@ function M.select(opts)
   else
     M.show_issue(target.id, repo)
   end
+end
+
+--- Gets commit `sha` from GitHub via `gh api` (no checkout required) and displays it as a `gitcommit` buffer.
+---
+--- @param sha string Commit SHA (7-40 hex chars).
+--- @param repo string "owner/name"
+function M.show_commit(sha, repo)
+  local buf = state.init_buf('commit', repo, sha, { id = sha })
+  local progress = util.new_progress_report('Loading commit...', buf)
+  progress('running')
+  local cmd = {
+    'gh',
+    'api',
+    ('repos/%s/commits/%s'):format(repo, sha),
+    '-H',
+    'Accept: application/vnd.github.v3.patch',
+  }
+  util.system(cmd, function(stdout, stderr, code)
+    if code ~= 0 then
+      progress('failed', nil, vim.trim(stderr or ''))
+      return util.msg(('Failed to load commit %s: %s'):format(sha, vim.trim(stderr or '')), vim.log.levels.ERROR)
+    end
+    vim.bo[buf].buftype = 'nofile'
+    vim.bo[buf].swapfile = false
+    vim.bo[buf].modifiable = true
+    local lines = vim.split(stdout or '', '\n', { plain = true, trimempty = true })
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+    vim.bo[buf].readonly = true
+    vim.bo[buf].filetype = 'gitcommit'
+    util.set_default_keymaps(buf)
+    progress('success')
+  end)
 end
 
 --- Performs the "review PR" action. Shows a vim.ui.select picker unless `[count]` was given.
@@ -328,11 +366,7 @@ function M.show_pr_diff(opts)
       progress('failed', nil, vim.trim(stderr or ''))
       return
     end
-    local lines = vim.split(stdout or '', '\n', { plain = true })
-    if lines[#lines] == '' then -- drop trailing empty from terminating "\n"
-      table.remove(lines)
-    end
-    current_diff_lines = lines
+    current_diff_lines = vim.split(stdout or '', '\n', { plain = true, trimempty = true })
     try_render()
   end)
 end

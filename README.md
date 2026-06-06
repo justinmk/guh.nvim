@@ -15,12 +15,15 @@ Run `:Guh` to see status.
 
     :Guh
 
-Run `:Guh 42` to view PR/issue 42. Also accepts a GitHub URL or `owner/repo#123` slug:
+Run `:Guh 42` to view PR/issue 42. Also accepts a GitHub URL, `owner/repo#123`
+slug, or commit-id (SHA):
 
     :Guh 35951
+    :Guh a1b2c3d
     :Guh https://github.com/neovim/neovim/pull/35951
     :Guh neovim/neovim#35951
     :Guh guh://neovim/neovim/pr/35951
+    :Guh https://github.com/neovim/neovim/commit/a1b2c3d
 
 Inside any `guh://` buffer, press `<CR>` to run `:Guh` on the target at cursor.
 

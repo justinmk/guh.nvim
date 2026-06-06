@@ -1,8 +1,8 @@
---- @alias Feat 'comment'|'edit'|'issue'|'logs'|'merge'|'pr'|'prcomments'|'prdiff'|'review'|'status'
+--- @alias Feat 'comment'|'commit'|'edit'|'issue'|'logs'|'merge'|'pr'|'prcomments'|'prdiff'|'review'|'status'
 
 --- @class BufState
 --- Buffer-local b:guh dict.
---- @field id? integer PR or issue number
+--- @field id? integer|string PR or issue number, or commit SHA.
 --- @field feat? Feat Feature name
 --- @field pr_data? PullRequest
 

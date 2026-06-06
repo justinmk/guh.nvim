@@ -2,10 +2,12 @@ require('guh.types')
 
 local M = {}
 
---- feat+prnum => bufnr
+--- feat+id => bufnr
 local bufs = {
   ---@type table<string, integer>
   comment = {},
+  ---@type table<string, integer>
+  commit = {},
   ---@type table<string, integer>
   edit = {},
   ---@type table<string, integer>
@@ -30,11 +32,11 @@ local bufs = {
 --- @param feat Feat
 --- @param pr_or_issue string|number PR or issue number or "all" for special cases (e.g. status).
 function M.get_buf(feat, pr_or_issue)
-  local pr_or_issue_str = tostring(pr_or_issue)
-  local b = bufs[feat][pr_or_issue_str]
+  local id = tostring(pr_or_issue)
+  local b = bufs[feat][id]
   if type(b) ~= 'number' or not vim.api.nvim_buf_is_valid(b) then
     b = vim.api.nvim_create_buf(true, true)
-    bufs[feat][pr_or_issue_str] = b
+    bufs[feat][id] = b
     assert(type(b) == 'number')
   end
   return b

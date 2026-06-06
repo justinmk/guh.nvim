@@ -45,16 +45,16 @@ end
 
 --- Parses a :Guh argument. Accepts:
 ---   - bare number: `"13"`
----   - GitHub URL: `"https://github.com/owner/repo/pull/13"` or `"…/issues/13"`
+---   - bare commit SHA (7-40 hex chars, must contain a-f): `"a1b2c3d"`
+---   - GitHub URL: `"https://github.com/owner/repo/pull/13"`, `"…/issues/13"`, or `"…/commit/<sha>"`
 ---   - slug: `"owner/repo#13"`
----   - guh URI: `"guh://owner/repo/pr/13"`, `"guh://owner/repo/issue/13"`,
----     `"guh://owner/repo/diff/13"`, …
+---   - guh URI: `"guh://owner/repo/pr/13"`, `"guh://owner/repo/issue/13"`, `"guh://owner/repo/commit/<sha>"`, …
 ---
 --- @param arg string
---- @return { owner?: string, repo?: string, id: integer, is_pr?: boolean }?
+--- @return { owner?: string, repo?: string, id?: integer, sha?: string, is_pr?: boolean }?
 function M.parse_target(arg)
   arg = vim.trim(arg or '')
-  local owner, repo, num, feat
+  local owner, repo, num, sha, feat
 
   owner, repo, num = arg:match('^https?://github%.com/([^/]+)/([^/]+)/pull/(%d+)')
   if owner then
@@ -64,7 +64,15 @@ function M.parse_target(arg)
   if owner then
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = false }
   end
+  owner, repo, sha = arg:match('^https?://github%.com/([^/]+)/([^/]+)/commit/(%x+)')
+  if owner then
+    return { owner = owner, repo = repo, sha = sha }
+  end
 
+  owner, repo, sha = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/commit/(%x+)$')
+  if owner then
+    return { owner = owner, repo = repo, sha = sha }
+  end
   owner, repo, feat, num = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/(%w+)/(%d+)$')
   if owner then
     local is_pr = (feat == 'pr' or feat == 'prdiff') or nil
@@ -79,6 +87,11 @@ function M.parse_target(arg)
   num = arg:match('^#(%d+)$')
   if num then
     return { id = tonumber(num) }
+  end
+
+  -- Bare commit SHA: 7-40 hex chars with at least one a-f letter (to disambiguate from numeric PR/issue IDs).
+  if arg:match('^[%da-fA-F]+$') and #arg >= 7 and #arg <= 40 and arg:match('[a-fA-F]') then
+    return { sha = arg }
   end
 
   num = tonumber(arg)
