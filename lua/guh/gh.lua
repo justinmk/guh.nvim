@@ -27,18 +27,6 @@ local pr_fields = {
   'url',
 }
 
-local issue_fields = {
-  'author',
-  'body',
-  'createdAt',
-  'labels',
-  'number',
-  'state',
-  'title',
-  'updatedAt',
-  'url',
-}
-
 local function parse_or_default(str, default)
   local success, result = pcall(vim.json.decode, str)
   if success then
@@ -99,17 +87,6 @@ end
 --- @param cb fun(pr?: PullRequest)
 function M.get_pr_info(prnum, repo, cb)
   get_info(M.cmd(repo, 'pr', 'view', tostring(prnum), '--json', table.concat(pr_fields, ',')), 'pr_data', cb)
-end
-
---- @param issue_num string|number Issue number
---- @param repo string "owner/name".
---- @param cb fun(issue?: Issue)
-function M.get_issue(issue_num, repo, cb)
-  get_info(
-    M.cmd(repo, 'issue', 'view', tostring(issue_num), '--json', table.concat(issue_fields, ',')),
-    'issue_data',
-    cb
-  )
 end
 
 function M.get_repo(cb)

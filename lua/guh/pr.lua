@@ -155,7 +155,7 @@ function M.refresh()
     return M.show_status()
   end
   -- Drop cached data so the underlying `get_info` re-fetches from gh.
-  state.set_b_guh(0, { pr_data = nil, issue_data = nil })
+  state.set_b_guh(0, { pr_data = nil })
   M.select({ args = vim.api.nvim_buf_get_name(0) })
 end
 

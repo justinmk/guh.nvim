@@ -112,33 +112,6 @@ describe('guh.gh', function()
       end
     end)
   end)
-
-  it('get_issue', function()
-    n.exec_lua(function()
-      local async = require('async')
-      local gh = require('guh.gh')
-      local util = require('guh.util')
-      local system_async = async.wrap(2, util.system)
-      local get_issue_async = async.wrap(3, gh.get_issue)
-
-      local function test_get_issue()
-        return async.run(function()
-          local result = system_async({ 'gh', 'issue', 'list', '--json', 'number' })
-          local issue_num = assert(vim.json.decode(assert(result))[1].number, 'failed to get a repo issue')
-
-          async.await(vim.schedule)
-          local issue = get_issue_async(issue_num, 'justinmk/guh.nvim')
-          assert(issue, 'issue is nil')
-          assert(type(issue.number) == 'number', 'issue.number not number')
-          assert(type(issue.title) == 'string', 'issue.title not string')
-          assert(type(issue.author) == 'table', 'issue.author not table')
-        end)
-      end
-
-      local task = test_get_issue()
-      task:wait(5000)
-    end)
-  end)
 end)
 
 describe('pr + comments view', function()
