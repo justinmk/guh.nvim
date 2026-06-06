@@ -61,6 +61,49 @@ function M.get_outdated_diff(comments_list)
   return lines
 end
 
+--- Maps each diff-buffer row to its `{file, old_line, new_line}` tuple. Only
+--- body rows ("+", "-", " ") get an entry; file/hunk/blank rows are nil.
+---
+--- - "+" row: only `new_line` set (added, RIGHT side).
+--- - "-" row: only `old_line` set (deleted, LEFT side).
+--- - " " row: both set (context).
+---
+--- @param diff_lines string[]
+--- @return table<integer, {file:string, new_line:integer|nil, old_line:integer|nil}>
+local function to_line_map(diff_lines)
+  local file = nil
+  local new_line = 0
+  local old_line = 0
+  local line_map = {}
+  for i, l in ipairs(diff_lines) do
+    local plusfile = l:match('^%+%+%+ b/(.+)$')
+    if plusfile then
+      file = plusfile
+      new_line = 0
+      old_line = 0
+    end
+    local hunk_old, hunk_new = l:match('^@@ %-(%d+),?%d* %+(%d+)')
+    if hunk_new then
+      old_line = tonumber(hunk_old)
+      new_line = tonumber(hunk_new)
+    elseif file then
+      local c = l:sub(1, 1)
+      if c == '+' then
+        line_map[i] = { file = file, new_line = new_line, old_line = nil }
+        new_line = new_line + 1
+      elseif c == '-' then
+        line_map[i] = { file = file, new_line = nil, old_line = old_line }
+        old_line = old_line + 1
+      elseif c == ' ' then
+        line_map[i] = { file = file, new_line = new_line, old_line = old_line }
+        new_line = new_line + 1
+        old_line = old_line + 1
+      end
+    end
+  end
+  return line_map
+end
+
 --- Renders `comments_list` in a 'scrollbind' split next to `diff_win`, with each
 --- comment vertically aligned to the diff line it annotates.
 ---
@@ -94,40 +137,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   ---------------------------------------------------------------------------
   -- Step 1: Parse diff → map each *visible line* to its file + new/old line num
   ---------------------------------------------------------------------------
-  local file = nil
-  local new_line = 0
-  local old_line = 0
-  local hunk_start = 0
-  local line_map = {} ---@type table<integer, {file:string,new_line:integer|nil,old_line:integer|nil}>
-  for i, l in ipairs(diff_lines) do
-    local plusfile = l:match('^%+%+%+ b/(.+)$')
-    if plusfile then
-      file = plusfile
-      new_line = 0
-      old_line = 0
-      hunk_start = 0
-    end
-
-    local hunk_old, hunk_new = l:match('^@@ %-(%d+),?%d* %+(%d+)')
-    if hunk_new then
-      old_line = tonumber(hunk_old)
-      new_line = tonumber(hunk_new)
-      hunk_start = i
-    elseif file then
-      local c = l:sub(1, 1)
-      if c == '+' then
-        line_map[i] = { file = file, new_line = new_line, old_line = nil }
-        new_line = new_line + 1
-      elseif c == '-' then
-        line_map[i] = { file = file, new_line = nil, old_line = old_line }
-        old_line = old_line + 1
-      elseif c == ' ' then
-        line_map[i] = { file = file, new_line = new_line, old_line = old_line }
-        new_line = new_line + 1
-        old_line = old_line + 1
-      end
-    end
-  end
+  local line_map = to_line_map(diff_lines)
 
   ---------------------------------------------------------------------------
   -- Step 2: Build text lines for the comment buffer
@@ -136,7 +146,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   -- nothing anchored there. Tracking heading + body separately lets Step 3
   -- guarantee every comment's heading row when multiple threads pile up on
   -- the same diff line.
-  -- Heading lines are prefixed with "▎" so a syntax match can easily highlight them (Step 3).
+  -- Heading lines are prefixed so a syntax match can easily highlight them (Step 3).
   local heading_prefix = '▎ '
   local entries = {} ---@type table<integer, { heading: string, body: string[] }[]>
 
@@ -243,11 +253,11 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   vim.diagnostic.setqflist({ namespace = ns, title = 'Guh comments', open = false })
 
   ---------------------------------------------------------------------------
-  -- Step 3: Write to buffer
+  -- Step 3: Write comment threads to buffer
   ---------------------------------------------------------------------------
   vim.bo[buf].modifiable = true
 
-  -- Each comment starts at its anchored diff line so 'scrollbind' lines up. If a
+  -- Each comment starts at its anchored diff line so 'scrollbind' aligns. If a
   -- comment body overflows into the next anchored slot, truncate and mark it so
   -- a sibling comment isn't silently pushed down.
   local anchors = {}
@@ -398,123 +408,56 @@ end
 ---
 --- @param line1 integer 1-indexed start line
 --- @param line2 integer 1-indexed end line (inclusive)
---- @return table|nil info { buf, pr_id, repo, file, start_line, end_line }
+--- @return table|nil info { buf, pr_id, repo, file, side, start_line, end_line }
 function M.prepare_to_comment(line1, line2)
   local buf = vim.api.nvim_get_current_buf()
   local prnum = assert(vim.b.guh.id)
   local repo = assert(vim.b.guh.repo)
-  if not prnum then
-    util.msg('Not a PR diff buffer', vim.log.levels.WARN)
-    return nil
-  end
 
   line1 = math.max(1, line1)
   line2 = math.max(line1, line2 or line1)
-  local lines = vim.api.nvim_buf_get_lines(buf, line1 - 1, line2, false)
-  if vim.tbl_isempty(lines) then
-    util.msg('Empty selection', vim.log.levels.WARN)
-    return nil
-  end
 
-  ---------------------------------------------------------------------------
-  -- Step 1: Determine the file path at the start of the selection
-  ---------------------------------------------------------------------------
-  local file
-  for i = line1, 1, -1 do
-    local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
-    local m = l and l:match('^%+%+%+ b/(.+)$')
-    if m then
-      file = m
-      break
-    end
-  end
-  if not file then
-    util.msg('Could not determine file from diff', vim.log.levels.WARN)
+  local line_map = to_line_map(vim.api.nvim_buf_get_lines(buf, 0, -1, false))
+  local start_entry = line_map[line1]
+  local end_entry = line_map[line2]
+  if not start_entry or not end_entry then
+    util.msg('Not a diff line (file/hunk header or blank?)', vim.log.levels.WARN)
     return nil
   end
-  if file:match('^outdated%-%d+:') then
+  if start_entry.file:match('^outdated%-%d+:') then
     util.msg('Cannot comment on an outdated hunk', vim.log.levels.WARN)
     return nil
   end
 
-  ---------------------------------------------------------------------------
-  -- Step 2: Validate that the range does not cross into another file section
-  ---------------------------------------------------------------------------
+  -- LEFT-side ('-') rows have no new_line; RIGHT-side ('+'/' ') rows do.
+  local side = start_entry.new_line == nil and 'LEFT' or 'RIGHT'
+
+  -- Validate range. Non-body rows (hunk/file headers, blanks) have no entry
+  -- and are skipped — only actual diff rows constrain the range.
   for i = line1, line2 do
-    local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
-    if l and l:match('^%+%+%+ b/(.+)$') and not l:match('^%+%+%+ b/' .. vim.pesc(file) .. '$') then
-      util.msg('Cannot comment across multiple files in a diff', vim.log.levels.ERROR)
-      return nil
-    end
-  end
-
-  ---------------------------------------------------------------------------
-  -- Step 3: Find nearest hunk header (if any)
-  ---------------------------------------------------------------------------
-  local hunk_start, old_start, new_start
-  for i = line1, 1, -1 do
-    local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
-    local s_old, s_new = (l or ''):match('^@@ %-(%d+),?%d* %+(%d+)')
-    if s_new then
-      hunk_start = i
-      old_start = tonumber(s_old)
-      new_start = tonumber(s_new)
-      break
-    end
-  end
-
-  -- No hunk found → can't anchor a comment.
-  if not new_start then
-    util.msg('No hunk found for selection', vim.log.levels.WARN)
-    return nil
-  end
-
-  ---------------------------------------------------------------------------
-  -- Step 4: Pick side from the start of the range; compute line nums on that axis.
-  -- - "-" rows = LEFT (old-side line numbering, skip `+`).
-  -- - "+"/" " rows = RIGHT (new-side line numbering, skip `-`).
-  ---------------------------------------------------------------------------
-  local function row_kind(idx)
-    local l = vim.api.nvim_buf_get_lines(buf, idx - 1, idx, false)[1]
-    return l and l:sub(1, 1) or ''
-  end
-  local side = (row_kind(line1) == '-') and 'LEFT' or 'RIGHT'
-  -- Reject ranges that cross sides — GitHub's API can't represent them.
-  for i = line1, line2 do
-    local k = row_kind(i)
-    if (k == '-' and side == 'RIGHT') or ((k == '+' or k == ' ') and side == 'LEFT') then
-      util.msg('Cannot comment across both sides of the diff', vim.log.levels.ERROR)
-      return nil
-    end
-  end
-
-  local function compute_line(idx)
-    local line_num = (side == 'LEFT') and old_start or new_start
-    local skip = (side == 'LEFT') and '+' or '-'
-    for i = hunk_start + 1, idx - 1 do
-      local c = row_kind(i)
-      if c ~= skip then
-        line_num = line_num + 1
+    local e = line_map[i]
+    if e then
+      if e.file ~= start_entry.file then
+        util.msg('Cannot comment across multiple files in a diff', vim.log.levels.ERROR)
+        return nil
+      end
+      local e_side = e.new_line == nil and 'LEFT' or 'RIGHT'
+      if e_side ~= side then
+        util.msg('Cannot comment across both sides of the diff', vim.log.levels.ERROR)
+        return nil
       end
     end
-    return line_num
   end
 
-  local line_start = compute_line(line1)
-  local line_end = compute_line(line2)
-
-  ---------------------------------------------------------------------------
-  -- Step 5: Return structured info
-  ---------------------------------------------------------------------------
+  local axis = side == 'LEFT' and 'old_line' or 'new_line'
   return {
     buf = buf,
     pr_id = tonumber(prnum),
     repo = repo,
-    file = file,
+    file = start_entry.file,
     side = side,
-    -- GH expects 0-indexed lines, end-EXclusive.
-    start_line = line_start,
-    end_line = line_end,
+    start_line = start_entry[axis],
+    end_line = end_entry[axis],
   }
 end
 
