@@ -21,7 +21,6 @@
 
 --- @class CommentThread
 --- @field comments Comment[]
---- @field content string
 --- @field id number
 --- @field line number
 --- @field start_line number

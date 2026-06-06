@@ -133,7 +133,6 @@ describe('pr + comments view', function()
               'thread.start_line should be number or nil'
             )
             assert(type(thread.url) == 'string', 'thread.url should be string')
-            assert(type(thread.content) == 'string', 'thread.content should be string')
             assert(type(thread.comments) == 'table', 'thread.comments should be table')
             assert(#thread.comments > 0, 'thread.comments should not be empty')
             for _, comment in ipairs(thread.comments) do

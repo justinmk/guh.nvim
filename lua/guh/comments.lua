@@ -288,35 +288,10 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   end)
 end
 
---- @param comment Comment
-local function format_comment(comment)
-  return string.format('✍️ %s at %s:\n%s\n\n', comment.user, comment.updated_at, comment.body)
-end
-
---- Builds a markdown view of all comments associated with a diff-line.
----
---- @param comments Comment[]
-local function prepare_content(comments)
-  local lines = {}
-  if #comments > 0 and not vim.isnil(comments[1].start_line) and comments[1].start_line ~= comments[1].line then
-    table.insert(lines, ('📓 Comment on lines %d to %d\n\n'):format(comments[1].start_line, comments[1].line))
-  end
-
-  for _, comment in pairs(comments) do
-    table.insert(lines, format_comment(comment))
-  end
-
-  if #comments > 0 then
-    table.insert(lines, ('\n🪓 Diff hunk:\n%s\n'):format(comments[1].diff_hunk))
-  end
-
-  return table.concat(lines, '')
-end
-
 --- Marshalls an API comment to local `Comment` type.
 ---
 --- @return Comment extracted gh comment
-local function convert_comment(comment)
+local function to_comment(comment)
   local extended = vim.tbl_extend('force', {}, comment)
   -- Aliases
   extended.url = comment.html_url
@@ -339,10 +314,10 @@ function M.to_threads(gh_comments, cb)
 
   for _, comment in pairs(gh_comments) do
     if comment.in_reply_to_id == nil then
-      comment_threads[comment.id] = { convert_comment(comment) }
+      comment_threads[comment.id] = { to_comment(comment) }
       base[comment.id] = comment.id
     else
-      table.insert(comment_threads[base[comment.in_reply_to_id]], convert_comment(comment))
+      table.insert(comment_threads[base[comment.in_reply_to_id]], to_comment(comment))
       base[comment.id] = base[comment.in_reply_to_id]
     end
   end
@@ -357,7 +332,6 @@ function M.to_threads(gh_comments, cb)
       line = comments[1].line,
       start_line = comments[1].start_line,
       url = comments[#comments].url,
-      content = prepare_content(comments),
       comments = comments,
     }
 
