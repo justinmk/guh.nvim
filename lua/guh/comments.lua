@@ -240,14 +240,6 @@ function M.show(id, repo, diff_win, comments_list)
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
 
-  local heading_ns = vim.api.nvim_create_namespace('guh.heading')
-  vim.api.nvim_buf_clear_namespace(buf, heading_ns, 0, -1)
-  for i, line in ipairs(out) do
-    if line:sub(1, #HEADING_PREFIX) == HEADING_PREFIX then
-      vim.api.nvim_buf_set_extmark(buf, heading_ns, i - 1, 3, { hl_group = 'GuhHeading', end_col = 200, strict = false })
-    end
-  end
-
   vim.cmd [[wincmd p]] -- Return to diff window.
   util.show_info_overlay(diff_buf, 'PR diff (`cc` to comment)')
   util.show_info_overlay(buf, 'Empty line = no comment on that diff line')
@@ -256,6 +248,7 @@ function M.show(id, repo, diff_win, comments_list)
   -- vim.bo[buf].readonly = true
   vim.bo[buf].filetype = 'markdown'
   vim.api.nvim_buf_call(buf, function()
+    vim.cmd([[syntax match GuhHeading /^▎ \zs.*$/ containedin=ALL]])
     vim.cmd([[syntax match GuhWarning /(outdated)\|(truncated)/ containedin=ALL]])
   end)
 
