@@ -58,13 +58,18 @@ Requirements:
 4. PR diff comments are presented:
     - in a 'scrollbind' split window
     - as "diagnostics" (`vim.diagnostic`), loaded in quickfix
-5. PR files marked as "Viewed" are collapsed to a `(viewed) <path>` line.
+5. Work with comments:
+    - Create
+    - Update
+    - (TODO) Resolve
+6. PR files marked as "Viewed" are collapsed to a `(viewed) <path>` line.
    The diff overlay shows `(N/M viewed)`.
-6. Loads most-recent CI logs for all "jobs" in the CI matrix.
-7. (TODO) Fetch the git data into `.git` (without doing a checkout).
-8. (TODO) When viewing the diff, user can navigate to the git object (file)
+    - (TODO) Set/reset the "Viewed" state of a file.
+7. Loads most-recent CI logs for all "jobs" in the CI matrix.
+8. (TODO) Fetch the git data into `.git` (without doing a checkout).
+9. (TODO) When viewing the diff, user can navigate to the git object (file)
    without doing a checkout.
-9. (TODO) PR comments will display on relevant *local* git objects.
+10. (TODO) PR comments will display on relevant *local* git objects.
 
 ## Development
 

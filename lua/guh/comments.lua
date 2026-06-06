@@ -5,6 +5,7 @@ local util = require('guh.util')
 local M = {}
 
 local severity = vim.diagnostic.severity
+local diag_ns_name = 'guh.comments'
 
 local outdated_banner_start = {
   '================================================================================',
@@ -224,6 +225,8 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
         end
         entries[start_idx] = comment_blocks
 
+        -- One diagnostic per-thread. The `Comment[]` list is stored in `user_data.comments`,
+        -- so `update_comment` can pick from it.
         local body = table.concat(
           vim.tbl_map(function(c)
             return c.body or ''
@@ -238,6 +241,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
             message = body,
             severity = severity.INFO,
             source = 'guh.nvim',
+            user_data = { comments = thread_comments },
           })
         end
       end
@@ -247,7 +251,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
     process_file(filename, file_comments)
   end
 
-  local ns = vim.api.nvim_create_namespace('guh.comments')
+  local ns = vim.api.nvim_create_namespace(diag_ns_name)
   vim.diagnostic.set(ns, diff_buf, diagnostics)
   -- This does setqflist(…,"u"), so this won't "pollute" the quickfix list on each refresh.
   vim.diagnostic.setqflist({ namespace = ns, title = 'Guh comments', open = false })
@@ -399,8 +403,93 @@ function M.to_threads(gh_comments, cb)
   cb(result)
 end
 
-M.update_comment = function(opts)
-  util.msg('TODO')
+--- Updates the comment at cursor, in a `prcomments/…` buffer. Identifies the comment by querying the
+--- sibling `prdiff/…` buffer's per-comment diagnostics at the cursor row.
+---
+--- - When multiple comments share a diff row, prompts via `vim.ui.select`.
+--- - Flashes the comment region.
+--- - Opens a prefilled `edit_comment` buffer.
+--- - Posts on write-and-close.
+---
+--- @param line1 integer 1-indexed cursor row in the prcomments buffer.
+function M.update_comment(line1)
+  local prnum, repo = util.require_b_guh({ 'id', 'repo' })
+  if not prnum then
+    return
+  end
+  local buf = vim.api.nvim_get_current_buf()
+
+  local diff_buf = state.get_buf('prdiff', repo, prnum, true)
+  if not diff_buf then
+    util.msg('No prdiff buffer for this PR', vim.log.levels.WARN)
+    return
+  end
+
+  local ds = vim.diagnostic.get(diff_buf, {
+    lnum = line1 - 1,
+    namespace = vim.api.nvim_create_namespace(diag_ns_name),
+  })
+
+  -- Each diagnostic is one thread; get a flat list of comments across all threads on this line.
+  -- `range` carries the thread's diff-range so we can highlight it with `vim.hl.range()`.
+  local candidates = {}
+  for _, d in ipairs(ds) do
+    for _, c in ipairs(d.user_data.comments or {}) do
+      table.insert(candidates, { comment = c, range = { d.lnum, d.end_lnum } })
+    end
+  end
+
+  if #candidates == 0 then
+    util.msg('No comment at cursor', vim.log.levels.WARN)
+    return
+  end
+
+  local function do_it(cand)
+    local c = cand.comment
+    vim.hl.range(
+      buf,
+      vim.api.nvim_create_namespace('guh.comment_hl'),
+      'Visual',
+      { cand.range[1], 0 },
+      { cand.range[2], -1 },
+      { priority = 300, timeout = 200 }
+    )
+    local content = vim.split(c.body or '', '\n', { plain = true })
+    M.edit_comment(
+      'comment',
+      prnum,
+      content,
+      { ('Updating comment %d. ZZ to confirm (ZQ to abort).'):format(c.id) },
+      function(input)
+        local progress = util.new_progress_report('Updating comment...', vim.api.nvim_get_current_buf())
+        gh.update_comment(c.id, input, repo, function(resp)
+          if resp['errors'] == nil then
+            progress('success', nil, 'Comment updated.')
+            require('guh.pr').show_pr_diff(prnum)
+          else
+            progress('failed', nil, 'Failed to update comment.')
+          end
+        end)
+      end
+    )
+  end
+
+  if #candidates == 1 then
+    do_it(candidates[1])
+  else
+    vim.ui.select(candidates, {
+      prompt = 'Update which comment?',
+      format_item = function(cand)
+        local c = cand.comment
+        local snippet = (c.body or ''):gsub('\n.*$', ''):sub(1, 60)
+        return ('%s %s: %s'):format(c.user or '?', c.updated_at or '', snippet)
+      end,
+    }, function(cand)
+      if cand then
+        do_it(cand)
+      end
+    end)
+  end
 end
 
 --- Prepare info for commenting on a range in the current diff.

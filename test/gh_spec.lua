@@ -185,7 +185,7 @@ describe('pr + comments view', function()
   end)
 end)
 
-describe('features', function()
+describe('comments', function()
   it('prepare_to_comment (hardcoded diff)', function()
     n.exec_lua(function()
       local comments = require('guh.comments')
@@ -302,6 +302,68 @@ describe('features', function()
       assert(rows[6] and rows[6]:match('^▎ .*bob'), ('row 6: %q'):format(rows[6] or '<nil>'))
       -- Row 7 = '-deleted' (old=11) → LEFT (alice) heading lands here. This is the regression check.
       assert(rows[7] and rows[7]:match('^▎ .*alice'), ('row 7: %q'):format(rows[7] or '<nil>'))
+    end)
+  end)
+
+  it('update_comment opens edit buf prefilled with the existing body', function()
+    n.exec_lua(function()
+      local comments = require('guh.comments')
+      local state = require('guh.state')
+
+      local pr_id = 77
+      local repo = 'justinmk/guh.nvim'
+      local diff_buf = state.get_buf('prdiff', repo, pr_id)
+      state.show_buf(diff_buf)
+      state.set_b_guh(diff_buf, { id = pr_id, feat = 'prdiff', repo = repo })
+
+      vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, {
+        'diff --git a/f.lua b/f.lua',
+        'index 000..111 100644',
+        '--- a/f.lua',
+        '+++ b/f.lua',
+        '@@ -10,1 +10,2 @@',
+        ' context', -- row 6: new=10
+        '+added',   -- row 7: new=11
+      })
+      local diff_win = vim.api.nvim_get_current_win()
+
+      --- @type table<string, CommentThread[]>
+      local threads = {
+        ['f.lua'] = {
+          {
+            id = 999,
+            line = 10,
+            start_line = 10,
+            url = '',
+            comments = {
+              {
+                id = 12345,
+                user = 'alice',
+                body = 'original body',
+                updated_at = '2024-01-01',
+                side = 'RIGHT',
+                line = 10,
+                path = 'f.lua',
+              },
+            },
+          },
+        },
+      }
+
+      comments.show(pr_id, repo, diff_win, threads)
+
+      -- comments.show ends with `wincmd p` (focus back on diff window). Move focus to the prcomments
+      -- window so `update_comment` reads its `b:guh`.
+      local prc_buf = assert(state.get_buf('prcomments', repo, pr_id, true))
+      vim.api.nvim_set_current_win(vim.fn.win_findbuf(prc_buf)[1])
+
+      -- Row 6 is the heading of alice's comment (anchored to ' context', new=10).
+      comments.update_comment(6)
+
+      -- The 'comment' edit buf must exist and contain the comment's body.
+      local edit_buf = assert(state.get_buf('comment', repo, pr_id, true))
+      local lines = vim.api.nvim_buf_get_lines(edit_buf, 0, -1, false)
+      assert(#lines == 1 and lines[1] == 'original body', vim.inspect(lines))
     end)
   end)
 end)

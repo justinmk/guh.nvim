@@ -427,6 +427,8 @@ function M.show_pr_diff(opts)
 end
 
 --- Comment on a diff line/range, or PR/issue overview (bang "!").
+---
+--- In a `prcomments/…` buffer (instead of `prdiff/…`): updates the existing comment at cursor.
 M.comment = function(args)
   assert(args and args.line1 and args.line2)
   if args.bang and (args.range or 0) > 0 then
@@ -434,6 +436,9 @@ M.comment = function(args)
   end
   if args.bang then
     return M.comment_overview()
+  end
+  if (vim.b.guh or {}).feat == 'prcomments' then
+    return comments.update_comment(args.line1)
   end
   comments.do_comment(args.line1, args.line2)
 end

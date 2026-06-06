@@ -76,6 +76,7 @@ Default mappings (local to `guh://` buffers):
 - `cM`: Merge PR with `--admin` (bypass branch protections). |guh-merge|
   <Plug>(guh-merge-admin)
 - `cc`: Comment on a PR/issue/diff line. Also `c` in Visual mode. |guh-comment|
+  In a `guh://…/prcomments/` buffer: edits the comment at cursor.
   <Plug>(guh-comment)
 - `cC`: Comment on the PR/issue overview (top-level). |guh-comment|
   <Plug>(guh-comment-overview)
