@@ -242,65 +242,53 @@ function M.get_repo(cb)
   end)
 end
 
+--- Runs `gh api --method <method> <endpoint>` with `fields` of the form `{ {'-f','key=val'}, {'-F','key=val'}, … }`.
+---
+--- Logs request + response and invokes `cb()` with the JSON-decoded body (or `{ errors = {} }` on parse failure).
+---
+--- @param logname string for `util.log` (usually the caller name).
+--- @param method 'POST'|'PATCH'|'DELETE'|'GET'|'PUT'
+--- @param endpoint string e.g. "repos/foo/bar/pulls/1/comments".
+--- @param fields { [1]: '-f'|'-F', [2]: string }[]
+--- @param cb fun(resp: table)
+local function gh_api(logname, method, endpoint, fields, cb)
+  local request = { 'gh', 'api', '--method', method, endpoint }
+  for _, kv in ipairs(fields) do
+    table.insert(request, kv[1])
+    table.insert(request, kv[2])
+  end
+  util.log(logname .. ' request', request)
+  util.system(request, function(stdout)
+    local resp = parse_or_default(stdout, { errors = {} })
+    util.log(logname .. ' resp', resp)
+    cb(resp)
+  end)
+end
+
 --- @param repo? string "owner/name" for non-local repo.
 function M.reply_to_comment(prnum, body, reply_to, repo, cb)
   vim.validate('repo', repo, 'string')
-  local request = {
-    'gh',
-    'api',
-    '--method',
-    'POST',
-    f('repos/%s/pulls/%d/comments', repo, prnum),
-    '-f',
-    'body=' .. body,
-    '-F',
-    'in_reply_to=' .. reply_to,
-  }
-  util.log('reply_to_comment request', request)
-
-  util.system(request, function(result)
-    local resp = parse_or_default(result, { errors = {} })
-
-    util.log('reply_to_comment resp', resp)
-    cb(resp)
-  end)
+  gh_api('reply_to_comment', 'POST', f('repos/%s/pulls/%d/comments', repo, prnum), {
+    { '-f', 'body=' .. body },
+    { '-F', 'in_reply_to=' .. reply_to },
+  }, cb)
 end
 
 --- @param repo? string "owner/name" for non-local repo.
 function M.new_comment(pr, body, path, start_line, line, side, repo, cb)
   local commit_id = assert(pr.headRefOid)
   vim.validate('repo', repo, 'string')
-
-  local request = {
-    'gh',
-    'api',
-    '--method',
-    'POST',
-    f('repos/%s/pulls/%d/comments', repo, pr.number),
-    '-f',
-    'body=' .. body,
-    '-f',
-    'commit_id=' .. commit_id,
-    '-f',
-    'path=' .. path,
-    '-F',
-    'line=' .. line,
-    '-f',
-    'side=' .. (side or 'RIGHT'),
+  local fields = {
+    { '-f', 'body=' .. body },
+    { '-f', 'commit_id=' .. commit_id },
+    { '-f', 'path=' .. path },
+    { '-F', 'line=' .. line },
+    { '-f', 'side=' .. (side or 'RIGHT') },
   }
-
   if start_line ~= line then
-    table.insert(request, '-F')
-    table.insert(request, 'start_line=' .. start_line)
+    table.insert(fields, { '-F', 'start_line=' .. start_line })
   end
-
-  util.log('new_comment request', request)
-
-  util.system(request, function(result)
-    local resp = parse_or_default(result, { errors = {} })
-    util.log('new_comment resp', resp)
-    cb(resp)
-  end)
+  gh_api('new_comment', 'POST', f('repos/%s/pulls/%d/comments', repo, pr.number), fields, cb)
 end
 
 --- Posts a top-level comment on a PR or issue overview.
@@ -322,40 +310,15 @@ end
 --- @param repo? string "owner/name" for non-local repo.
 function M.update_comment(comment_id, body, repo, cb)
   vim.validate('repo', repo, 'string')
-  local request = {
-    'gh',
-    'api',
-    '--method',
-    'PATCH',
-    f('repos/%s/pulls/comments/%s', repo, comment_id),
-    '-f',
-    'body=' .. body,
-  }
-  util.log('update_comment request', request)
-
-  util.system(request, function(result)
-    local resp = parse_or_default(result, { errors = {} })
-    util.log('update_comment resp', resp)
-    cb(resp)
-  end)
+  gh_api('update_comment', 'PATCH', f('repos/%s/pulls/comments/%s', repo, comment_id), {
+    { '-f', 'body=' .. body },
+  }, cb)
 end
 
 --- @param repo? string "owner/name" for non-local repo.
 function M.delete_comment(comment_id, repo, cb)
   vim.validate('repo', repo, 'string')
-  local request = {
-    'gh',
-    'api',
-    '--method',
-    'DELETE',
-    f('repos/%s/pulls/comments/%s', repo, comment_id),
-  }
-  util.log('delete_comment request', request)
-
-  util.system(request, function(resp)
-    util.log('delete_comment resp', resp)
-    cb(resp)
-  end)
+  gh_api('delete_comment', 'DELETE', f('repos/%s/pulls/comments/%s', repo, comment_id), {}, cb)
 end
 
 --- Merges a PR via `gh pr merge`.
