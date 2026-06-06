@@ -147,18 +147,16 @@ end
 
 --- Refreshes the current `guh://*` buffer by invoking `:Guh <bufname>`.
 function M.refresh()
-  local feat = (vim.b.guh or {}).feat
+  local feat = util.require_b_guh({ 'feat' })
+  if not feat then
+    return
+  end
   if feat == 'status' then
     return M.show_status()
   end
-  local name = vim.api.nvim_buf_get_name(0)
-  if name:match('^guh://') then
-    -- Drop cached data so the underlying `get_info` re-fetches from gh.
-    state.set_b_guh(0, { pr_data = nil, issue_data = nil })
-    M.select({ args = name })
-  else
-    util.msg('Not a guh:// buffer', vim.log.levels.ERROR)
-  end
+  -- Drop cached data so the underlying `get_info` re-fetches from gh.
+  state.set_b_guh(0, { pr_data = nil, issue_data = nil })
+  M.select({ args = vim.api.nvim_buf_get_name(0) })
 end
 
 --- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
