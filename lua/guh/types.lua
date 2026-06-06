@@ -19,7 +19,7 @@
 --- @field outdated? boolean true if the thread is outdated (line no longer in HEAD).
 --- @field thread_id? number GraphQL thread id (root comment databaseId).
 
---- @class GroupedComment
+--- @class CommentThread
 --- @field comments Comment[]
 --- @field content string
 --- @field id number

@@ -19,7 +19,7 @@ local outdated_banner_end = {
 
 --- Builds a self-contained mini-diff for the outdated threads in `comments_list`.
 --- Each thread becomes a quasi-file section (`diff --git` + `+++ b/<synthetic>` + hunk) using the
---- synthetic per-thread path the caller stashed on the group. Example:
+--- synthetic per-thread path the caller stashed on the comment-thread. Example:
 ---
 ---     diff --git a/outdated-3271868956:runtime/lua/vim/_core/options.lua b/outdated-3271868956:runtime/lua/vim/_core/options.lua
 ---     --- a/outdated-3271868956:runtime/lua/vim/_core/options.lua
@@ -27,14 +27,14 @@ local outdated_banner_end = {
 ---
 --- Returns `{}` when nothing is outdated.
 ---
---- @param comments_list table<string, GroupedComment[]>
+--- @param comments_list table<string, CommentThread[]>
 --- @return string[]
 function M.get_outdated_diff(comments_list)
   local entries = {}
-  for synthetic, groups in pairs(comments_list) do
-    for _, g in ipairs(groups) do
-      if g.comments[1].outdated then
-        table.insert(entries, { synthetic = synthetic, group = g })
+  for synthetic, comment_threads in pairs(comments_list) do
+    for _, t in ipairs(comment_threads) do
+      if assert(t.comments[1]).outdated then
+        table.insert(entries, { synthetic = synthetic, thread = t })
       end
     end
   end
@@ -49,7 +49,7 @@ function M.get_outdated_diff(comments_list)
   local lines = {}
   vim.list_extend(lines, outdated_banner_start)
   for _, e in ipairs(entries) do
-    local first = e.group.comments[1]
+    local first = e.thread.comments[1]
     table.insert(lines, ('diff --git a/%s b/%s'):format(e.synthetic, e.synthetic))
     table.insert(lines, ('--- a/%s'):format(e.synthetic))
     table.insert(lines, ('+++ b/%s'):format(e.synthetic))
@@ -67,7 +67,7 @@ end
 --- @param id integer PR number.
 --- @param repo string "owner/name"
 --- @param diff_win integer window of the diff buffer.
---- @param comments_list table<string, GroupedComment[]>
+--- @param comments_list table<string, CommentThread[]>
 --- @param viewed? table<string,boolean> Set of "viewed" files.
 --- @param n_files? integer Count of all files in the HEAD diff.
 function M.show(id, repo, diff_win, comments_list, viewed, n_files)
@@ -156,7 +156,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   --- Skips "viewed" files.
   ---
   --- @param filename string Key from `comments_list` (may be `outdated-<id>:<path>` format).
-  --- @param file_comments GroupedComment[]
+  --- @param file_comments CommentThread[]
   local function process_file(filename, file_comments)
     -- Skip "viewed" files. Strip "outdated-<id>:" to match the real path.
     local real_path = filename:match('^outdated%-%d+:(.+)$') or filename
@@ -327,31 +327,32 @@ local function convert_comment(comment)
   return extended
 end
 
---- Reshapes the flat list of GitHub review comments into per-file threads. Each `GroupedComment` is
---- a thread identified by `in_reply_to_id`.
+--- Reshapes the flat list of GitHub review comments into per-file threads. Each `CommentThread` is
+--- identified by `in_reply_to_id`.
 ---
 --- @param gh_comments table[] flat list from `gh.get_pr_data`.
---- @param cb fun(grouped: table<string, GroupedComment[]>)
-local function group_comments(gh_comments, cb)
+--- @param cb fun(comment_threads: table<string, CommentThread[]>)
+function M.to_threads(gh_comments, cb)
   --- @type table<number, Comment[]>
-  local comment_groups = {}
+  local comment_threads = {}
   local base = {}
 
   for _, comment in pairs(gh_comments) do
     if comment.in_reply_to_id == nil then
-      comment_groups[comment.id] = { convert_comment(comment) }
+      comment_threads[comment.id] = { convert_comment(comment) }
       base[comment.id] = comment.id
     else
-      table.insert(comment_groups[base[comment.in_reply_to_id]], convert_comment(comment))
+      table.insert(comment_threads[base[comment.in_reply_to_id]], convert_comment(comment))
       base[comment.id] = base[comment.in_reply_to_id]
     end
   end
 
-  --- @type table<string, GroupedComment[]>
+  --- @type table<string, CommentThread[]>
   local result = {}
-  for _, comments in pairs(comment_groups) do
-    --- @type GroupedComment
-    local grouped_comments = {
+  for _, comments in pairs(comment_threads) do
+    assert(comments[1])
+    --- @type CommentThread
+    local comment_thread = {
       id = comments[1].id,
       line = comments[1].line,
       start_line = comments[1].start_line,
@@ -362,39 +363,13 @@ local function group_comments(gh_comments, cb)
 
     local filepath = comments[1].path -- Relative file path as given in the unified diff.
     if result[filepath] == nil then
-      result[filepath] = { grouped_comments }
+      result[filepath] = { comment_thread }
     else
-      table.insert(result[filepath], grouped_comments)
+      table.insert(result[filepath], comment_thread)
     end
   end
 
   cb(result)
-end
-
---- Fetches review comments + per-file "viewed" state.
---- Comments are grouped by path; "outdated" paths are renamed as `outdated-<id>:<path>`.
----
---- @param prnum integer
---- @param repo string "owner/name"
---- @param cb fun(grouped: table<string, GroupedComment[]>, viewed: table<string,boolean>)
-function M.get_comments_and_files(prnum, repo, cb)
-  assert(type(prnum) == 'number')
-  gh.get_pr_data(prnum, assert(repo), function(comments, viewed)
-    -- Reassign outdated comments to synthetic per-thread paths so they
-    -- 1. group into their own GroupedComment buckets and
-    -- 2. match the synthesized `+++ b/<synthetic>` we prepend on the diff.
-    -- Example: "runtime/lua/vim/_core/options.lua" with thread_id 3271868956
-    --       → "outdated-3271868956:runtime/lua/vim/_core/options.lua"
-    for _, c in ipairs(comments) do
-      if c.outdated and c.thread_id then
-        c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
-      end
-    end
-    group_comments(comments, function(grouped)
-      util.log(('grouped pr comments (total: %s)'):format(vim.tbl_count(grouped)), grouped)
-      cb(grouped, viewed)
-    end)
-  end)
 end
 
 M.update_comment = function(opts)

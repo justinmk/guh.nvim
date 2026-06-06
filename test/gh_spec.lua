@@ -141,29 +141,29 @@ describe('guh.gh', function()
   end)
 end)
 
-describe('comments', function()
-  it('load_comments', function()
+describe('pr + comments view', function()
+  it('get_pr_data + to_threads', function()
     n.exec_lua(function()
-      local function assert_comments(comments)
-        assert(comments and vim.tbl_count(comments) > 0)
+      local function assert_threads(threads_by_path)
+        assert(threads_by_path and vim.tbl_count(threads_by_path) > 0)
 
-        -- Check structure: comments is table<string, GroupedComment[]>
-        for path, grouped_comments in pairs(comments) do
+        -- Check structure: threads_by_path is table<string, CommentThread[]>
+        for path, threads in pairs(threads_by_path) do
           assert(type(path) == 'string', 'path should be string')
-          assert(type(grouped_comments) == 'table', 'grouped_comments should be table')
-          assert(#grouped_comments > 0, 'grouped_comments should not be empty')
-          for _, grouped in ipairs(grouped_comments) do
-            assert(grouped.id, 'grouped.id missing')
-            assert(type(grouped.line) == 'number', 'grouped.line should be number')
+          assert(type(threads) == 'table', 'threads should be table')
+          assert(#threads > 0, 'threads should not be empty')
+          for _, thread in ipairs(threads) do
+            assert(thread.id, 'thread.id missing')
+            assert(type(thread.line) == 'number', 'thread.line should be number')
             assert(
-              type(grouped.start_line) == 'number' or grouped.start_line == vim.NIL,
-              'grouped.start_line should be number or nil'
+              type(thread.start_line) == 'number' or thread.start_line == vim.NIL,
+              'thread.start_line should be number or nil'
             )
-            assert(type(grouped.url) == 'string', 'grouped.url should be string')
-            assert(type(grouped.content) == 'string', 'grouped.content should be string')
-            assert(type(grouped.comments) == 'table', 'grouped.comments should be table')
-            assert(#grouped.comments > 0, 'grouped.comments should not be empty')
-            for _, comment in ipairs(grouped.comments) do
+            assert(type(thread.url) == 'string', 'thread.url should be string')
+            assert(type(thread.content) == 'string', 'thread.content should be string')
+            assert(type(thread.comments) == 'table', 'thread.comments should be table')
+            assert(#thread.comments > 0, 'thread.comments should not be empty')
+            for _, comment in ipairs(thread.comments) do
               assert(comment.id, 'comment.id missing')
               assert(type(comment.url) == 'string', 'comment.url should be string')
               assert(type(comment.path) == 'string', 'comment.path should be string')
@@ -181,24 +181,32 @@ describe('comments', function()
         end
       end
 
-      -- Tests real comments response from Github. Calls load_comments() and
-      -- asserts the grouped structure via the callback.
-      local function test_load_comments()
+      -- Tests real PR data from Github. Mirrors the flow in pr.show_pr_diff:
+      -- gh.get_pr_data → outdated-path rewrite → comments.to_threads.
+      local function test_get_pr_data()
         local pr_num = 2
         local done = false
-        require('guh.comments').get_comments(pr_num, 'justinmk/guh.nvim', function(grouped)
-          assert_comments(grouped)
-          done = true
+        require('guh.gh').get_pr_data(pr_num, 'justinmk/guh.nvim', function(raw_comments, viewed)
+          assert(type(viewed) == 'table', 'viewed should be table')
+          for _, c in ipairs(raw_comments) do
+            if c.outdated and c.thread_id then
+              c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
+            end
+          end
+          require('guh.comments').to_threads(raw_comments, function(threads_by_path)
+            assert_threads(threads_by_path)
+            done = true
+          end)
         end)
         assert(
           vim.wait(5000, function()
             return done
           end),
-          'load_comments timed out'
+          'get_pr_data timed out'
         )
       end
 
-      test_load_comments()
+      test_get_pr_data()
     end)
   end)
 end)

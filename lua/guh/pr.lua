@@ -361,7 +361,7 @@ function M.show_pr_diff(opts)
   local progress = util.new_progress_report('Loading PR diff...', buf)
   progress('running')
 
-  local outdated_lines, diff_stdout, grouped, viewed
+  local outdated_lines, diff_stdout, file_threads, viewed
   local function try_render()
     if not outdated_lines or not diff_stdout or not viewed then
       return
@@ -380,17 +380,31 @@ function M.show_pr_diff(opts)
       vim.cmd([[syntax match GuhWarning /^(viewed)/ containedin=ALL]])
     end)
     util.set_default_keymaps(buf)
-    comments.show(id, repo, diff_win, assert(grouped), viewed, total)
+    comments.show(id, repo, diff_win, assert(file_threads), viewed, total)
     progress('success')
   end
 
-  -- 1. Get review comments + per-file "viewed" state.
+  -- 1. Get review comments + per-file "viewed" state (single GraphQL round-trip).
   --    Outdated diff is built from the comments' diff_hunks; empty if all old comments were resolved.
-  comments.get_comments_and_files(id, repo, function(grouped_comments, v)
-    grouped = grouped_comments
-    viewed = v
-    outdated_lines = comments.get_outdated_diff(g)
-    try_render()
+  gh.get_pr_data(id, repo, function(raw_comments, v)
+    -- Reassign outdated comments to synthetic per-thread paths so they:
+    -- 1. group into their own CommentThread buckets and
+    -- 2. match the synthesized `+++ b/<synthetic>` we prepend on the diff.
+    -- Example: "runtime/lua/vim/_core/options.lua" with thread_id 3271868956
+    --       → "outdated-3271868956:runtime/lua/vim/_core/options.lua"
+    for _, c in ipairs(raw_comments) do
+      -- Rename "outdated" paths as `outdated-<id>:<path>`.
+      if c.outdated and c.thread_id then
+        c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
+      end
+    end
+    comments.to_threads(raw_comments, function(threads)
+      util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
+      file_threads = threads
+      viewed = v
+      outdated_lines = comments.get_outdated_diff(threads)
+      try_render()
+    end)
   end)
 
   -- 2. Get the current PR diff.
