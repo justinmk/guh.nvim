@@ -223,6 +223,87 @@ describe('features', function()
       assert(buf == info.buf, info.buf)
     end)
   end)
+
+  it('comments.show anchors LEFT-side (deleted-line) comments', function()
+    n.exec_lua(function()
+      local comments = require('guh.comments')
+      local state = require('guh.state')
+
+      local pr_id = 99
+      local repo = 'justinmk/guh.nvim'
+      local diff_buf = state.get_buf('prdiff', repo .. '/' .. pr_id)
+      state.show_buf(diff_buf)
+      state.set_b_guh(diff_buf, { id = pr_id, feat = 'prdiff', repo = repo })
+
+      -- Synthetic unified diff. Row numbers are 1-indexed.
+      --   row 6 ` context` → old=10, new=10
+      --   row 7 `-deleted` → old=11           (LEFT side only)
+      --   row 8 ` tail`    → old=12, new=11
+      vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, {
+        'diff --git a/f.lua b/f.lua',
+        'index 000..111 100644',
+        '--- a/f.lua',
+        '+++ b/f.lua',
+        '@@ -10,3 +10,2 @@',
+        ' context',
+        '-deleted',
+        ' tail',
+      })
+
+      local diff_win = vim.api.nvim_get_current_win()
+
+      --- @type table<string, CommentThread[]>
+      local threads = {
+        ['f.lua'] = {
+          -- LEFT (deleted-line) comment: must resolve to row 7 (the '-' row).
+          {
+            id = 1,
+            line = 11,
+            start_line = 11,
+            url = '',
+            comments = {
+              {
+                id = 1,
+                user = 'alice',
+                body = 'hi',
+                updated_at = '2024-01-01',
+                side = 'LEFT',
+                line = 11,
+                path = 'f.lua',
+              },
+            },
+          },
+          -- RIGHT (new-side) comment: control — must resolve to row 6.
+          {
+            id = 2,
+            line = 10,
+            start_line = 10,
+            url = '',
+            comments = {
+              {
+                id = 2,
+                user = 'bob',
+                body = 'yo',
+                updated_at = '2024-01-01',
+                side = 'RIGHT',
+                line = 10,
+                path = 'f.lua',
+              },
+            },
+          },
+        },
+      }
+
+      comments.show(pr_id, repo, diff_win, threads)
+
+      local prc = state.get_buf('prcomments', repo .. '/' .. pr_id)
+      local rows = vim.api.nvim_buf_get_lines(prc, 0, -1, false)
+      -- Row 6 = ' context' (new=10) → RIGHT (bob) heading lands here.
+      assert(rows[6] and rows[6]:match('^▎ .*bob'), ('row 6: %q'):format(rows[6] or '<nil>'))
+      -- Row 7 = '-deleted' (old=11) → LEFT (alice) heading lands here. This is the regression check.
+      assert(rows[7] and rows[7]:match('^▎ .*alice'), ('row 7: %q'):format(rows[7] or '<nil>'))
+    end)
+  end)
 end)
 
 describe('commands', function()

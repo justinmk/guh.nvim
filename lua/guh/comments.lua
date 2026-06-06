@@ -92,31 +92,39 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   vim.wo.list = false
 
   ---------------------------------------------------------------------------
-  -- Step 1: Parse diff → map each *visible line* to its file + "new" line num
+  -- Step 1: Parse diff → map each *visible line* to its file + new/old line num
   ---------------------------------------------------------------------------
   local file = nil
   local new_line = 0
+  local old_line = 0
   local hunk_start = 0
-  local line_map = {} ---@type table<integer, {file:string,new_line:integer|nil}>
+  local line_map = {} ---@type table<integer, {file:string,new_line:integer|nil,old_line:integer|nil}>
   for i, l in ipairs(diff_lines) do
     local plusfile = l:match('^%+%+%+ b/(.+)$')
     if plusfile then
       file = plusfile
       new_line = 0
+      old_line = 0
       hunk_start = 0
     end
 
-    local hunk_new = l:match('^@@ [^+]+%+(%d+)')
+    local hunk_old, hunk_new = l:match('^@@ %-(%d+),?%d* %+(%d+)')
     if hunk_new then
+      old_line = tonumber(hunk_old)
       new_line = tonumber(hunk_new)
       hunk_start = i
     elseif file then
       local c = l:sub(1, 1)
-      if c == '+' or c == ' ' then
-        line_map[i] = { file = file, new_line = new_line }
+      if c == '+' then
+        line_map[i] = { file = file, new_line = new_line, old_line = nil }
         new_line = new_line + 1
       elseif c == '-' then
-        line_map[i] = { file = file, new_line = nil }
+        line_map[i] = { file = file, new_line = nil, old_line = old_line }
+        old_line = old_line + 1
+      elseif c == ' ' then
+        line_map[i] = { file = file, new_line = new_line, old_line = old_line }
+        new_line = new_line + 1
+        old_line = old_line + 1
       end
     end
   end
@@ -124,10 +132,13 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   ---------------------------------------------------------------------------
   -- Step 2: Build text lines for the comment buffer
   ---------------------------------------------------------------------------
-  -- entries[i] = { 'line', 'line', … } for diff row i, or nil if nothing anchored there.
+  -- entries[i] = list of {heading, body} blocks for diff row i, or nil if
+  -- nothing anchored there. Tracking heading + body separately lets Step 3
+  -- guarantee every comment's heading row when multiple threads pile up on
+  -- the same diff line.
   -- Heading lines are prefixed with "▎" so a syntax match can easily highlight them (Step 3).
   local heading_prefix = '▎ '
-  local entries = {} ---@type table<integer, string[]>
+  local entries = {} ---@type table<integer, { heading: string, body: string[] }[]>
 
   local function normalize_diff_path(p)
     p = p:gsub('^b/', '') -- remove Git diff prefix
@@ -135,13 +146,15 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
     return p
   end
 
-  -- Find the diff-buf line for `gh_line` of `filename`.
-  local function find_idx(filename, gh_line)
+  -- Find the diff-buf line for `gh_line` of `filename`. `side` selects the
+  -- axis: 'LEFT' = old-file (deleted/context), anything else = new-file.
+  local function find_idx(filename, gh_line, side)
     if vim.isnil(gh_line) then
       return nil
     end
+    local axis = (side == 'LEFT') and 'old_line' or 'new_line'
     for i, m in pairs(line_map) do
-      if normalize_diff_path(m.file) == filename and m.new_line == gh_line then
+      if normalize_diff_path(m.file) == filename and m[axis] == gh_line then
         return i
       end
     end
@@ -165,9 +178,12 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
     end
     local normalized_filename = normalize_diff_path(filename)
     for _, thread in ipairs(file_comments) do
-      local end_idx = find_idx(normalized_filename, thread.line)
+      -- The thread's head comment sets the side; replies inherit. Comments
+      -- with side='LEFT' anchor to deleted/old-file lines.
+      local side = thread.comments[1] and thread.comments[1].side
+      local end_idx = find_idx(normalized_filename, thread.line, side)
       if end_idx then
-        local start_idx = find_idx(normalized_filename, thread.start_line) or end_idx
+        local start_idx = find_idx(normalized_filename, thread.start_line, side) or end_idx
         if start_idx > end_idx then
           start_idx, end_idx = end_idx, start_idx
         end
@@ -176,7 +192,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
           or { { user = thread.user, updated_at = thread.updated_at, body = thread.body } }
         local tag = thread_comments[1] and thread_comments[1].outdated and '(outdated) ' or ''
 
-        local thread_entries = entries[start_idx] or {}
+        local comment_blocks = entries[start_idx] or {}
         for ci, c in ipairs(thread_comments) do
           local heading = (ci == 1)
               and ('%s%s%s %s %s:%d'):format(
@@ -188,14 +204,15 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
                 thread.line
               )
             or ('%s%s %s'):format(heading_prefix, c.user or '?', c.updated_at or '')
-          table.insert(thread_entries, heading)
+          local body = {}
           if c.body and c.body ~= '' then
             for _, bl in ipairs(vim.split(c.body, '\n', { plain = true })) do
-              table.insert(thread_entries, bl)
+              table.insert(body, bl)
             end
           end
+          table.insert(comment_blocks, { heading = heading, body = body })
         end
-        entries[start_idx] = thread_entries
+        entries[start_idx] = comment_blocks
 
         local body = table.concat(
           vim.tbl_map(function(c)
@@ -246,14 +263,40 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   end
 
   for i, anchor in ipairs(anchors) do
-    local thread_entries = entries[anchor]
+    local comment_blocks = entries[anchor]
     local next_anchor = anchors[i + 1] or (#diff_lines + 1)
     local max_lines = math.min(next_anchor - anchor, #diff_lines - anchor + 1)
-    if #thread_entries > max_lines then
-      thread_entries = vim.list_slice(thread_entries, 1, max_lines)
-      thread_entries[max_lines] = (thread_entries[max_lines] or '') .. ' (truncated)'
+    local n_comments = #comment_blocks
+
+    -- Render: each comment is guaranteed its heading row; bodies fill the remaining vertical space.
+    -- So a big comment can't starve the headings of sibling comments anchored to the same diff line.
+    local rendered = {}
+    local truncated = false
+    if n_comments > max_lines then
+      -- Even one row per comment overflows; show as many headings as fit.
+      for j = 1, max_lines do
+        table.insert(rendered, comment_blocks[j].heading)
+      end
+      truncated = true
+    else
+      local body_budget = max_lines - n_comments
+      for _, blk in ipairs(comment_blocks) do
+        table.insert(rendered, blk.heading)
+        for _, bl in ipairs(blk.body) do
+          if body_budget > 0 then
+            table.insert(rendered, bl)
+            body_budget = body_budget - 1
+          else
+            truncated = true
+            break
+          end
+        end
+      end
     end
-    for j, line in ipairs(thread_entries) do
+    if truncated and #rendered > 0 then
+      rendered[#rendered] = rendered[#rendered] .. ' (truncated)'
+    end
+    for j, line in ipairs(rendered) do
       out[anchor + j - 1] = line
     end
   end

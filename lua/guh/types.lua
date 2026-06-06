@@ -12,6 +12,7 @@
 --- @field id number
 --- @field line number GitHub file-line (already remapped to original_line for `outdated`).
 --- @field path string For `outdated`: a synthetic key `outdated-<thread_id>:<real_path>`.
+--- @field side? 'LEFT'|'RIGHT' Diff side the comment anchors to. LEFT = deleted-line/old file, RIGHT = added/context/new file.
 --- @field start_line number
 --- @field updated_at string
 --- @field url string

@@ -31,14 +31,17 @@ local function flatten_threads_to_comments(threads)
       local head_line = nodes[1] and nodes[1].originalLine
       local head_start = nodes[1] and nodes[1].originalStartLine
       local head_path = nodes[1] and nodes[1].path
+      -- `diffSide` is a thread-level property in GraphQL; every comment in the thread inherits it.
+      local c_side = thread.diffSide
       for _, c in ipairs(nodes) do
         local c_path = (not vim.isnil(c.path)) and c.path or head_path
-        local effective_line = c.line
-        local effective_start = c.startLine
-        if thread.isOutdated then
-          effective_line = (not vim.isnil(c.originalLine)) and c.originalLine or head_line
-          effective_start = (not vim.isnil(c.originalStartLine)) and c.originalStartLine or head_start
-        end
+        -- LEFT-side (deleted-line) comments, and outdated threads, have a null `line` on HEAD; fallback to `originalLine` then.
+        local effective_line = (not vim.isnil(c.line)) and c.line
+          or (not vim.isnil(c.originalLine)) and c.originalLine
+          or head_line
+        local effective_start = (not vim.isnil(c.startLine)) and c.startLine
+          or (not vim.isnil(c.originalStartLine)) and c.originalStartLine
+          or head_start
         if not vim.isnil(effective_line) and not vim.isnil(c_path) then
           local reply_to
           if not vim.isnil(c.replyTo) and c.replyTo.databaseId then
@@ -53,6 +56,7 @@ local function flatten_threads_to_comments(threads)
             path = c_path,
             line = effective_line,
             start_line = effective_start,
+            side = c_side,
             updated_at = c.updatedAt,
             in_reply_to_id = reply_to,
             outdated = thread.isOutdated or false,
@@ -174,6 +178,7 @@ function M.get_pr_data(prnum, repo, opts, cb)
           reviewThreads(first:100){
             nodes{
               isOutdated isResolved
+              diffSide
               comments(first:100){
                 nodes{
                   databaseId body diffHunk path

@@ -114,6 +114,11 @@ PR diff is loaded:
 PR comments are loaded:
 - in a 'scrollbind' split window next to the diff window (if the scrollbind
   gets out of sync, try |:syncbind|).
+- when multiple comments anchor to the same diff line, every comment's
+  heading row is guaranteed; the remaining vertical budget is filled with
+  comment bodies in-order. If a comment can't fit, it shows `(truncated)`. The
+  full comment is always accessible via the diagnostic peek (`<C-w>d`) or the
+  quickfix list.
 - as diagnostics on the diff buffer (severity INFO, source "guh.nvim"):
   - Navigate using `vim.diagnostic.jump` (|]d| |[d|).
   - See comment details using `<C-w>d` |CTRL-W_d-default|.
@@ -203,7 +208,7 @@ GuhHeading
     Comment-thread heading line in the `guh://…/prcomments/` buffer.
 
 GuhWarning
-    Inline notices such as `(outdated)` and `(truncated)` in the
+    Inline notices such as `(outdated)`, `(truncated)`, `(viewed)` in the
     `guh://…/prcomments/` buffer.
 
 ==============================================================================
