@@ -244,7 +244,7 @@ function M.show(id, repo, diff_win, comments_list)
   vim.api.nvim_buf_clear_namespace(buf, heading_ns, 0, -1)
   for i, line in ipairs(out) do
     if line:sub(1, #HEADING_PREFIX) == HEADING_PREFIX then
-      vim.api.nvim_buf_set_extmark(buf, heading_ns, i - 1, 0, { line_hl_group = 'GuhHeading' })
+      vim.api.nvim_buf_set_extmark(buf, heading_ns, i - 1, 3, { hl_group = 'GuhHeading', end_col = 200, strict = false })
     end
   end
 

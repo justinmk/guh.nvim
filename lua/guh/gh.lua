@@ -195,13 +195,11 @@ function M.load_comments(id, repo, cb)
         local head_path = nodes[1] and nodes[1].path
         for _, c in ipairs(nodes) do
           local c_path = (not vim.isnil(c.path)) and c.path or head_path
-          local effective_line, effective_start
+          local effective_line = c.line
+          local effective_start = c.startLine
           if thread.isOutdated then
             effective_line = (not vim.isnil(c.originalLine)) and c.originalLine or head_line
             effective_start = (not vim.isnil(c.originalStartLine)) and c.originalStartLine or head_start
-          else
-            effective_line = c.line
-            effective_start = c.startLine
           end
           if not vim.isnil(effective_line) and not vim.isnil(c_path) then
             local reply_to
