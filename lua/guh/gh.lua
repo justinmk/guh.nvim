@@ -188,10 +188,22 @@ function M.load_comments(id, repo, cb)
       if not thread.isResolved then
         local nodes = vim.tbl_get(thread, 'comments', 'nodes') or {}
         local thread_id = nodes[1] and nodes[1].databaseId
+        -- Reply comments on outdated threads carry no originalLine of their own;
+        -- inherit from the head comment so they aren't filtered out below.
+        local head_line = nodes[1] and nodes[1].originalLine
+        local head_start = nodes[1] and nodes[1].originalStartLine
+        local head_path = nodes[1] and nodes[1].path
         for _, c in ipairs(nodes) do
-          local effective_line = thread.isOutdated and c.originalLine or c.line
-          local effective_start = thread.isOutdated and c.originalStartLine or c.startLine
-          if not vim.isnil(effective_line) and not vim.isnil(c.path) then
+          local c_path = (not vim.isnil(c.path)) and c.path or head_path
+          local effective_line, effective_start
+          if thread.isOutdated then
+            effective_line = (not vim.isnil(c.originalLine)) and c.originalLine or head_line
+            effective_start = (not vim.isnil(c.originalStartLine)) and c.originalStartLine or head_start
+          else
+            effective_line = c.line
+            effective_start = c.startLine
+          end
+          if not vim.isnil(effective_line) and not vim.isnil(c_path) then
             local reply_to
             if not vim.isnil(c.replyTo) and c.replyTo.databaseId then
               reply_to = c.replyTo.databaseId
@@ -202,7 +214,7 @@ function M.load_comments(id, repo, cb)
               user = { login = (not vim.isnil(c.author)) and c.author.login or '?' },
               body = c.body or '',
               diff_hunk = c.diffHunk or '',
-              path = c.path,
+              path = c_path,
               line = effective_line,
               start_line = effective_start,
               updated_at = c.updatedAt,

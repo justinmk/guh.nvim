@@ -1,4 +1,4 @@
---- @alias Feat 'logs'|'pr'|'prcomments'|'prdiff'|'issue'|'comment'|'merge'|'review'|'status'
+--- @alias Feat 'comment'|'edit'|'issue'|'logs'|'merge'|'pr'|'prcomments'|'prdiff'|'review'|'status'
 
 --- @class BufState
 --- Buffer-local b:guh dict.

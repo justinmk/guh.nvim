@@ -68,7 +68,7 @@ end
 --- @param repo string "owner/name"
 --- @param diff_win integer window of the diff buffer.
 --- @param comments_list table<string, GroupedComment[]>
-function M.show_scrollbind(id, repo, diff_win, comments_list)
+function M.show(id, repo, diff_win, comments_list)
   local diff_buf = vim.api.nvim_win_get_buf(diff_win)
   local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
@@ -76,6 +76,7 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
     vim.cmd [[botright vertical split]]
   end
   local buf = state.init_buf('prcomments', repo, id)
+  util.set_default_keymaps(buf)
 
   local win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(win, buf)
@@ -119,10 +120,11 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
   ---------------------------------------------------------------------------
   -- Step 2: Build text lines for the comment buffer
   ---------------------------------------------------------------------------
-  local lines = {}
-  for i = 1, #diff_lines do
-    lines[i] = ''
-  end
+  -- entries[i] = { 'line', 'line', … } for diff row i, or nil if nothing
+  -- anchored there. Heading lines are prefixed with `▎ ` so a syntax match
+  -- can highlight them (see Step 3).
+  local HEADING_PREFIX = '▎ '
+  local entries = {} ---@type table<integer, string[]>
 
   local function normalize_diff_path(p)
     p = p:gsub('^b/', '') -- remove Git diff prefix
@@ -146,33 +148,39 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
   local diagnostics = {} ---@type vim.Diagnostic[]
   for filename, comments_for_file in pairs(comments_list) do
     local normalized_filename = normalize_diff_path(filename)
-    for _, comment in ipairs(comments_for_file) do
-      local end_idx = find_idx(normalized_filename, comment.line)
+    for _, thread in ipairs(comments_for_file) do
+      local end_idx = find_idx(normalized_filename, thread.line)
       if end_idx then
-        local start_idx = find_idx(normalized_filename, comment.start_line) or end_idx
+        local start_idx = find_idx(normalized_filename, thread.start_line) or end_idx
         if start_idx > end_idx then
           start_idx, end_idx = end_idx, start_idx
         end
 
-        local body
-        if comment.body then
-          body = comment.body
-        elseif comment.comments then
-          body = table.concat(
-            vim.tbl_map(function(c)
-              return c.body or ''
-            end, comment.comments),
-            '\n'
-          )
-        end
-        if body and body ~= '' then
-          local author = comment.user or comment.comments[1].user
-          local date = comment.updated_at or comment.comments[1].updated_at
-          local first = comment.comments[1]
-          local tag = first.outdated and ' [outdated]' or ''
-          local prefix = ('%s %s `%s:%d`%s\n'):format(author, date, filename, comment.line, tag)
-          lines[start_idx] = (lines[start_idx] ~= '' and lines[start_idx] .. '\n' or '') .. prefix .. body
+        local thread_comments = thread.comments
+          or { { user = thread.user, updated_at = thread.updated_at, body = thread.body } }
+        local tag = thread_comments[1] and thread_comments[1].outdated and '(outdated) ' or ''
 
+        local thread_entries = entries[start_idx] or {}
+        for ci, c in ipairs(thread_comments) do
+          local heading = (ci == 1)
+              and ('%s%s%s %s `%s:%d`'):format(HEADING_PREFIX, tag, c.user or '?', c.updated_at or '', filename, thread.line)
+            or ('%s%s %s'):format(HEADING_PREFIX, c.user or '?', c.updated_at or '')
+          table.insert(thread_entries, heading)
+          if c.body and c.body ~= '' then
+            for _, bl in ipairs(vim.split(c.body, '\n', { plain = true })) do
+              table.insert(thread_entries, bl)
+            end
+          end
+        end
+        entries[start_idx] = thread_entries
+
+        local body = table.concat(
+          vim.tbl_map(function(c)
+            return c.body or ''
+          end, thread_comments),
+          '\n'
+        )
+        if body ~= '' then
           table.insert(diagnostics, {
             lnum = start_idx - 1,
             end_lnum = end_idx - 1,
@@ -201,7 +209,7 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
   -- a sibling comment isn't silently pushed down.
   local anchors = {}
   for i = 1, #diff_lines do
-    if lines[i] ~= '' then
+    if entries[i] then
       table.insert(anchors, i)
     end
   end
@@ -212,19 +220,33 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
   end
 
   for i, anchor in ipairs(anchors) do
-    local content_lines = vim.split(lines[anchor], '\n', { plain = true })
+    local thread_entries = entries[anchor]
     local next_anchor = anchors[i + 1] or (#diff_lines + 1)
     local max_lines = math.min(next_anchor - anchor, #diff_lines - anchor + 1)
-    if #content_lines > max_lines then
-      content_lines = vim.list_slice(content_lines, 1, max_lines)
-      content_lines[max_lines] = content_lines[max_lines] .. ' [truncated]'
+    if #thread_entries > max_lines then
+      thread_entries = vim.list_slice(thread_entries, 1, max_lines)
+      thread_entries[max_lines] = (thread_entries[max_lines] or '') .. ' (truncated)'
     end
-    for j, line in ipairs(content_lines) do
+    for j, line in ipairs(thread_entries) do
       out[anchor + j - 1] = line
     end
   end
 
+  for i = 1, #diff_lines do
+    if type(out[i]) ~= 'string' then
+      out[i] = ''
+    end
+  end
+
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
+
+  local heading_ns = vim.api.nvim_create_namespace('guh.heading')
+  vim.api.nvim_buf_clear_namespace(buf, heading_ns, 0, -1)
+  for i, line in ipairs(out) do
+    if line:sub(1, #HEADING_PREFIX) == HEADING_PREFIX then
+      vim.api.nvim_buf_set_extmark(buf, heading_ns, i - 1, 0, { line_hl_group = 'GuhHeading' })
+    end
+  end
 
   vim.cmd [[wincmd p]] -- Return to diff window.
   util.show_info_overlay(diff_buf, 'PR diff (`cc` to comment)')
@@ -233,6 +255,9 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true
   vim.bo[buf].filetype = 'markdown'
+  vim.api.nvim_buf_call(buf, function()
+    vim.cmd([[syntax match GuhWarning /(outdated)\|(truncated)/ containedin=ALL]])
+  end)
 
   -- Set scrollbind on both windows *after* writing the buffer content.
   vim.api.nvim_win_call(diff_win, function()
@@ -241,8 +266,6 @@ function M.show_scrollbind(id, repo, diff_win, comments_list)
   vim.api.nvim_win_call(win, function()
     vim.cmd [[setlocal scrollbind]]
   end)
-
-  util.set_default_keymaps(buf)
 end
 
 --- @param comment Comment

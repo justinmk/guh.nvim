@@ -1,3 +1,6 @@
+vim.api.nvim_set_hl(0, 'GuhHeading', { default = true, link = 'PmenuSel' })
+vim.api.nvim_set_hl(0, 'GuhWarning', { default = true, link = 'SpellBad' })
+
 local group = vim.api.nvim_create_augroup('guh.keymaps', { clear = true })
 
 -- ":edit guh://pr/owner/repo/N" (etc.) dispatches to :Guh.
@@ -60,6 +63,9 @@ vim.keymap.set('n', '<Plug>(guh-merge)', function()
 end, opts)
 vim.keymap.set('n', '<Plug>(guh-merge-admin)', function()
   require('guh.pr').merge_pr(true)
+end, opts)
+vim.keymap.set('n', '<Plug>(guh-edit)', function()
+  require('guh.pr').edit_pr()
 end, opts)
 vim.keymap.set({ 'n', 'x' }, '<Plug>(guh-comment)', '<cmd>GuhComment<cr>', opts)
 vim.keymap.set('n', '<Plug>(guh-comment-overview)', '<cmd>GuhComment!<cr>', opts)

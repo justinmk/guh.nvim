@@ -7,6 +7,8 @@ local bufs = {
   ---@type table<string, integer>
   comment = {},
   ---@type table<string, integer>
+  edit = {},
+  ---@type table<string, integer>
   issue = {},
   ---@type table<string, integer>
   logs = {},

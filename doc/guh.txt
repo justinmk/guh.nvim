@@ -32,7 +32,7 @@ To review a PR without doing a checkout in your repo:
 
 - Run `:Guh` to select and view a PR. |guh-commands|
   - Run it anytime later to refresh/reopen the PR view.
-- Hit `gd` to see the diff. |guh-diff|
+- Hit `dd` to see the diff. |guh-diff|
 - PR comments are loaded:
   - in a 'scrollbind' split window next to the diff window (if the
     scrollbind gets out of sync, try |:syncbind|).
@@ -73,20 +73,23 @@ Default mappings (local to `guh://` buffers):
   <Plug>(guh-comment)
 - `cC`: Comment on the PR/issue overview (top-level). |guh-comment|
   <Plug>(guh-comment-overview)
-- `gd`: View PR diff + comments. |guh-diff|
+- `c.`: Edit various properties on the PR/issue, by invoking `gh pr edit …` or
+  `gh issue edit …` in a :terminal.
+  <Plug>(guh-edit)
+- `dd`: View PR diff + comments. |guh-diff|
   <Plug>(guh-diff)
-- `gl`: View the most recent CI logs.
+- `dl`: View the most-recent CI logs for all job-names in the CI matrix.
   <Plug>(guh-logs)
-- `g?`: View this help section.
-  <Plug>(guh-help)
 - `R`: Refresh the current `guh://` buffer.
   <Plug>(guh-refresh)
+- `g?`: View this help section.
+  <Plug>(guh-help)
 
 
 ------------------------------------------------------------------------------
 View PR diff                                                        *guh-diff*
 
-`gd` on a PR view opens the diff + comments in 'scrollbind' split windows.
+`dd` on a PR view opens the diff + comments in 'scrollbind' split windows.
 The old, outdated diff is shown as necessary for old, unresolved comments.
 If all old comments are resolved, then only the current diff is shown.
 
