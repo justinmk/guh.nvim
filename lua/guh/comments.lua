@@ -279,12 +279,12 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
     vim.cmd([[syntax match GuhWarning /(outdated)\|(truncated)/ containedin=ALL]])
   end)
 
-  -- Set scrollbind on both windows *after* writing the buffer content.
+  -- Set scrollbind+cursorbind on both windows *after* writing the buffer content.
   vim.api.nvim_win_call(diff_win, function()
-    vim.cmd [[setlocal scrollbind]]
+    vim.cmd [[setlocal scrollbind cursorbind]]
   end)
   vim.api.nvim_win_call(win, function()
-    vim.cmd [[setlocal scrollbind]]
+    vim.cmd [[setlocal scrollbind cursorbind]]
   end)
 end
 
