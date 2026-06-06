@@ -273,6 +273,23 @@ function M.buf_keymap(buf, mode, lhs, desc, rhs)
   end
 end
 
+--- Replaces `buf` contents with `lines` and sets the buffer as non-writable scratch
+--- (buftype=nofile, 'nomodifiable', 'readonly').
+---
+--- @param buf integer
+--- @param lines string[]
+--- @param ft string filetype to apply.
+function M.buf_set_readonly_lines(buf, lines, ft)
+  vim.bo[buf].buftype = 'nofile'
+  vim.bo[buf].swapfile = false
+  vim.bo[buf].modifiable = true
+  vim.bo[buf].readonly = false
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  vim.bo[buf].readonly = true
+  vim.bo[buf].filetype = ft
+end
+
 --- Overwrites the current :terminal buffer with the given cmd.
 ---
 --- The buffer must have been initialized via `state.init_buf()` (`b:guh` is used to re-apply

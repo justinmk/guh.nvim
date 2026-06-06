@@ -28,15 +28,21 @@ local bufs = {
   status = {},
 }
 
+--- Canonical `bufs[feat][?]` lookup key for a (repo, id) pair.
+local function get_key(repo, id)
+  return repo and ('%s/%s'):format(repo, id) or tostring(id)
+end
+
 --- Gets the existing buf or creates a new one, for the given PR + feature.
 ---
 --- @param feat Feat
---- @param pr_or_issue string|number PR or issue number or "all" for special cases (e.g. status).
+--- @param repo string|nil "owner/name", or nil for non-thing-bound feats (e.g. "guh://status").
+--- @param id string|integer PR/issue number, or "all" for "guh://status".
 --- @param nocreate? boolean If true, return nil instead of creating a new buf.
 --- @return integer? buf
-function M.get_buf(feat, pr_or_issue, nocreate)
-  local id = tostring(pr_or_issue)
-  local b = bufs[feat][id]
+function M.get_buf(feat, repo, id, nocreate)
+  local key = get_key(repo, id)
+  local b = bufs[feat][key]
   if type(b) == 'number' and vim.api.nvim_buf_is_valid(b) then
     return b
   end
@@ -44,7 +50,7 @@ function M.get_buf(feat, pr_or_issue, nocreate)
     return nil
   end
   b = vim.api.nvim_create_buf(true, true)
-  bufs[feat][id] = b
+  bufs[feat][key] = b
   assert(type(b) == 'number')
   return b
 end
@@ -69,8 +75,7 @@ end
 --- @param id string|integer PR/issue number, or "all" for status.
 --- @return boolean true if the buffer exists and was focused, else false.
 function M.try_show(feat, repo, id)
-  local key = repo and ('%s/%s'):format(repo, id) or tostring(id)
-  local buf = M.get_buf(feat, key)
+  local buf = M.get_buf(feat, repo, id)
   local wins = vim.fn.win_findbuf(buf)
   if #wins > 0 then
     -- Already displayed elsewhere, focus it.
@@ -100,8 +105,8 @@ end
 --- @return string key the `(feat, key)` key
 function M.init_buf(feat, repo, id, bufstate)
   bufstate = bufstate or {}
-  local key = repo and ('%s/%s'):format(repo, id) or tostring(id)
-  local buf = M.get_buf(feat, key)
+  local key = get_key(repo, id)
+  local buf = assert(M.get_buf(feat, repo, id))
   M.show_buf(buf)
   if bufstate.id == nil then
     bufstate.id = id == 'all' and 0 or assert(tonumber(id))

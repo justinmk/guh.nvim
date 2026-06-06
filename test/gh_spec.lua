@@ -192,7 +192,7 @@ describe('features', function()
       local state = require('guh.state')
 
       local pr_id = 42
-      local buf = state.get_buf('prdiff', pr_id)
+      local buf = state.get_buf('prdiff', nil, pr_id)
       state.show_buf(buf)
       state.set_b_guh(buf, {
         id = pr_id,
@@ -231,7 +231,7 @@ describe('features', function()
 
       local pr_id = 99
       local repo = 'justinmk/guh.nvim'
-      local diff_buf = state.get_buf('prdiff', repo .. '/' .. pr_id)
+      local diff_buf = state.get_buf('prdiff', repo, pr_id)
       state.show_buf(diff_buf)
       state.set_b_guh(diff_buf, { id = pr_id, feat = 'prdiff', repo = repo })
 
@@ -296,7 +296,7 @@ describe('features', function()
 
       comments.show(pr_id, repo, diff_win, threads)
 
-      local prc = state.get_buf('prcomments', repo .. '/' .. pr_id)
+      local prc = state.get_buf('prcomments', repo, pr_id)
       local rows = vim.api.nvim_buf_get_lines(prc, 0, -1, false)
       -- Row 6 = ' context' (new=10) → RIGHT (bob) heading lands here.
       assert(rows[6] and rows[6]:match('^▎ .*bob'), ('row 6: %q'):format(rows[6] or '<nil>'))

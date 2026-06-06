@@ -22,6 +22,18 @@ local function resolve_local_repo()
   return repo
 end
 
+--- Resolves `(id, repo)` from a `:Guh` arg, falling back to `b:guh` and `resolve_local_repo()`.
+---
+--- @param opts integer|string|table|nil
+--- @return integer id
+--- @return string repo
+local function resolve_pr_target(opts)
+  local id =
+    assert((type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts) or (vim.b.guh or {}).id)
+  local repo = assert((vim.b.guh or {}).repo or resolve_local_repo(), 'Failed to resolve repo')
+  return id, repo
+end
+
 function M.select(opts)
   local arg = (opts or {}).args or ''
   if 0 == #arg then
@@ -86,15 +98,8 @@ function M.show_commit(sha, repo)
     -- Patch format's first line is "From <full-sha> Mon Sep 17 00:00:00 2001".
     local full_sha = stdout:match('^From%s+(%x+)') or sha
     local buf = state.init_buf('commit', repo, full_sha, { id = full_sha })
-    vim.bo[buf].buftype = 'nofile'
-    vim.bo[buf].swapfile = false
-    vim.bo[buf].modifiable = true
-    vim.bo[buf].readonly = false
     local lines = vim.split(stdout, '\n', { plain = true, trimempty = true })
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    vim.bo[buf].modifiable = false
-    vim.bo[buf].readonly = true
-    vim.bo[buf].filetype = 'gitcommit'
+    util.buf_set_readonly_lines(buf, lines, 'gitcommit')
     util.set_default_keymaps(buf)
     done('success')
   end)
@@ -158,7 +163,7 @@ function M.refresh()
   local b = vim.b.guh or {}
   state.set_b_guh(0, { pr_data = nil })
   if b.repo and b.id then
-    local pr_buf = state.get_buf('pr', ('%s/%s'):format(b.repo, b.id), true)
+    local pr_buf = state.get_buf('pr', b.repo, b.id, true)
     if pr_buf then
       state.set_b_guh(pr_buf, { pr_data = nil })
     end
@@ -361,9 +366,7 @@ end
 --- - "Viewed" files collapse to a `(viewed) <path>` line.
 --- - Diff + comments are presented as 2 'scrollbind' windows.
 function M.show_pr_diff(opts)
-  local id =
-    assert((type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts) or (vim.b.guh or {}).id)
-  local repo = (vim.b.guh or {}).repo or resolve_local_repo()
+  local id, repo = resolve_pr_target(opts)
   local buf = state.init_buf('prdiff', repo, id)
   local diff_win = vim.api.nvim_get_current_win()
 
@@ -376,15 +379,9 @@ function M.show_pr_diff(opts)
       return
     end
     local diff_lines, total = prepare_pr_diff(diff_stdout, viewed)
-    vim.bo[buf].buftype = 'nofile'
-    vim.bo[buf].swapfile = false
-    vim.bo[buf].modifiable = true
-    vim.bo[buf].readonly = false
     local all = vim.list_extend(vim.list_extend({}, outdated_lines), diff_lines)
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, all)
-    vim.bo[buf].modifiable = false
-    vim.bo[buf].readonly = true
-    vim.bo[buf].filetype = 'gitcommit' -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
+    -- filetype=gitcommit enables plugins like https://github.com/barrettruth/diffs.nvim
+    util.buf_set_readonly_lines(buf, all, 'gitcommit')
     vim.api.nvim_buf_call(buf, function()
       vim.cmd([[syntax match GuhWarning /^(viewed)/ containedin=ALL]])
     end)
@@ -476,9 +473,7 @@ end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
-  local id =
-    assert((type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts) or (vim.b.guh or {}).id)
-  local repo = (vim.b.guh or {}).repo or resolve_local_repo()
+  local id, repo = resolve_pr_target(opts)
   gh.get_pr_data(id, repo, nil, function(pr)
     if not pr then
       return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)

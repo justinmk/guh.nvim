@@ -143,7 +143,7 @@ function M.get_pr_data(prnum, repo, opts, cb)
       return cb(b_guh.pr_data)
     end
     -- Try to get b:guh.pr_data from the `/pr/…` buffer.
-    local pr_buf = state.get_buf('pr', ('%s/%s'):format(repo, prnum), true)
+    local pr_buf = state.get_buf('pr', repo, prnum, true)
     if pr_buf then
       local pr_data = (vim.b[pr_buf].guh or {}).pr_data
       if pr_data then
