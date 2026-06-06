@@ -318,9 +318,38 @@ function M.show_pr(id, repo)
   end)
 end
 
+--- Prepares the output of `gh pr diff` for display.
+---
+--- - Replaces "viewed" files with a single `(viewed) <path>` line.
+---
+--- @param difftext string Raw `gh pr diff` output.
+--- @param viewed table<string,boolean> Map of "viewed" files.
+--- @return string[] lines, integer total_files
+local function prepare_pr_diff(difftext, viewed)
+  local out, total = {}, 0
+  local skipping = false
+  for line in vim.gsplit(difftext, '\n', { plain = true, trimempty = true }) do
+    local path = line:match('^diff %-%-git a/(.-) b/')
+    if path then
+      total = total + 1
+      if viewed[path] then
+        table.insert(out, ('(viewed) %s'):format(path))
+        skipping = true
+      else
+        table.insert(out, line)
+        skipping = false
+      end
+    elseif not skipping then
+      table.insert(out, line)
+    end
+  end
+  return out, total
+end
+
 --- Shows PR diff + comments.
 --- - Outdated-unresolved diff + comments are shown at top.
 --- - Current diff + comments are shown after that.
+--- - "Viewed" files collapse to a `(viewed) <path>` line.
 --- - Diff + comments are presented as 2 'scrollbind' windows.
 function M.show_pr_diff(opts)
   local id =
@@ -332,29 +361,34 @@ function M.show_pr_diff(opts)
   local progress = util.new_progress_report('Loading PR diff...', buf)
   progress('running')
 
-  local outdated_lines, current_diff_lines, grouped
+  local outdated_lines, diff_stdout, grouped, viewed
   local function try_render()
-    if not outdated_lines or not current_diff_lines then
+    if not outdated_lines or not diff_stdout or not viewed then
       return
     end
+    local diff_lines, total = prepare_pr_diff(diff_stdout, viewed)
     vim.bo[buf].buftype = 'nofile'
     vim.bo[buf].swapfile = false
     vim.bo[buf].modifiable = true
     vim.bo[buf].readonly = false
-    local all = vim.list_extend(vim.list_extend({}, outdated_lines), current_diff_lines)
+    local all = vim.list_extend(vim.list_extend({}, outdated_lines), diff_lines)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, all)
     vim.bo[buf].modifiable = false
     vim.bo[buf].readonly = true
     vim.bo[buf].filetype = 'gitcommit' -- Useful to enable plugins like https://github.com/barrettruth/diffs.nvim
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd([[syntax match GuhWarning /^(viewed)/ containedin=ALL]])
+    end)
     util.set_default_keymaps(buf)
-    comments.show(id, repo, diff_win, assert(grouped))
+    comments.show(id, repo, diff_win, assert(grouped), viewed, total)
     progress('success')
   end
 
-  -- 1. Get outdated diff (for _unresolved_ comments on outdated diff hunks).
-  --    Empty if all old comments where resolved.
-  comments.get_comments(id, repo, function(g)
-    grouped = g
+  -- 1. Get review comments + per-file "viewed" state.
+  --    Outdated diff is built from the comments' diff_hunks; empty if all old comments were resolved.
+  comments.get_comments_and_files(id, repo, function(grouped_comments, v)
+    grouped = grouped_comments
+    viewed = v
     outdated_lines = comments.get_outdated_diff(g)
     try_render()
   end)
@@ -365,7 +399,7 @@ function M.show_pr_diff(opts)
       progress('failed', nil, vim.trim(stderr or ''))
       return
     end
-    current_diff_lines = vim.split(stdout or '', '\n', { plain = true, trimempty = true })
+    diff_stdout = stdout
     try_render()
   end)
 end

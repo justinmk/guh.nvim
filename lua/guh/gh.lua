@@ -49,6 +49,7 @@ local function parse_or_default(str, default)
 end
 
 --- Gets details for one "thing" from `gh` and parses the JSON response into an object.
+--- Skips the API call if b:guh is defined.
 ---
 --- @param cmd string[] gh command
 --- @param b_field string b:guh field to check for (and store) cached data.
@@ -124,19 +125,23 @@ function M.get_repo(cb)
   end)
 end
 
---- Fetches review comments via the GraphQL `reviewThreads` API so we get per-thread `isOutdated` / `isResolved`. Drops
---- resolved threads; flags each comment with its thread's `outdated` so the caller can handle outdated threads.
+--- Fetches PR review comments + per-file "viewed" state in one GraphQL round-trip.
+--- - Drops resolved threads.
+--- - Provides a per-comment `outdated` field, so the caller doesn't need to walk the "thread".
+--- - Provides a map of  `viewed` files.
+---
+--- Note: review threads and files are each capped at 100.
 ---
 --- @param id integer
 --- @param repo string "owner/name"
---- @param cb fun(comments: table[])
-function M.load_comments(id, repo, cb)
+--- @param cb fun(comments: table[], viewed: table<string,boolean>)
+function M.get_pr_data(id, repo, cb)
   assert(cb)
   vim.validate('repo', repo, 'string')
   local owner, name = repo:match('^([^/]+)/(.+)$')
   if not owner then
-    util.log('load_comments invalid repo', repo)
-    cb({})
+    util.log('get_pr_data invalid repo', repo)
+    cb({}, {})
     return
   end
   local query = [[
@@ -157,6 +162,9 @@ function M.load_comments(id, repo, cb)
               }
             }
           }
+          files(first:100){
+            nodes{ path viewerViewedState }
+          }
         }
       }
     }
@@ -176,12 +184,19 @@ function M.load_comments(id, repo, cb)
   }
   util.system(cmd, function(stdout, stderr, code)
     if code ~= 0 then
-      util.log('load_comments error', stderr)
-      cb({})
+      util.log('get_pr_data error', stderr)
+      cb({}, {})
       return
     end
     local resp = parse_or_default(stdout, {})
     local threads = vim.tbl_get(resp, 'data', 'repository', 'pullRequest', 'reviewThreads', 'nodes') or {}
+    local file_nodes = vim.tbl_get(resp, 'data', 'repository', 'pullRequest', 'files', 'nodes') or {}
+    local viewed = {}
+    for _, n in ipairs(file_nodes) do
+      if n.viewerViewedState == 'VIEWED' then
+        viewed[n.path] = true
+      end
+    end
     local result = {}
     for _, thread in ipairs(threads) do
       -- Drop resolved threads entirely.
@@ -224,8 +239,8 @@ function M.load_comments(id, repo, cb)
         end
       end
     end
-    util.log('load_comments resp', { count = #result })
-    cb(result)
+    util.log('get_pr_data resp', { comments = #result, viewed = vim.tbl_count(viewed) })
+    cb(result, viewed)
   end)
 end
 

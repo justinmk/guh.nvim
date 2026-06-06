@@ -100,6 +100,17 @@ The old, outdated diff is also shown if necessary for old, unresolved
 comments. If all old comments are resolved, then only the current diff is
 shown.
 
+PR diff is loaded:
+- starts with old "outdated" files if there are any _unresolved_ comments on
+  outdated files.
+- followed by the current HEAD diff.
+- files marked "Viewed" on github.com are collapsed to a single >
+      (viewed) path/to/file
+<
+  line, their hunks and comments are not loaded. The diff overlay shows
+  `PR diff (3/12 viewed)`. Refresh (`R`) to update after marking/unmarking
+  a file as "Viewed".
+
 PR comments are loaded:
 - in a 'scrollbind' split window next to the diff window (if the scrollbind
   gets out of sync, try |:syncbind|).

@@ -68,7 +68,11 @@ end
 --- @param repo string "owner/name"
 --- @param diff_win integer window of the diff buffer.
 --- @param comments_list table<string, GroupedComment[]>
-function M.show(id, repo, diff_win, comments_list)
+--- @param viewed? table<string,boolean> Set of "viewed" files.
+--- @param n_files? integer Count of all files in the HEAD diff.
+function M.show(id, repo, diff_win, comments_list, viewed, n_files)
+  viewed = viewed or {}
+  local n_viewed = vim.tbl_count(viewed)
   local diff_buf = vim.api.nvim_win_get_buf(diff_win)
   local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
@@ -145,9 +149,22 @@ function M.show(id, repo, diff_win, comments_list)
   end
 
   local diagnostics = {} ---@type vim.Diagnostic[]
-  for filename, comments_for_file in pairs(comments_list) do
+  --- Walks the comment threads on a non-"viewed" file. For each thread on visible diff, this function:
+  ---   - appends comment lines to `entries[start_idx]` (per-line list of text rows),
+  ---   - appends a `diagnostics` entry, scoped to the `[start_idx..end_idx]` range of `diff_buf`.
+  ---
+  --- Skips "viewed" files.
+  ---
+  --- @param filename string Key from `comments_list` (may be `outdated-<id>:<path>` format).
+  --- @param file_comments GroupedComment[]
+  local function process_file(filename, file_comments)
+    -- Skip "viewed" files. Strip "outdated-<id>:" to match the real path.
+    local real_path = filename:match('^outdated%-%d+:(.+)$') or filename
+    if viewed[real_path] then
+      return
+    end
     local normalized_filename = normalize_diff_path(filename)
-    for _, thread in ipairs(comments_for_file) do
+    for _, thread in ipairs(file_comments) do
       local end_idx = find_idx(normalized_filename, thread.line)
       if end_idx then
         local start_idx = find_idx(normalized_filename, thread.start_line) or end_idx
@@ -199,6 +216,9 @@ function M.show(id, repo, diff_win, comments_list)
       end
     end
   end
+  for filename, file_comments in pairs(comments_list) do
+    process_file(filename, file_comments)
+  end
 
   local ns = vim.api.nvim_create_namespace('guh.comments')
   vim.diagnostic.set(ns, diff_buf, diagnostics)
@@ -247,7 +267,8 @@ function M.show(id, repo, diff_win, comments_list)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
 
   vim.cmd [[wincmd p]] -- Return to diff window.
-  util.show_info_overlay(diff_buf, 'PR diff (`g?` for help)')
+  local viewed_msg = (n_files and n_files > 0) and (' (%d/%d viewed)'):format(n_viewed, n_files) or ''
+  util.show_info_overlay(diff_buf, ('PR diff%s (`g?` for help)'):format(viewed_msg))
   util.show_info_overlay(buf, 'PR comments (`g?` for help)')
 
   -- vim.bo[buf].modifiable = false
@@ -309,7 +330,7 @@ end
 --- Reshapes the flat list of GitHub review comments into per-file threads. Each `GroupedComment` is
 --- a thread identified by `in_reply_to_id`.
 ---
---- @param gh_comments table[] flat list from `gh.load_comments`.
+--- @param gh_comments table[] flat list from `gh.get_pr_data`.
 --- @param cb fun(grouped: table<string, GroupedComment[]>)
 local function group_comments(gh_comments, cb)
   --- @type table<number, Comment[]>
@@ -350,14 +371,15 @@ local function group_comments(gh_comments, cb)
   cb(result)
 end
 
---- Fetches review comments and groups them by path.
+--- Fetches review comments + per-file "viewed" state.
+--- Comments are grouped by path; "outdated" paths are renamed as `outdated-<id>:<path>`.
 ---
 --- @param prnum integer
 --- @param repo string "owner/name"
---- @param cb fun(grouped: table<string, GroupedComment[]>)
-function M.get_comments(prnum, repo, cb)
+--- @param cb fun(grouped: table<string, GroupedComment[]>, viewed: table<string,boolean>)
+function M.get_comments_and_files(prnum, repo, cb)
   assert(type(prnum) == 'number')
-  gh.load_comments(prnum, assert(repo), function(comments)
+  gh.get_pr_data(prnum, assert(repo), function(comments, viewed)
     -- Reassign outdated comments to synthetic per-thread paths so they
     -- 1. group into their own GroupedComment buckets and
     -- 2. match the synthesized `+++ b/<synthetic>` we prepend on the diff.
@@ -370,7 +392,7 @@ function M.get_comments(prnum, repo, cb)
     end
     group_comments(comments, function(grouped)
       util.log(('grouped pr comments (total: %s)'):format(vim.tbl_count(grouped)), grouped)
-      cb(grouped)
+      cb(grouped, viewed)
     end)
   end)
 end

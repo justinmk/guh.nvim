@@ -55,14 +55,16 @@ Requirements:
 2. Sets global `<Plug>(guh-…)` keymaps. Provides default buffer-local mappings
    if you don't set any mappings to the `<Plug>` mappings.
 3. `:Guh` is the main entrypoint. It shows status, or views a given item (PR, issue).
-4. Presents PR diff comments:
+4. PR diff comments are presented:
     - in a 'scrollbind' split window
     - as "diagnostics" (`vim.diagnostic`), loaded in quickfix
-5. Loads most-recent CI logs for all "jobs" in the CI matrix.
-6. (TODO) Fetch the git data into `.git` (without doing a checkout).
-7. (TODO) When viewing the diff, user can navigate to the git object (file)
+5. PR files marked as "Viewed" are collapsed to a `(viewed) <path>` line.
+   The diff overlay shows `(N/M viewed)`.
+6. Loads most-recent CI logs for all "jobs" in the CI matrix.
+7. (TODO) Fetch the git data into `.git` (without doing a checkout).
+8. (TODO) When viewing the diff, user can navigate to the git object (file)
    without doing a checkout.
-8. (TODO) PR comments will display on relevant *local* git objects.
+9. (TODO) PR comments will display on relevant *local* git objects.
 
 ## Development
 
