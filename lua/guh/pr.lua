@@ -159,9 +159,8 @@ function M.refresh()
   if feat == 'status' then
     return M.show_status()
   end
-  -- Drop cached pr_data on the current buffer AND on the sibling "/pr/…" buf, so `gh.get_pr_data` doesn't use stale data.
+  -- Drop cached pr_data on the `/pr/…` buf so `gh.get_pr_data` doesn't use stale data.
   local b = vim.b.guh or {}
-  state.set_b_guh(0, { pr_data = nil })
   if b.repo and b.id then
     local pr_buf = state.get_buf('pr', b.repo, b.id, true)
     if pr_buf then

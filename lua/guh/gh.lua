@@ -127,10 +127,12 @@ end
 --- - Provides a map of  `viewed` files.
 --- - Threads and files are limited to 100.
 ---
---- If `force` is not true, skips the API call and gets data from b:guh on curbuf, else tries
+--- If `opts.force` is true, skips the API call and gets data from b:guh on curbuf, else tries
 --- the `/pr/…` buffer for the given `(repo, prnum)` key.
 ---
---- @param prnum string|number PR number.
+--- Note: The cache lives on the `pr/…` buffer (single-source-of-truth).
+---
+--- @param prnum string|integer PR number.
 --- @param repo string "owner/name".
 --- @param opts? { force?: boolean }
 --- @param cb fun(pr?: PullRequest)
@@ -138,18 +140,11 @@ function M.get_pr_data(prnum, repo, opts, cb)
   vim.validate('repo', repo, 'string')
   opts = opts or {}
   if not opts.force then
-    local b_guh = vim.b.guh or {}
-    if b_guh.pr_data then
-      return cb(b_guh.pr_data)
-    end
-    -- Try to get b:guh.pr_data from the `/pr/…` buffer.
+    -- Try to get b:guh.pr_data from the `pr/…` buffer.
     local pr_buf = state.get_buf('pr', repo, prnum, true)
-    if pr_buf then
-      local pr_data = (vim.b[pr_buf].guh or {}).pr_data
-      if pr_data then
-        state.set_b_guh(0, { pr_data = pr_data })
-        return cb(pr_data)
-      end
+    local pr_data = pr_buf and (vim.b[pr_buf].guh or {}).pr_data
+    if pr_data then
+      return cb(pr_data)
     end
   end
   local owner, name = repo:match('^([^/]+)/(.+)$')
@@ -210,7 +205,6 @@ function M.get_pr_data(prnum, repo, opts, cb)
     '-f',
     'query=' .. query,
   }
-  local buf = vim.api.nvim_get_current_buf()
   util.system(cmd, function(stdout, stderr, code)
     if code ~= 0 then
       util.log('get_pr_data error', stderr)
@@ -223,7 +217,8 @@ function M.get_pr_data(prnum, repo, opts, cb)
       return cb(nil)
     end
     local pr = to_pr(node)
-    state.set_b_guh(buf, { pr_data = pr })
+    -- Cache on the `pr/…` buffer only (single-source-of-truth). Create it if needed.
+    state.set_b_guh(assert(state.get_buf('pr', repo, prnum)), { pr_data = pr })
     util.log('get_pr_data resp', { comments = #pr.raw_comments, viewed = vim.tbl_count(pr.viewed) })
     cb(pr)
   end)
