@@ -129,7 +129,7 @@ describe('pr + comments view', function()
             assert(thread.id, 'thread.id missing')
             assert(type(thread.line) == 'number', 'thread.line should be number')
             assert(
-              type(thread.start_line) == 'number' or thread.start_line == vim.NIL,
+              type(thread.start_line) == 'number' or thread.start_line == nil,
               'thread.start_line should be number or nil'
             )
             assert(type(thread.url) == 'string', 'thread.url should be string')
@@ -141,7 +141,7 @@ describe('pr + comments view', function()
               assert(type(comment.path) == 'string', 'comment.path should be string')
               assert(type(comment.line) == 'number', 'comment.line should be number')
               assert(
-                type(comment.start_line) == 'number' or comment.start_line == vim.NIL,
+                type(comment.start_line) == 'number' or comment.start_line == nil,
                 'comment.start_line should be number or nil'
               )
               assert(type(comment.user) == 'string', 'comment.user should be string')
