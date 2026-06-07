@@ -23,7 +23,7 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
 vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
   pattern = { 'guh://*/prdiff/*', 'guh://*/prcomments/*' },
   group = group,
-  command = 'syncbind',
+  command = 'keepjumps syncbind',
 })
 
 vim.api.nvim_create_autocmd('BufFilePost', {

@@ -19,12 +19,22 @@ local comment_hl_ns = vim.api.nvim_create_namespace('guh.comment_hl')
 local outdated_prefix_pat = '^outdated%-%d+:'
 local outside_prefix_pat = '^outside%-%d+:'
 
--- Flashes a text region so the user can see what an action
+-- Flashes a text region so the user can see the target of an action.
 local function flash_region(buf, line1, line2)
   vim.hl.range(buf, comment_hl_ns, 'Visual', { line1 - 1, 0 }, { line2 - 1, -1 }, {
     priority = 300, -- Overrule diffs.nvim: https://github.com/barrettruth/diffs.nvim/blob/d280baf3e937a487038766f51156dd41ceb0f8e7/lua/diffs/config.lua#L124-L129
     timeout = 200,
   })
+end
+
+-- Returns the 1-indexed inclusive [line1, line2] of the rendered comment block at cursor.
+local function find_block()
+  local line1 = vim.fn.search([[^▎]], 'bcnW')
+  if line1 == 0 then
+    return nil
+  end
+  local blank = vim.fn.search([[^$]], 'nW')
+  return { line1, blank == 0 and vim.fn.line('$') or blank - 1 }
 end
 
 --- Builds a self-contained mini-diff for threads matching `file_prefix`. Each thread becomes
@@ -583,10 +593,12 @@ function M.update_comment(linenr)
   if not prnum then
     return
   end
+  local block = find_block()
 
   local function do_it(cand)
     local c = cand.comment
-    flash_region(buf, cand.range[1] + 1, cand.range[2] + 1)
+    local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
+    flash_region(buf, r[1], r[2])
     local content = vim.split(c.body or '', '\n', { plain = true })
     M.edit_comment(
       'comment',
@@ -619,10 +631,12 @@ function M.reply_or_resolve(linenr)
   if not prnum then
     return
   end
+  local block = find_block()
 
   local function do_it(cand)
     local c = cand.comment
-    flash_region(buf, cand.range[1] + 1, cand.range[2] + 1)
+    local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
+    flash_region(buf, r[1], r[2])
 
     vim.ui.select({ 'Reply', 'Resolve' }, {
       prompt = ('Thread on %s:%d:'):format(c.path or '?', c.line or 0),
@@ -723,7 +737,7 @@ function M.prepare_to_comment(line1, line2)
   }
 end
 
---- Posts a file comment on the line at cursor.
+--- Posts a file comment on the diff-line at cursor.
 ---
 --- @param line1 integer 1-indexed line
 --- @param line2 integer 1-indexed line
