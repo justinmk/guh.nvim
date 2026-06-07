@@ -25,7 +25,7 @@ slug, or commit-id (SHA):
     :Guh guh://neovim/neovim/pr/35951
     :Guh https://github.com/neovim/neovim/commit/a1b2c3d
 
-Inside any `guh://` buffer, press `<CR>` to run `:Guh` on the target at cursor.
+Inside any `guh://` buffer, press `<Enter>` to run `:Guh` on the target at cursor.
 
 Editable buffers (comments, merge message) confirm the action on
 write-and-close:

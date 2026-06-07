@@ -172,17 +172,16 @@ function M.refresh()
 end
 
 --- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
----
---- @param admin? boolean pass `--admin` to bypass branch protections.
-function M.merge_pr(admin)
+function M.merge_pr()
   local id, repo = util.require_b_guh({ 'id', 'repo' })
   if not id then
     return
   end
 
-  local function do_merge(method, subject, body)
-    local label = admin and (method .. ', admin') or method
-    local done = util.progress(('Merging PR #%s (%s)…'):format(id, label))
+  local function do_merge(choice, subject, body)
+    local method = choice:match('^(%S+)')
+    local admin = choice:find('--admin', 1, true) ~= nil
+    local done = util.progress(('Merging PR #%s (%s)…'):format(id, choice))
     gh.merge_pr(id, repo, method, subject, body, admin, function(ok, stderr)
       done(ok and 'success' or 'failed')
       if ok then
@@ -193,9 +192,11 @@ function M.merge_pr(admin)
     end)
   end
 
-  local function with_method(method)
+  local function with_choice(choice)
+    local method = choice:match('^(%S+)')
+    local admin = choice:find('--admin', 1, true) ~= nil
     if method == 'rebase' then
-      return do_merge(method)
+      return do_merge(choice)
     end
     gh.get_pr_data(id, repo, nil, function(pr)
       if not pr then
@@ -228,27 +229,24 @@ function M.merge_pr(admin)
         end
         local text = ('%s\n\n%s'):format(subject, body):gsub('\r', '')
         local content = vim.split(text, '\n', { plain = true })
-        local tag = admin and ('[%s, --admin]'):format(method) or ('[%s]'):format(method)
-        local msg = ('%s First line = subject; rest = body. ZZ to merge (ZQ to abort).'):format(tag)
+        local msg = ('[%s] First line = subject; rest = body. ZZ to merge (ZQ to abort).'):format(choice)
         comments.edit_comment('merge', id, content, { msg, admin and 'DiagnosticError' }, function(input)
           local subject, body = input:match('^([^\n]*)\n?(.*)$')
-          do_merge(method, subject, vim.trim(body or ''))
+          do_merge(choice, subject, vim.trim(body or ''))
         end)
       end)
     end)
   end
 
-  local methods = { 'squash', 'merge', 'rebase' }
+  local choices = { 'squash', 'merge', 'rebase', 'squash --admin', 'merge --admin', 'rebase --admin' }
   local count = vim.v.count
-  if count >= 1 and count <= #methods then
-    return with_method(methods[count])
+  if count >= 1 and count <= #choices then
+    return with_choice(choices[count])
   end
 
-  vim.ui.select(methods, {
-    prompt = admin and ('Merge (--admin) PR #%s by:'):format(id) or ('Merge PR #%s by:'):format(id),
-  }, function(method)
-    if method then
-      with_method(method)
+  vim.ui.select(choices, { prompt = ('Merge PR #%s by:'):format(id) }, function(choice)
+    if choice then
+      with_choice(choice)
     end
   end)
 end

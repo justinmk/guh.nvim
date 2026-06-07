@@ -63,33 +63,35 @@ those |<Plug>| keys to "override" the default Guh keymaps. When a `guh://`
 buffer is opened it sets buffer-local default mappings unless you have defined
 such an override.
 
-Example: the `<Plug>(guh-merge)` feature is mapped to "cm" by default, but you
-can override it by mapping it to <F5>, then Guh will not map "cm": >vim
+Example: the `<Plug>(guh-merge)` feature is mapped to "cM" by default, but you
+can override it by mapping it to <F5>, then Guh will not map "cM": >vim
   nmap <F5> <Plug>(guh-merge)
 <
 Default mappings (local to `guh://` buffers):
-- `<CR>` in any `guh://` buffer runs |:Guh| on the target at cursor.
-- `cr`: Review PR (approve / request-changes / comment).
-  <Plug>(guh-review)
-- `cm`: Merge PR. |guh-merge|
-  <Plug>(guh-merge)
-- `cM`: Merge PR with `--admin` (bypass branch protections). |guh-merge|
-  <Plug>(guh-merge-admin)
-- `cc`: Comment on a PR/issue/diff line. Also `c` in Visual mode. |guh-comment|
-  In a `guh://…/prcomments/` buffer: edits the comment at cursor.
-  <Plug>(guh-comment)
-- `cC`: Comment on the PR/issue overview (top-level). |guh-comment|
-  <Plug>(guh-comment-overview)
-- `c.`: Edit various properties on the PR/issue, via `gh` in a :terminal.
-  <Plug>(guh-edit)
-- `dd`: View PR diff + comments. |guh-diff|
-  <Plug>(guh-diff)
-- `dl`: View the most-recent CI logs for all job-names in the CI matrix.
-  <Plug>(guh-logs)
-- `R`: Refresh the current `guh://` buffer.
-  <Plug>(guh-refresh)
-- `g?`: View this help section.
-  <Plug>(guh-help)
+
+- "Global" (buffer-relative) VIEW actions:
+  - `R` Refresh the current `guh://` buffer.
+    <Plug>(guh-refresh)
+  - `dd` View PR diff + comments. |guh-diff|
+    <Plug>(guh-diff)
+  - `dl` View the most-recent CI logs for all job-names in the CI matrix.
+    <Plug>(guh-logs)
+  - `g?` View this help section.
+    <Plug>(guh-help)
+- "Global" (buffer-relative) UPDATE actions:
+  - `cC` Comment on the PR/issue (top-level). |guh-comment|
+    <Plug>(guh-comment-overview)
+  - `cM` Merge PR. |guh-merge|
+    <Plug>(guh-merge)
+  - `cR` Review PR (approve / request-changes / comment).
+    <Plug>(guh-review)
+  - `c:` Edit various properties, via `gh` in a :terminal.
+    <Plug>(guh-edit)
+- "Local" (cursor-relative) actions:
+  - `<Enter>` invokes |:Guh| on the target at cursor.
+  - `cc` (or `c` in Visual mode): Comment on a diff-line. |guh-comment|
+    In a `guh://…/prcomments/` buffer, edits the comment at cursor.
+    <Plug>(guh-comment)
 
 
 ------------------------------------------------------------------------------
@@ -147,11 +149,15 @@ See |:GuhComment|.
 ------------------------------------------------------------------------------
 Merging PRs                                                        *guh-merge*
 
-`cm` on a PR view opens a picker ("squash"/"merge"/"rebase").
-`[count]cm` skips the picker:
-- `1cm` = squash
-- `2cm` = merge
-- `3cm` = rebase
+`cM` on a PR view opens a picker:
+- 1. squash
+- 2. merge
+- 3. rebase
+- 4. squash --admin (bypass branch protections)
+- 5. merge --admin (bypass branch protections)
+- 6. rebase --admin (bypass branch protections)
+
+`[count]cM` skips the picker (e.g. `1cM` = squash, `5cM` = merge --admin).
 
 For "squash" and "merge", Guh presents a `guh://…/merge/<id>` buffer,
 prefilled with the PR title and body (first line = `--subject`, rest = `--body`).
@@ -160,11 +166,11 @@ Write-and-close to confirm the "merge" action. |guh-confirm|
 ------------------------------------------------------------------------------
 Review PRs: approve, request changes, or reject                   *guh-review*
 
-`cr` on a PR view opens a picker ("approve"/"request-changes"/"comment").
-`[count]cr` skips the picker:
-- `1cr` = approve
-- `2cr` = request-changes
-- `3cr` = comment
+`cR` on a PR view opens a picker ("approve"/"request-changes"/"comment").
+`[count]cR` skips the picker:
+- `1cR` = approve
+- `2cR` = request-changes
+- `3cR` = comment
 
 To confirm the "review" action, Guh presents a `guh://…/review/<id>` buffer.
 Write-and-close to confirm the "review" action. |guh-confirm|
@@ -191,8 +197,8 @@ With [target]: views or refreshes the PR, issue, or commit given by:
     :Guh #35951
 <
 Commits are fetched via the GitHub API (no local checkout required) and
-shown as a 'gitcommit' buffer. <CR> on a SHA inside any `guh://` buffer
-(e.g. the commit list in a PR view) loads it.
+shown as a 'gitcommit' buffer. <Enter> on a SHA in any `guh://` buffer, opens
+that commit.
 
 Related gh commands: >
     gh status

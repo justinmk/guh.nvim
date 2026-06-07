@@ -212,21 +212,24 @@ end
 --- Sets a buffer-local `lhs` → `rhs_plug` mapping, unless the user already
 --- mapped that `<Plug>` to a different key (per |hasmapto()|).
 ---
+--- @param mode string|string[] Mode name, or list thereof.
 --- @param extra? table extra keymap opts (e.g. `{ nowait = true }`).
 function M.map_default(buf, mode, lhs, rhs_plug, desc, extra)
-  local has = vim.api.nvim_buf_call(buf, function()
-    return vim.fn.hasmapto(rhs_plug, mode) ~= 0
-  end)
-  if has then
-    return
+  local modes = type(mode) == 'table' and mode or { mode }
+  for _, m in ipairs(modes) do
+    local has = vim.api.nvim_buf_call(buf, function()
+      return vim.fn.hasmapto(rhs_plug, m) ~= 0
+    end)
+    if not has then
+      local opts = vim.tbl_extend('keep', extra or {}, {
+        buffer = buf,
+        remap = true,
+        silent = true,
+        desc = desc,
+      })
+      vim.keymap.set(m, lhs, rhs_plug, opts)
+    end
   end
-  local opts = vim.tbl_extend('keep', extra or {}, {
-    buffer = buf,
-    remap = true,
-    silent = true,
-    desc = desc,
-  })
-  vim.keymap.set(mode, lhs, rhs_plug, opts)
 end
 
 --- Defines buffer-local defaults for the global `<Plug>(guh-…)` mappings, if necessary.
@@ -234,17 +237,20 @@ end
 ---
 --- @param buf integer
 function M.set_default_keymaps(buf)
-  M.map_default(buf, 'n', 'cr', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
-  M.map_default(buf, 'n', 'cm', '<Plug>(guh-merge)', 'Merge PR')
-  M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge-admin)', 'Merge PR (--admin)')
-  M.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
-  M.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
-  M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-overview)', 'Comment on PR/issue overview')
-  M.map_default(buf, 'n', 'c.', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`)')
+  -- "Global" (buffer-relative) VIEW actions:
+  M.map_default(buf, 'n', 'R', '<Plug>(guh-refresh)', 'Refresh this guh:// buffer')
   M.map_default(buf, 'n', 'dd', '<Plug>(guh-diff)', 'View the PR diff')
   M.map_default(buf, 'n', 'dl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
   M.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
-  M.map_default(buf, 'n', 'R', '<Plug>(guh-refresh)', 'Refresh this guh:// buffer')
+
+  -- "Global" (buffer-relative) UPDATE actions:
+  M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-overview)', 'Comment on PR/issue overview')
+  M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge)', 'Merge PR')
+  M.map_default(buf, 'n', 'cR', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
+  M.map_default(buf, 'n', 'c:', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`, `gh issue edit`)')
+
+  -- "Local" (cursor-relative) actions:
+  M.map_default(buf, { 'n', 'x' }, 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
 end
 
 function M.buf_keymap(buf, mode, lhs, desc, rhs)

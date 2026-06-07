@@ -23,7 +23,7 @@ vim.api.nvim_create_autocmd('BufFilePost', {
   pattern = 'guh://*',
   group = group,
   callback = function(args)
-    vim.keymap.set('n', '<CR>', function()
+    vim.keymap.set('n', '<Enter>', function()
       local util = require('guh.util')
       local text = vim.fn.expand('<cWORD>')
       -- Flash the cWORD so the user can see what got picked.
@@ -60,9 +60,6 @@ vim.keymap.set('n', '<Plug>(guh-review)', function()
 end, opts)
 vim.keymap.set('n', '<Plug>(guh-merge)', function()
   require('guh.pr').merge_pr()
-end, opts)
-vim.keymap.set('n', '<Plug>(guh-merge-admin)', function()
-  require('guh.pr').merge_pr(true)
 end, opts)
 vim.keymap.set('n', '<Plug>(guh-edit)', function()
   require('guh.pr').edit_pr()
