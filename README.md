@@ -60,8 +60,9 @@ Requirements:
     - as "diagnostics" (`vim.diagnostic`), loaded in quickfix
 5. Work with comments:
     - Create
+    - Reply
     - Update
-    - (TODO) Resolve
+    - Resolve
 6. PR files marked as "Viewed" are collapsed to a `(viewed) <path>` line.
    The diff overlay shows `(N/M viewed)`.
     - (TODO) Set/reset the "Viewed" state of a file.

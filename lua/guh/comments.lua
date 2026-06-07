@@ -135,7 +135,10 @@ end
 --- @param comments_list table<string, CommentThread[]>
 --- @param viewed? table<string,boolean> Set of "viewed" files.
 --- @param n_files? integer Count of all files in the HEAD diff.
-function M.show(id, repo, diff_win, comments_list, viewed, n_files)
+--- @param n_threads? integer Total review-thread count (resolved + unresolved).
+--- @param n_resolved? integer Resolved review-thread count.
+--- @param n_viewed_comments? integer Count of comments hidden because their file is "viewed".
+function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n_resolved, n_viewed_comments)
   viewed = viewed or {}
   local n_viewed = vim.tbl_count(viewed)
   local diff_buf = vim.api.nvim_win_get_buf(diff_win)
@@ -345,8 +348,12 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
 
   vim.cmd [[wincmd p]] -- Return to diff window.
   local viewed_msg = (n_files and n_files > 0) and (' (%d/%d viewed)'):format(n_viewed, n_files) or ''
-  util.show_info_overlay(diff_buf, ('PR diff%s (`g?` for help)'):format(viewed_msg))
-  util.show_info_overlay(buf, 'PR comments (`g?` for help)')
+  local resolved_msg = (n_threads and n_threads > 0) and (' (%d/%d resolved)'):format(n_resolved or 0, n_threads) or ''
+  util.show_info_overlay(diff_buf, ('PR diff%s%s (`g?` for help)'):format(viewed_msg, resolved_msg))
+  local hidden_msg = (n_viewed_comments and n_viewed_comments > 0)
+      and (' Not showing %d comments in VIEWED files.'):format(n_viewed_comments)
+    or ''
+  util.show_info_overlay(buf, ('PR comments.%s (`g?` for help)'):format(hidden_msg))
 
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true
@@ -480,14 +487,18 @@ end
 ---   - Collapses VIEWED files.
 ---   - Groups comments into per-file threads (`to_threads`).
 ---
---- @param raw_comments Comment[]   Flat per-comment list from `gh.get_pr_data`. Mutated in-place to rewrite paths.
---- @param viewed table<string,boolean>
+--- @param pr_data PullRequest Note: `raw_comments` is mutated in-place to rewrite paths.
 --- @param diff_stdout string  Raw `gh pr diff` output.
---- @param cb fun(lines: string[], threads: table<string,CommentThread[]>, n_files: integer)
-function M.render_diff(raw_comments, viewed, diff_stdout, cb)
+--- @param cb fun(lines: string[], threads: table<string,CommentThread[]>, n_files: integer, n_viewed_comments: integer)
+function M.render_diff(pr_data, diff_stdout, cb)
+  local viewed = pr_data.viewed
   local diff_lines, n_files = prepare_pr_diff(diff_stdout, viewed)
   local line_map = to_line_map(diff_lines)
-  for _, c in ipairs(raw_comments) do
+  local n_viewed_comments = 0
+  for _, c in ipairs(pr_data.raw_comments) do
+    if viewed[c.path] then
+      n_viewed_comments = n_viewed_comments + 1
+    end
     if c.thread_id then
       if c.outdated then
         c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
@@ -498,7 +509,7 @@ function M.render_diff(raw_comments, viewed, diff_stdout, cb)
       end
     end
   end
-  M.to_threads(raw_comments, function(threads)
+  M.to_threads(pr_data.raw_comments, function(threads)
     local lines = vim
       .iter({
         to_offdiff_section(threads, 'outdated'),
@@ -507,7 +518,7 @@ function M.render_diff(raw_comments, viewed, diff_stdout, cb)
       })
       :flatten()
       :totable()
-    cb(lines, threads, n_files)
+    cb(lines, threads, n_files, n_viewed_comments)
   end)
 end
 

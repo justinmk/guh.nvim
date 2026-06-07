@@ -18,12 +18,17 @@ end
 
 --- Takes nested threads (GraphQL: `reviewThreads.nodes`) and produces a flat list of comments.
 ---
---- @return Comment[]
+--- @return Comment[] comments
+--- @return integer n_threads total thread count
+--- @return integer n_resolved resolved thread count
 local function flatten_threads_to_comments(threads)
   local out = {}
+  local n_resolved = 0
   for _, thread in ipairs(threads or {}) do
-    -- Drop resolved threads entirely.
-    if not thread.isResolved then
+    if thread.isResolved then
+      -- Drop resolved threads entirely.
+      n_resolved = n_resolved + 1
+    else
       local nodes = vim.tbl_get(thread, 'comments', 'nodes') or {}
       local thread_id = nodes[1] and nodes[1].databaseId
       -- GraphQL global node id (e.g. "PRRT_kw…"). Needed by the resolveReviewThread mutation.
@@ -69,7 +74,7 @@ local function flatten_threads_to_comments(threads)
       end
     end
   end
-  return out
+  return out, #(threads or {}), n_resolved
 end
 
 --- Builds a PR object from a `get_pr_data` result (GraphQL: `pullRequest`).
@@ -86,7 +91,8 @@ local function to_pr(node)
       viewed[n.path] = true
     end
   end
-  local flattened_comments = flatten_threads_to_comments(vim.tbl_get(node, 'reviewThreads', 'nodes') or {})
+  local flattened_comments, n_threads, n_resolved =
+    flatten_threads_to_comments(vim.tbl_get(node, 'reviewThreads', 'nodes') or {})
 
   return {
     author = node.author,
@@ -107,6 +113,8 @@ local function to_pr(node)
     url = node.url,
     raw_comments = flattened_comments,
     viewed = viewed,
+    n_threads = n_threads,
+    n_resolved = n_resolved,
   }
 end
 

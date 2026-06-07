@@ -49,7 +49,7 @@
 --- @field messageBody string
 --- @field authors table[]
 
---- @class PullRequest
+--- @class PullRequest PR data selected from GraphQL by `gh.get_pr_data`.
 --- @field author table
 --- @field baseRefName string
 --- @field baseRefOid string
@@ -68,3 +68,5 @@
 --- @field url string
 --- @field raw_comments Comment[] Flat per-comment list from `flatten_review_threads`.
 --- @field viewed table<string, boolean> Per-file "Viewed" flag.
+--- @field n_threads integer Total review-thread count (resolved + unresolved).
+--- @field n_resolved integer Resolved review-thread count.

@@ -348,7 +348,7 @@ function M.show_pr_diff(opts)
     if not pr_data or not diff_stdout then
       return
     end
-    comments.render_diff(pr_data.raw_comments, pr_data.viewed, diff_stdout, function(lines, threads, n_files)
+    comments.render_diff(pr_data, diff_stdout, function(lines, threads, n_files, n_viewed_comments)
       util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
       -- filetype=gitcommit enables plugins like https://github.com/barrettruth/diffs.nvim
       util.buf_set_readonly_lines(buf, lines, 'gitcommit')
@@ -358,7 +358,17 @@ function M.show_pr_diff(opts)
         vim.cmd([[syntax match GuhWarning /\<\(outdated\|outside\)\ze-\d\+:/ containedin=ALL]])
       end)
       util.set_default_keymaps(buf)
-      comments.show(id, repo, diff_win, threads, pr_data.viewed, n_files)
+      comments.show(
+        id,
+        repo,
+        diff_win,
+        threads,
+        pr_data.viewed,
+        n_files,
+        pr_data.n_threads,
+        pr_data.n_resolved,
+        n_viewed_comments
+      )
       progress('success')
     end)
   end
