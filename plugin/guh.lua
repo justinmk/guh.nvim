@@ -19,6 +19,13 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
   end,
 })
 
+-- :syncbind the prdiff/prcomments windows.
+vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
+  pattern = { 'guh://*/prdiff/*', 'guh://*/prcomments/*' },
+  group = group,
+  command = 'syncbind',
+})
+
 vim.api.nvim_create_autocmd('BufFilePost', {
   pattern = 'guh://*',
   group = group,

@@ -341,6 +341,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   -- Set scrollbind+cursorbind on both windows *after* writing the buffer content.
   vim.api.nvim_win_call(diff_win, function()
     vim.cmd [[setlocal scrollbind cursorbind]]
+    vim.cmd [[keepjumps syncbind]]
   end)
   vim.api.nvim_win_call(win, function()
     vim.cmd [[setlocal scrollbind cursorbind]]
