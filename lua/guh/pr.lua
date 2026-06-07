@@ -35,6 +35,11 @@ local function resolve_pr_target(opts)
 end
 
 function M.select(opts)
+  if not gh.get_user() then
+    util.msg('Not logged in to gh. Run: "gh auth login"', vim.log.levels.ERROR)
+    return
+  end
+
   local arg = (opts or {}).args or ''
   if 0 == #arg then
     M.show_status()

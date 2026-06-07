@@ -380,6 +380,25 @@ describe('comments', function()
 end)
 
 describe('commands', function()
+  it(':Guh errors if not logged in', function()
+    n.exec_lua(function(tmpdir)
+      vim.fn.setenv('GH_CONFIG_DIR', tmpdir)
+      vim.fn.setenv('GH_TOKEN', '')
+      vim.fn.setenv('GITHUB_TOKEN', '')
+      local captured
+      vim.notify = function(msg, level)
+        captured = { msg = msg, level = level }
+      end
+      require('guh.pr').select({ args = '1' })
+      vim.wait(1000, function()
+        return captured ~= nil
+      end)
+      assert(captured, 'vim.notify() was not called')
+      assert(captured.msg:match('[Nn]ot logged in'), ('msg: %q'):format(captured.msg))
+      assert(captured.level == vim.log.levels.ERROR, ('level: %s'):format(tostring(captured.level)))
+    end, t.tmpname(true))
+  end)
+
   it(':Guh + dd loads PR diff + comments split window', function()
     n.command('Guh 1')
     -- Wait for the PR diff-view.
