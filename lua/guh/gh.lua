@@ -407,12 +407,23 @@ function M.review_pr(id, repo, action, body, cb)
   end)
 end
 
-function M.get_user(cb)
-  util.system({ 'gh', 'api', 'user', '-q', '.login' }, function(stdout, _, code)
-    if code == 0 then
-      cb(vim.split(stdout, '\n')[1])
-    end
-  end)
+local cached_user
+--- Gets the active `gh` username from local config. Synchronous; cached for the session.
+---
+--- (Works without network, but cached because `gh` may try the network anyway.)
+
+--- @return string? user
+function M.get_user()
+  if cached_user then
+    return cached_user
+  end
+  local jq = '.hosts | to_entries[] | .value[] | select(.active) | .login'
+  local r = vim.system({ 'gh', 'auth', 'status', '--active', '--json', 'hosts', '--jq', jq }):wait()
+  -- XXX: `gh auth status --json` exits 0 even when not logged in; stdout is empty then.
+  if r.code == 0 and vim.trim(r.stdout) ~= '' then
+    cached_user = vim.trim(r.stdout)
+  end
+  return cached_user
 end
 
 --- Gets metadata for the most-recent matrix-expanded CI jobs at the PR's head commit.

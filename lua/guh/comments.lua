@@ -611,23 +611,21 @@ function M.update_comment(linenr)
     local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
     flash_region(buf, r[1], r[2])
     local content = vim.split(c.body or '', '\n', { plain = true })
-    M.edit_comment(
-      'comment',
-      prnum,
-      content,
-      { ('Updating comment %d. ZZ to confirm (ZQ to abort).'):format(c.id) },
-      function(input)
-        local progress = util.new_progress_report('Updating comment...', vim.api.nvim_get_current_buf())
-        gh.update_comment(c.id, input, repo, function(resp)
-          if resp['errors'] == nil then
-            progress('success', nil, 'Comment updated.')
-            require('guh.pr').show_pr_diff(prnum) -- Refresh.
-          else
-            progress('failed', nil, 'Failed to update comment.')
-          end
-        end)
-      end
-    )
+    local same = gh.get_user() == c.user
+    local msg = same and ('Updating comment %d. ZZ to confirm (ZQ to abort).'):format(c.id)
+      or ('Updating comment by %s %d (not you). ZZ to confirm (ZQ to abort).'):format(c.user or '?', c.id)
+    local hl = (not same) and 'ErrorMsg' or nil
+    M.edit_comment('comment', prnum, content, { msg, hl }, function(input)
+      local progress = util.new_progress_report('Updating comment...', vim.api.nvim_get_current_buf())
+      gh.update_comment(c.id, input, repo, function(resp)
+        if resp['errors'] == nil then
+          progress('success', nil, 'Comment updated.')
+          require('guh.pr').show_pr_diff(prnum) -- Refresh.
+        else
+          progress('failed', nil, 'Failed to update comment.')
+        end
+      end)
+    end)
   end
 
   pick_comment(candidates, 'Which comment?', do_it)

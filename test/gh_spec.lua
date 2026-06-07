@@ -112,6 +112,17 @@ describe('guh.gh', function()
       end
     end)
   end)
+
+  it('get_user returns nil when not logged in', function()
+    n.exec_lua(function(tmpdir)
+      -- Point `gh` at an empty config dir and unset any auth tokens so it has no active account.
+      vim.fn.setenv('GH_CONFIG_DIR', tmpdir)
+      vim.fn.setenv('GH_TOKEN', '')
+      vim.fn.setenv('GITHUB_TOKEN', '')
+      local user = require('guh.gh').get_user()
+      assert(user == nil, ('expected nil, got %q'):format(tostring(user)))
+    end, t.tmpname(true))
+  end)
 end)
 
 describe('pr + comments view', function()
