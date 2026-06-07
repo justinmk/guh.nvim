@@ -332,34 +332,6 @@ function M.show_pr(id, repo)
   end)
 end
 
---- Prepares the output of `gh pr diff` for display.
----
---- - Replaces "viewed" files with a single `(viewed) <path>` line.
----
---- @param difftext string Raw `gh pr diff` output.
---- @param viewed table<string,boolean> Map of "viewed" files.
---- @return string[] lines, integer total_files
-local function prepare_pr_diff(difftext, viewed)
-  local out, total = {}, 0
-  local skipping = false
-  for line in vim.gsplit(difftext, '\n', { plain = true, trimempty = true }) do
-    local path = line:match('^diff %-%-git a/(.-) b/')
-    if path then
-      total = total + 1
-      if viewed[path] then
-        table.insert(out, ('(viewed) %s'):format(path))
-        skipping = true
-      else
-        table.insert(out, line)
-        skipping = false
-      end
-    elseif not skipping then
-      table.insert(out, line)
-    end
-  end
-  return out, total
-end
-
 --- Shows PR diff + comments.
 --- - Outdated-unresolved diff + comments are shown at top.
 --- - Current diff + comments are shown after that.
@@ -373,21 +345,25 @@ function M.show_pr_diff(opts)
   local progress = util.new_progress_report('Loading PR diff...', buf)
   progress('running')
 
-  local outdated_lines, diff_stdout, file_threads, viewed
+  local pr_data --[[@type PullRequest?]]
+  local diff_stdout
   local function try_render()
-    if not outdated_lines or not diff_stdout or not viewed then
+    if not pr_data or not diff_stdout then
       return
     end
-    local diff_lines, total = prepare_pr_diff(diff_stdout, viewed)
-    local all = vim.list_extend(vim.list_extend({}, outdated_lines), diff_lines)
-    -- filetype=gitcommit enables plugins like https://github.com/barrettruth/diffs.nvim
-    util.buf_set_readonly_lines(buf, all, 'gitcommit')
-    vim.api.nvim_buf_call(buf, function()
-      vim.cmd([[syntax match GuhWarning /^(viewed)/ containedin=ALL]])
+    comments.render_diff(pr_data.raw_comments, pr_data.viewed, diff_stdout, function(lines, threads, n_files)
+      util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
+      -- filetype=gitcommit enables plugins like https://github.com/barrettruth/diffs.nvim
+      util.buf_set_readonly_lines(buf, lines, 'gitcommit')
+      vim.api.nvim_buf_call(buf, function()
+        vim.cmd([[syntax match GuhWarning /^(viewed)/ containedin=ALL]])
+        -- Match offdiff file prefix ("outdated-3271868956:", "outside-3271868956:").
+        vim.cmd([[syntax match GuhWarning /\<\(outdated\|outside\)\ze-\d\+:/ containedin=ALL]])
+      end)
+      util.set_default_keymaps(buf)
+      comments.show(id, repo, diff_win, threads, pr_data.viewed, n_files)
+      progress('success')
     end)
-    util.set_default_keymaps(buf)
-    comments.show(id, repo, diff_win, assert(file_threads), viewed, total)
-    progress('success')
   end
 
   -- 1. Fetch PR data (force API request, skip cache).
@@ -395,24 +371,8 @@ function M.show_pr_diff(opts)
     if not pr then
       return progress('failed')
     end
-    -- Reassign outdated comments to synthetic per-thread paths so they:
-    -- 1. group into their own CommentThread buckets and
-    -- 2. match the synthesized `+++ b/<synthetic>` we prepend on the diff.
-    -- Example: "runtime/lua/vim/_core/options.lua" with thread_id 3271868956
-    --       → "outdated-3271868956:runtime/lua/vim/_core/options.lua"
-    for _, c in ipairs(pr.raw_comments) do
-      -- Rename "outdated" paths as `outdated-<id>:<path>`.
-      if c.outdated and c.thread_id then
-        c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
-      end
-    end
-    comments.to_threads(pr.raw_comments, function(threads)
-      util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
-      file_threads = threads
-      viewed = pr.viewed
-      outdated_lines = comments.get_outdated_diff(threads)
-      try_render()
-    end)
+    pr_data = pr
+    try_render()
   end)
 
   -- 2. Get the current PR diff.

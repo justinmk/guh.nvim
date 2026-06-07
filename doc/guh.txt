@@ -80,8 +80,7 @@ Default mappings (local to `guh://` buffers):
   <Plug>(guh-comment)
 - `cC`: Comment on the PR/issue overview (top-level). |guh-comment|
   <Plug>(guh-comment-overview)
-- `c.`: Edit various properties on the PR/issue, by invoking `gh pr edit …` or
-  `gh issue edit …` in a :terminal.
+- `c.`: Edit various properties on the PR/issue, via `gh` in a :terminal.
   <Plug>(guh-edit)
 - `dd`: View PR diff + comments. |guh-diff|
   <Plug>(guh-diff)
@@ -97,22 +96,33 @@ Default mappings (local to `guh://` buffers):
 View PR diff                                                        *guh-diff*
 
 `dd` on a PR view opens the diff + comments in 'scrollbind' split windows.
-The old, outdated diff is also shown if necessary for old, unresolved
-comments. If all old comments are resolved, then only the current diff is
-shown.
 
-PR diff is loaded:
-- starts with old "outdated" files if there are any _unresolved_ comments on
-  outdated files.
-- followed by the current HEAD diff.
-- files marked "Viewed" on github.com are collapsed to a single >
-      (viewed) path/to/file
+- OUTDATED diffs (if any) are shown as extra diff section above the "current"
+  diff, if any UNRESOLVED comments are anchored thereto.
+- Unresolved comments on OUTDATED code (i.e. code from an old push), are
+  attached to diff-hunks with filename format `outdated-<id>:<file>`.
+- UNRESOLVED comments on code OUTSIDE of the PR diff, are similarly attached
+  to diff-hunks with filename format `outside-<id>:<file>`.
+- The current, latest diff follows those quasi-diffs, and is always shown.
+- Only UNRESOLVED comments are shown.
+- Comments on VIEWED files are never shown.
+
+PR diff:
+
+- Lists diff-hunks in this order:
+  1. Outdated (only if unresolved comments)
+  2. Outside (only if unresolved comments)
+  3. Current
+- Shows VIEWED files as a single line (diff/comments not loaded): >
+  (viewed) path/to/file
 <
-  line, their hunks and comments are not loaded. The diff overlay shows
-  `PR diff (3/12 viewed)`. Refresh (`R`) to update after marking/unmarking
-  a file as "Viewed".
+- The diff overlay shows: >
+  PR diff (Viewed files: 3/12, Resolved comments: 4/20).
+<
+- Refresh ("R") to update after marking/unmarking a file as VIEWED.
 
-PR comments are loaded:
+PR comments:
+
 - in a 'scrollbind' split window next to the diff window (if the scrollbind
   gets out of sync, try |:syncbind|).
 - when multiple comments anchor to the same diff line, every comment's

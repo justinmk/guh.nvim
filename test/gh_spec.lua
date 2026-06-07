@@ -323,7 +323,7 @@ describe('comments', function()
         '+++ b/f.lua',
         '@@ -10,1 +10,2 @@',
         ' context', -- row 6: new=10
-        '+added',   -- row 7: new=11
+        '+added', -- row 7: new=11
       })
       local diff_win = vim.api.nvim_get_current_win()
 

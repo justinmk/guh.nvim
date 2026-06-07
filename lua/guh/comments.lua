@@ -1,3 +1,5 @@
+--- Handles PR comments and PR diff processing (mapping comments to diff lines).
+
 local gh = require('guh.gh')
 local state = require('guh.state')
 local util = require('guh.util')
@@ -7,34 +9,34 @@ local M = {}
 local severity = vim.diagnostic.severity
 local diag_ns_name = 'guh.comments'
 
-local outdated_banner_start = {
-  '================================================================================',
-  'OUTDATED',
-  '',
-}
-local outdated_banner_end = {
-  '================================================================================',
-  'END OUTDATED',
-  '',
-}
+--- Filename prefixes for threads that anchor outside the visible HEAD diff. They get
+--- rewritten by `pr.show_pr_diff` so each becomes a own quasi-file entry; the mini-diff below
+--- uses the comment's `diff_hunk` as the body.
+---
+--- - `outdated-<thread_id>:` : Thread is on a stale push (`PullRequestReviewThread.isOutdated`).
+--- - `outside-<thread_id>:` : Thread is on HEAD, but outside the PR diff.
+local outdated_prefix_pat = '^outdated%-%d+:'
+local outside_prefix_pat = '^outside%-%d+:'
 
---- Builds a self-contained mini-diff for the outdated threads in `comments_list`.
---- Each thread becomes a quasi-file section (`diff --git` + `+++ b/<synthetic>` + hunk) using the
---- synthetic per-thread path the caller stashed on the comment-thread. Example:
+--- Builds a self-contained mini-diff for threads matching `file_prefix`. Each thread becomes
+--- a quasi-file section (`diff --git` + `index` + `+++ b/<filepath>` + hunk) using the quasi-file
+--- prefix. Example for "outdated":
 ---
 ---     diff --git a/outdated-3271868956:runtime/lua/vim/_core/options.lua b/outdated-3271868956:runtime/lua/vim/_core/options.lua
+---     index 0000000..0000000 100644
 ---     --- a/outdated-3271868956:runtime/lua/vim/_core/options.lua
 ---     +++ b/outdated-3271868956:runtime/lua/vim/_core/options.lua
 ---
---- Returns `{}` when nothing is outdated.
+--- Returns `{}` when nothing matches.
 ---
 --- @param comments_list table<string, CommentThread[]>
+--- @param file_prefix string
 --- @return string[]
-function M.get_outdated_diff(comments_list)
+local function to_offdiff_section(comments_list, file_prefix)
   local entries = {}
   for synthetic, comment_threads in pairs(comments_list) do
-    for _, t in ipairs(comment_threads) do
-      if assert(t.comments[1]).outdated then
+    if synthetic:match('^' .. file_prefix .. '%-%d+:') then
+      for _, t in ipairs(comment_threads) do
         table.insert(entries, { synthetic = synthetic, thread = t })
       end
     end
@@ -48,17 +50,17 @@ function M.get_outdated_diff(comments_list)
   end)
 
   local lines = {}
-  vim.list_extend(lines, outdated_banner_start)
   for _, e in ipairs(entries) do
     local first = e.thread.comments[1]
     table.insert(lines, ('diff --git a/%s b/%s'):format(e.synthetic, e.synthetic))
+    -- Fake "index" line for visual symmetry with real diff sections (dummy SHA).
+    table.insert(lines, 'index 0000000..0000000 100644')
     table.insert(lines, ('--- a/%s'):format(e.synthetic))
     table.insert(lines, ('+++ b/%s'):format(e.synthetic))
     for hunk_line in (first.diff_hunk or ''):gmatch('[^\n]+') do
       table.insert(lines, hunk_line)
     end
   end
-  vim.list_extend(lines, outdated_banner_end)
   return lines
 end
 
@@ -182,8 +184,8 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   --- @param filename string Key from `comments_list` (may be `outdated-<id>:<path>` format).
   --- @param file_comments CommentThread[]
   local function process_file(filename, file_comments)
-    -- Skip "viewed" files. Strip "outdated-<id>:" to match the real path.
-    local real_path = filename:match('^outdated%-%d+:(.+)$') or filename
+    -- Skip "viewed" files. Strip "outdated-<id>:" and "outside-<id>:" to match the real path.
+    local real_path = (filename:gsub(outdated_prefix_pat, ''):gsub(outside_prefix_pat, ''))
     if viewed[real_path] then
       return
     end
@@ -333,7 +335,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
   vim.bo[buf].filetype = 'markdown'
   vim.api.nvim_buf_call(buf, function()
     vim.cmd([[syntax match GuhHeading /^▎ \zs.*$/ containedin=ALL]])
-    vim.cmd([[syntax match GuhWarning /(outdated)\|(truncated)/ containedin=ALL]])
+    vim.cmd([[syntax match GuhWarning /(outdated)\|(outside)\|(truncated)/ containedin=ALL]])
   end)
 
   -- Set scrollbind+cursorbind on both windows *after* writing the buffer content.
@@ -401,6 +403,93 @@ function M.to_threads(gh_comments, cb)
   end
 
   cb(result)
+end
+
+--- Prepares the output of `gh pr diff` for display.
+---
+--- - Replaces "viewed" files with a single `(viewed) <path>` line
+--- - Counts files in the diff
+---
+--- @param difftext string Raw `gh pr diff` output.
+--- @param viewed table<string,boolean> Map of "viewed" files.
+--- @return string[] lines, integer n_files
+local function prepare_pr_diff(difftext, viewed)
+  local out, total = {}, 0
+  local skipping = false
+  for line in vim.gsplit(difftext, '\n', { plain = true, trimempty = true }) do
+    local path = line:match('^diff %-%-git a/(.-) b/')
+    if path then
+      total = total + 1
+      if viewed[path] then
+        table.insert(out, ('(viewed) %s'):format(path))
+        skipping = true
+      else
+        table.insert(out, line)
+        skipping = false
+      end
+    elseif not skipping then
+      table.insert(out, line)
+    end
+  end
+  return out, total
+end
+
+--- Returns true if comment `c` anchors to a visible line in `line_map`, comparing (file, axis-line)
+--- where axis depends on `c.side`.
+---
+--- @param line_map table<integer, {file:string, new_line:integer|nil, old_line:integer|nil}>
+--- @param c Comment
+local function in_diff(line_map, c)
+  if vim.isnil(c.line) then
+    return false
+  end
+  local axis = c.side == 'LEFT' and 'old_line' or 'new_line'
+  for _, m in pairs(line_map) do
+    if m.file == c.path and m[axis] == c.line then
+      return true
+    end
+  end
+  return false
+end
+
+--- Renders `gh pr diff <id>` stdout for presentation in a "prdiff/…" buffer:
+---
+--- Rewrite diff-hunk filenames to `<kind>-<thread_id>:<path>` quasi-filename for:
+---   - "outdated" threads (anchored to stale code, GraphQL: `isOutdated`).
+---     (Example: "outdated-3271868956:runtime/lua/vim/_core/options.lua")
+---   - "outside" threads (anchored outside of the PR diff).
+---   - Collapses VIEWED files.
+---   - Groups comments into per-file threads (`to_threads`).
+---
+--- @param raw_comments Comment[]   Flat per-comment list from `gh.get_pr_data`. Mutated in-place to rewrite paths.
+--- @param viewed table<string,boolean>
+--- @param diff_stdout string  Raw `gh pr diff` output.
+--- @param cb fun(lines: string[], threads: table<string,CommentThread[]>, n_files: integer)
+function M.render_diff(raw_comments, viewed, diff_stdout, cb)
+  local diff_lines, n_files = prepare_pr_diff(diff_stdout, viewed)
+  local line_map = to_line_map(diff_lines)
+  for _, c in ipairs(raw_comments) do
+    if c.thread_id then
+      if c.outdated then
+        c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
+      elseif not viewed[c.path] and not in_diff(line_map, c) then
+        -- Viewed files are collapsed, so not in `line_map`.
+        -- But their comments are still on the PR, don't move them to "outside".
+        c.path = ('outside-%d:%s'):format(c.thread_id, c.path)
+      end
+    end
+  end
+  M.to_threads(raw_comments, function(threads)
+    local lines = vim
+      .iter({
+        to_offdiff_section(threads, 'outdated'),
+        to_offdiff_section(threads, 'outside'),
+        diff_lines,
+      })
+      :flatten()
+      :totable()
+    cb(lines, threads, n_files)
+  end)
 end
 
 --- Updates the comment at cursor, in a `prcomments/…` buffer. Identifies the comment by querying the
@@ -521,8 +610,8 @@ function M.prepare_to_comment(line1, line2)
     util.msg('Not a diff line (file/hunk header or blank?)', vim.log.levels.WARN)
     return nil
   end
-  if start_entry.file:match('^outdated%-%d+:') then
-    util.msg('Cannot comment on an outdated hunk', vim.log.levels.WARN)
+  if start_entry.file:match(outdated_prefix_pat) or start_entry.file:match(outside_prefix_pat) then
+    util.msg('Cannot comment on an outdated/outside hunk', vim.log.levels.WARN)
     return nil
   end
 
