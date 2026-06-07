@@ -19,6 +19,7 @@
 --- @field user string
 --- @field outdated? boolean true if the thread is outdated (line no longer in HEAD).
 --- @field thread_id? number GraphQL thread id (root comment databaseId).
+--- @field thread_node_id? string GraphQL global node id of the thread (e.g. `PRRT_kw…`). Needed by the resolveReviewThread mutation.
 
 --- @class CommentThread
 --- @field comments Comment[]

@@ -92,6 +92,9 @@ Default mappings (local to `guh://` buffers):
   - `cc` (or `c` in Visual mode): Comment on a diff-line. |guh-comment|
     In a `guh://…/prcomments/` buffer, edits the comment at cursor.
     <Plug>(guh-comment)
+  - `cr` (or `c` in Visual mode): Reply-to, or Resolve, a comment. |guh-comment|
+    In a `guh://…/prcomments/` buffer, edits the comment at cursor.
+    <Plug>(guh-comment)
 
 
 ------------------------------------------------------------------------------
@@ -141,8 +144,12 @@ PR comments:
 ------------------------------------------------------------------------------
 Comment on issues, PRs, and diffs                                *guh-comment*
 
-`cc` on a PR or its diff opens an editable `guh://…/comment/<id>` buffer.
-Write-and-close to post the comment. |guh-confirm|
+`cc` on a PR diff-line, or on an existing comment, opens an editable
+`guh://…/comment/<id>` buffer. Write-and-close to post the comment. |guh-confirm|
+
+`cr` on a comment (thread), presents a menu:
+1. Reply
+2. Resolve
 
 See |:GuhComment|.
 

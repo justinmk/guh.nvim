@@ -26,6 +26,8 @@ local function flatten_threads_to_comments(threads)
     if not thread.isResolved then
       local nodes = vim.tbl_get(thread, 'comments', 'nodes') or {}
       local thread_id = nodes[1] and nodes[1].databaseId
+      -- GraphQL global node id (e.g. "PRRT_kw…"). Needed by the resolveReviewThread mutation.
+      local thread_node_id = thread.id
       -- Reply comments on outdated threads carry no originalLine of their own;
       -- inherit from the head comment so they aren't filtered out below.
       local head_line = nodes[1] and nodes[1].originalLine
@@ -61,6 +63,7 @@ local function flatten_threads_to_comments(threads)
             in_reply_to_id = reply_to,
             outdated = thread.isOutdated or false,
             thread_id = thread_id,
+            thread_node_id = thread_node_id,
           })
         end
       end
@@ -172,6 +175,7 @@ function M.get_pr_data(prnum, repo, opts, cb)
           url
           reviewThreads(first:100){
             nodes{
+              id
               isOutdated isResolved
               diffSide
               comments(first:100){
@@ -314,6 +318,28 @@ end
 function M.delete_comment(comment_id, repo, cb)
   vim.validate('repo', repo, 'string')
   gh_api('delete_comment', 'DELETE', f('repos/%s/pulls/comments/%s', repo, comment_id), {}, cb)
+end
+
+--- Resolves a review comment-thread.
+---
+--- Note: `thread_node_id` is the GraphQL global node id (e.g. `PRRT_kw…`), not the REST
+--- `databaseId`.
+---
+--- @param thread_node_id string
+--- @param cb fun(resp: table)
+function M.resolve_thread(thread_node_id, cb)
+  vim.validate('thread_node_id', thread_node_id, 'string')
+  local query = [[
+    mutation($thread:ID!){
+      resolveReviewThread(input:{threadId:$thread}){
+        thread{ id isResolved }
+      }
+    }
+  ]]
+  gh_api('resolve_thread', 'POST', 'graphql', {
+    { '-F', 'thread=' .. thread_node_id },
+    { '-f', 'query=' .. query },
+  }, cb)
 end
 
 --- Merges a PR via `gh pr merge`.

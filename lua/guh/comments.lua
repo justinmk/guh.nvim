@@ -7,7 +7,8 @@ local util = require('guh.util')
 local M = {}
 
 local severity = vim.diagnostic.severity
-local diag_ns_name = 'guh.comments'
+local diag_ns = vim.api.nvim_create_namespace('guh.comments')
+local comment_hl_ns = vim.api.nvim_create_namespace('guh.comment_hl')
 
 --- Filename prefixes for threads that anchor outside the visible HEAD diff. They get
 --- rewritten by `pr.show_pr_diff` so each becomes a own quasi-file entry; the mini-diff below
@@ -17,6 +18,14 @@ local diag_ns_name = 'guh.comments'
 --- - `outside-<thread_id>:` : Thread is on HEAD, but outside the PR diff.
 local outdated_prefix_pat = '^outdated%-%d+:'
 local outside_prefix_pat = '^outside%-%d+:'
+
+-- Flashes a text region so the user can see what an action
+local function flash_region(buf, line1, line2)
+  vim.hl.range(buf, comment_hl_ns, 'Visual', { line1 - 1, 0 }, { line2 - 1, -1 }, {
+    priority = 300, -- Overrule diffs.nvim: https://github.com/barrettruth/diffs.nvim/blob/d280baf3e937a487038766f51156dd41ceb0f8e7/lua/diffs/config.lua#L124-L129
+    timeout = 200,
+  })
+end
 
 --- Builds a self-contained mini-diff for threads matching `file_prefix`. Each thread becomes
 --- a quasi-file section (`diff --git` + `index` + `+++ b/<filepath>` + hunk) using the quasi-file
@@ -253,10 +262,9 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files)
     process_file(filename, file_comments)
   end
 
-  local ns = vim.api.nvim_create_namespace(diag_ns_name)
-  vim.diagnostic.set(ns, diff_buf, diagnostics)
+  vim.diagnostic.set(diag_ns, diff_buf, diagnostics)
   -- This does setqflist(…,"u"), so this won't "pollute" the quickfix list on each refresh.
-  vim.diagnostic.setqflist({ namespace = ns, title = 'Guh comments', open = false })
+  vim.diagnostic.setqflist({ namespace = diag_ns, title = 'Guh comments', open = false })
 
   ---------------------------------------------------------------------------
   -- Step 3: Write comment threads to buffer
@@ -493,21 +501,18 @@ function M.render_diff(raw_comments, viewed, diff_stdout, cb)
   end)
 end
 
---- Updates the comment at cursor, in a `prcomments/…` buffer. Identifies the comment by querying the
---- sibling `prdiff/…` buffer's per-comment diagnostics at the cursor row.
+--- Finds the comment(s) at or above `linenr` by walking up to the nearest diagnostic (from the
+--- "prdiff/…" buffer). Emits a warning if no comments found.
 ---
---- - When multiple comments share a diff row, prompts via `vim.ui.select`.
---- - Flashes the comment region.
---- - Opens a prefilled `edit_comment` buffer.
---- - Posts on write-and-close.
----
---- @param line1 integer 1-indexed cursor row in the prcomments buffer.
-function M.update_comment(line1)
+--- @param linenr integer 1-indexed line number.
+--- @return integer? prnum
+--- @return string? repo
+--- @return { comment: Comment, range: { integer, integer } }[]? candidates
+local function comments_at_line(linenr)
   local prnum, repo = util.require_b_guh({ 'id', 'repo' })
   if not prnum then
     return
   end
-  local buf = vim.api.nvim_get_current_buf()
 
   local diff_buf = state.get_buf('prdiff', repo, prnum, true)
   if not diff_buf then
@@ -515,21 +520,20 @@ function M.update_comment(line1)
     return
   end
 
-  -- Walk upward from cursor until to find the nearest diagnostic. This lets `cc` work anywhere
-  -- in a comment's rendered region. Skip if cursor is on a blank line (treat as "not a comment").
-  local ns = vim.api.nvim_create_namespace(diag_ns_name)
+  -- Walk upward from cursor until to find the nearest diagnostic. Lets the action work anywhere
+  -- in a comment's rendered region. Skip if cursor is on a blank line ("not a comment").
   local ds = {}
-  if vim.fn.getline(line1) ~= '' then
-    for row = line1, 1, -1 do
-      ds = vim.diagnostic.get(diff_buf, { lnum = row - 1, namespace = ns })
+  if vim.fn.getline(linenr) ~= '' then
+    for row = linenr, 1, -1 do
+      ds = vim.diagnostic.get(diff_buf, { lnum = row - 1, namespace = diag_ns })
       if #ds > 0 then
         break
       end
     end
   end
 
-  -- Each diagnostic is one thread; get a flat list of comments across all threads on this line.
-  -- `range` carries the thread's diff-range so we can highlight it with `vim.hl.range()`.
+  -- One diagnostic per thread; flatten to candidates. `range` carries the thread's diff-range so
+  -- the action can highlight it with `vim.hl.range`.
   local candidates = {}
   for _, d in ipairs(ds) do
     for _, c in ipairs(d.user_data.comments or {}) do
@@ -542,16 +546,47 @@ function M.update_comment(line1)
     return
   end
 
+  return prnum, repo, candidates
+end
+
+--- Auto-picks the candidate (if exactly one) or shows a `vim.ui.select` picker.
+local function pick_comment(comments, prompt, on_pick)
+  if #comments == 1 then
+    return on_pick(comments[1])
+  end
+  vim.ui.select(comments, {
+    prompt = prompt,
+    format_item = function(cand)
+      local c = cand.comment
+      local snippet = (c.body or ''):gsub('\n.*$', ''):sub(1, 60)
+      return ('%s %s: %s'):format(c.user or '?', c.updated_at or '', snippet)
+    end,
+  }, function(cand)
+    if cand then
+      on_pick(cand)
+    end
+  end)
+end
+
+--- Updates the comment near `linenr`, in a `prcomments/…` buffer. Identifies the comment by querying the
+--- sibling `prdiff/…` buffer's per-comment diagnostics.
+---
+--- - When multiple comments share a diff row, prompts via `vim.ui.select`.
+--- - Flashes the comment region.
+--- - Opens a prefilled `edit_comment` buffer.
+--- - Posts on write-and-close.
+---
+--- @param linenr integer 1-indexed cursor row in the prcomments buffer.
+function M.update_comment(linenr)
+  local buf = vim.api.nvim_get_current_buf()
+  local prnum, repo, candidates = comments_at_line(linenr)
+  if not prnum then
+    return
+  end
+
   local function do_it(cand)
     local c = cand.comment
-    vim.hl.range(
-      buf,
-      vim.api.nvim_create_namespace('guh.comment_hl'),
-      'Visual',
-      { cand.range[1], 0 },
-      { cand.range[2], -1 },
-      { priority = 300, timeout = 200 }
-    )
+    flash_region(buf, cand.range[1] + 1, cand.range[2] + 1)
     local content = vim.split(c.body or '', '\n', { plain = true })
     M.edit_comment(
       'comment',
@@ -563,7 +598,7 @@ function M.update_comment(line1)
         gh.update_comment(c.id, input, repo, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment updated.')
-            require('guh.pr').show_pr_diff(prnum)
+            require('guh.pr').show_pr_diff(prnum) -- Refresh.
           else
             progress('failed', nil, 'Failed to update comment.')
           end
@@ -572,22 +607,62 @@ function M.update_comment(line1)
     )
   end
 
-  if #candidates == 1 then
-    do_it(candidates[1])
-  else
-    vim.ui.select(candidates, {
-      prompt = 'Update which comment?',
-      format_item = function(cand)
-        local c = cand.comment
-        local snippet = (c.body or ''):gsub('\n.*$', ''):sub(1, 60)
-        return ('%s %s: %s'):format(c.user or '?', c.updated_at or '', snippet)
-      end,
-    }, function(cand)
-      if cand then
-        do_it(cand)
+  pick_comment(candidates, 'Which comment?', do_it)
+end
+
+--- Acts on a comment thread (Reply or Resolve).
+---
+--- @param linenr integer 1-indexed line number.
+function M.reply_or_resolve(linenr)
+  local buf = vim.api.nvim_get_current_buf()
+  local prnum, repo, candidates = comments_at_line(linenr)
+  if not prnum then
+    return
+  end
+
+  local function do_it(cand)
+    local c = cand.comment
+    flash_region(buf, cand.range[1] + 1, cand.range[2] + 1)
+
+    vim.ui.select({ 'Reply', 'Resolve' }, {
+      prompt = ('Thread on %s:%d:'):format(c.path or '?', c.line or 0),
+    }, function(action)
+      if action == 'Reply' then
+        M.edit_comment(
+          'comment',
+          prnum,
+          { '' },
+          { ('Reply to %s. ZZ to send (ZQ to abort).'):format(c.user or '?') },
+          function(input)
+            local progress = util.new_progress_report('Sending reply...', vim.api.nvim_get_current_buf())
+            gh.reply_to_comment(prnum, input, c.id, repo, function(resp)
+              if resp['errors'] == nil then
+                progress('success', nil, 'Reply sent.')
+                require('guh.pr').show_pr_diff(prnum) -- Refresh.
+              else
+                progress('failed', nil, 'Failed to send reply.')
+              end
+            end)
+          end
+        )
+      elseif action == 'Resolve' then
+        if not c.thread_node_id then
+          return util.msg('Missing thread_node_id (refresh and retry)', vim.log.levels.WARN)
+        end
+        local progress = util.new_progress_report('Resolving thread...', buf)
+        gh.resolve_thread(c.thread_node_id, function(resp)
+          if resp['errors'] == nil then
+            progress('success', nil, 'Thread resolved.')
+            require('guh.pr').show_pr_diff(prnum) -- Refresh.
+          else
+            progress('failed', nil, 'Failed to resolve thread.')
+          end
+        end)
       end
     end)
   end
+
+  pick_comment(candidates, 'Which comment?', do_it)
 end
 
 --- Prepare info for commenting on a range in the current diff.
@@ -658,18 +733,7 @@ function M.do_comment(line1, line2)
     return
   end
 
-  -- Flash the range so the user can see what they're commenting on.
-  vim.hl.range(
-    info.buf,
-    vim.api.nvim_create_namespace('guh.comment_hl'),
-    'Visual',
-    { line1 - 1, 0 },
-    { line2 - 1, -1 },
-    {
-      priority = 300, -- Overrule diffs.nvim: https://github.com/barrettruth/diffs.nvim/blob/d280baf3e937a487038766f51156dd41ceb0f8e7/lua/diffs/config.lua#L124-L129
-      timeout = 200,
-    }
-  )
+  flash_region(info.buf, line1, line2)
 
   gh.get_pr_data(info.pr_id, info.repo, nil, function(pr)
     if not pr then
@@ -681,8 +745,7 @@ function M.do_comment(line1, line2)
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.side, info.repo, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
-            -- Reload the diff+comments view.
-            require('guh.pr').show_pr_diff(info.pr_id)
+            require('guh.pr').show_pr_diff(info.pr_id) -- Refresh.
           else
             progress('failed', nil, 'Failed to send comment.')
           end

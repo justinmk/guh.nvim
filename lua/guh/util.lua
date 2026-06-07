@@ -251,6 +251,7 @@ function M.set_default_keymaps(buf)
 
   -- "Local" (cursor-relative) actions:
   M.map_default(buf, { 'n', 'x' }, 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  M.map_default(buf, 'n', 'cr', '<Plug>(guh-thread)', 'Reply-to or Resolve a comment thread')
 end
 
 function M.buf_keymap(buf, mode, lhs, desc, rhs)
