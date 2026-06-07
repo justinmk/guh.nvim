@@ -425,10 +425,18 @@ function M.update_comment(line1)
     return
   end
 
-  local ds = vim.diagnostic.get(diff_buf, {
-    lnum = line1 - 1,
-    namespace = vim.api.nvim_create_namespace(diag_ns_name),
-  })
+  -- Walk upward from cursor until to find the nearest diagnostic. This lets `cc` work anywhere
+  -- in a comment's rendered region. Skip if cursor is on a blank line (treat as "not a comment").
+  local ns = vim.api.nvim_create_namespace(diag_ns_name)
+  local ds = {}
+  if vim.fn.getline(line1) ~= '' then
+    for row = line1, 1, -1 do
+      ds = vim.diagnostic.get(diff_buf, { lnum = row - 1, namespace = ns })
+      if #ds > 0 then
+        break
+      end
+    end
+  end
 
   -- Each diagnostic is one thread; get a flat list of comments across all threads on this line.
   -- `range` carries the thread's diff-range so we can highlight it with `vim.hl.range()`.
