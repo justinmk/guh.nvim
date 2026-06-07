@@ -8,7 +8,7 @@ local f = string.format
 local M = {}
 
 local function parse_or_default(str, default)
-  local success, result = pcall(vim.json.decode, str)
+  local success, result = pcall(vim.json.decode, str, { luanil = { object = true, array = true } })
   if success then
     return result
   end
