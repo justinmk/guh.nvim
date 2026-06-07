@@ -134,10 +134,10 @@ end
 --- @param diff_win integer window of the diff buffer.
 --- @param comments_list table<string, CommentThread[]>
 --- @param viewed? table<string,boolean> Set of "viewed" files.
---- @param n_files? integer Count of all files in the HEAD diff.
---- @param n_threads? integer Total review-thread count (resolved + unresolved).
---- @param n_resolved? integer Resolved review-thread count.
---- @param n_viewed_comments? integer Count of comments hidden because their file is "viewed".
+--- @param n_files integer Count of all files in the HEAD diff.
+--- @param n_threads integer Total review-thread count (resolved + unresolved).
+--- @param n_resolved integer Resolved review-thread count.
+--- @param n_viewed_comments integer Count of comments hidden because their file is "viewed".
 function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n_resolved, n_viewed_comments)
   viewed = viewed or {}
   local n_viewed = vim.tbl_count(viewed)
@@ -347,13 +347,25 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
 
   vim.cmd [[wincmd p]] -- Return to diff window.
-  local viewed_msg = (n_files and n_files > 0) and (' (%d/%d viewed)'):format(n_viewed, n_files) or ''
-  local resolved_msg = (n_threads and n_threads > 0) and (' (%d/%d resolved)'):format(n_resolved or 0, n_threads) or ''
-  util.show_info_overlay(diff_buf, ('PR diff%s%s (`g?` for help)'):format(viewed_msg, resolved_msg))
-  local hidden_msg = (n_viewed_comments and n_viewed_comments > 0)
-      and (' Not showing %d comments in VIEWED files.'):format(n_viewed_comments)
-    or ''
-  util.show_info_overlay(buf, ('PR comments.%s (`g?` for help)'):format(hidden_msg))
+  local viewed_msg = (' files: %d/%d '):format(n_viewed, n_files)
+  local resolved_msg = (' comments: %d/%d '):format(n_resolved or 0, n_threads)
+  local msg = {
+    { 'PR diff | ', 'Comment' },
+    { 'Viewed', { '@markup.italic', 'Comment' } },
+    { viewed_msg, 'Comment' },
+    { 'Resolved', { '@markup.italic', 'Comment' } },
+    { resolved_msg, 'Comment' },
+    { ' (`g?` for help)', 'Comment' },
+  }
+  util.show_info_overlay(diff_buf, { msg })
+  local hidden_msg = {
+    { 'PR comments | ', 'Comment' },
+    { ('Not showing %d comments in '):format(n_viewed_comments), 'Comment' },
+    { 'Viewed', { '@markup.italic', 'Comment' } },
+    { ' files.', 'Comment' },
+    { ' (`g?` for help)', 'Comment' },
+  }
+  util.show_info_overlay(buf, { hidden_msg })
 
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true

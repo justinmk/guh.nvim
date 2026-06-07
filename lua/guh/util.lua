@@ -2,6 +2,8 @@ local state = require('guh.state')
 
 local M = {}
 
+local overlay_ns = vim.api.nvim_create_namespace('guh.info_overlay')
+
 --- Shared `nvim_echo` notification id. Re-using it makes successive emits
 --- update the same notification in place, so progress events from different
 --- callers (e.g. <CR>'s "Loading..." and the real work's progress) collapse
@@ -337,24 +339,24 @@ function M.run_term_cmd(buf, cmd, on_done)
   end)
 end
 
-local overlay_ns = vim.api.nvim_create_namespace('guh.info_overlay')
-
 --- Shows an info overlay message above line 1 of the given buffer.
 --- Renders as a virtual line (extmark), so it scrolls with content and
 --- never covers buffer text. Pass `msg=nil` to clear.
 ---
 --- @param buf integer
---- @param msg string? Message, or nil to clear the overlay.
+--- @param msg? string|[string,string?][][] Message, or `nil` to clear the overlay.
 --- @param hl? string highlight group (default 'Comment').
 function M.show_info_overlay(buf, msg, hl)
+  assert(type(msg) == 'string' or not hl)
   if not vim.api.nvim_buf_is_valid(buf) then
     return
   end
   vim.api.nvim_buf_clear_namespace(buf, overlay_ns, 0, -1)
+  local virt_lines = type(msg) == 'string' and { { { msg, hl or 'Comment' } } } or msg
   if msg then
     vim.api.nvim_buf_set_extmark(buf, overlay_ns, 0, 0, {
       virt_lines_above = true,
-      virt_lines = { { { msg, hl or 'Comment' } } },
+      virt_lines = virt_lines,
     })
   end
 end

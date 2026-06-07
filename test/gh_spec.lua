@@ -305,7 +305,7 @@ describe('comments', function()
         },
       }
 
-      comments.show(pr_id, repo, diff_win, threads)
+      comments.show(pr_id, repo, diff_win, threads, nil, 0, 0, 0, 0)
 
       local prc = state.get_buf('prcomments', repo, pr_id)
       local rows = vim.api.nvim_buf_get_lines(prc, 0, -1, false)
@@ -361,7 +361,7 @@ describe('comments', function()
         },
       }
 
-      comments.show(pr_id, repo, diff_win, threads)
+      comments.show(pr_id, repo, diff_win, threads, nil, 0, 0, 0, 0)
 
       -- comments.show ends with `wincmd p` (focus back on diff window). Move focus to the prcomments
       -- window so `update_comment` reads its `b:guh`.
