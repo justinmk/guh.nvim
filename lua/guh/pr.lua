@@ -361,7 +361,7 @@ function M.show_pr(id, repo, focus)
     0,
     [[
     {{"\nCommits:\n" -}}
-    {{range .commits}}  {{slice .oid 0 7}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
+    {{range .commits}}  {{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
   ]]
   )
   local cmd = util.shell_cmd(
