@@ -88,7 +88,7 @@ function M.select(opts)
   local focus = not window_mod
 
   -- Resolve target + repo (+ PR/issue probe) BEFORE potential `:new` split, so we can check `b:guh`.
-  local target, repo, is_pr
+  local target, repo
   if #arg > 0 then
     target = util.parse_target(arg)
     if not target then
@@ -100,25 +100,32 @@ function M.select(opts)
       util.msg('Failed to get repo info', vim.log.levels.ERROR)
       return
     end
-    if target.id and target.is_pr == nil and not target.sha then
-      -- Probe PR-vs-issue (needs `repo`).
-      local r = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }):wait()
-      is_pr = r.code == 0
+  end
+
+  local function dispatch(is_pr)
+    if window_mod then
+      vim.cmd(((opts or {}).mods or '') .. ' new')
+    end
+    if not target then
+      M.show_status(focus)
+    elseif target.sha then
+      M.show_commit(target.sha, repo, focus)
+    elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
+      M.show_pr(target.id, repo, focus)
+    else
+      M.show_issue(target.id, repo, focus)
     end
   end
 
-  if window_mod then
-    vim.cmd(((opts or {}).mods or '') .. ' new')
-  end
-
-  if not target then
-    M.show_status(focus)
-  elseif target.sha then
-    M.show_commit(target.sha, repo, focus)
-  elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
-    M.show_pr(target.id, repo, focus)
+  if target and target.id and target.is_pr == nil and not target.sha then
+    -- Probe PR-vs-issue. Async so the flash_region() highlight works.
+    vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }, function(r)
+      vim.schedule(function()
+        dispatch(r.code == 0)
+      end)
+    end)
   else
-    M.show_issue(target.id, repo, focus)
+    dispatch(nil)
   end
 end
 
