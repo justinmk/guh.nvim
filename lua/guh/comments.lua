@@ -347,7 +347,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
 
   vim.cmd [[wincmd p]] -- Return to diff window.
-  local viewed_msg = (' files: %d/%d '):format(n_viewed, n_files)
+  local viewed_msg = (' files: %d/%d | '):format(n_viewed, n_files)
   local resolved_msg = (' comments: %d/%d '):format(n_resolved or 0, n_threads)
   local msg = {
     { 'PR diff | ', 'Comment' },
@@ -403,8 +403,8 @@ end
 --- identified by `in_reply_to_id`.
 ---
 --- @param gh_comments table[] flat list from `gh.get_pr_data`.
---- @param cb fun(comment_threads: table<string, CommentThread[]>)
-function M.to_threads(gh_comments, cb)
+--- @return table<string, CommentThread[]>
+function M.to_threads(gh_comments)
   --- @type table<number, Comment[]>
   local comment_threads = {}
   local base = {}
@@ -440,7 +440,7 @@ function M.to_threads(gh_comments, cb)
     end
   end
 
-  cb(result)
+  return result
 end
 
 --- Prepares the output of `gh pr diff` for display.
@@ -501,8 +501,11 @@ end
 ---
 --- @param pr_data PullRequest Note: `raw_comments` is mutated in-place to rewrite paths.
 --- @param diff_stdout string  Raw `gh pr diff` output.
---- @param cb fun(lines: string[], threads: table<string,CommentThread[]>, n_files: integer, n_viewed_comments: integer)
-function M.render_diff(pr_data, diff_stdout, cb)
+--- @return string[] lines
+--- @return table<string,CommentThread[]> threads
+--- @return integer n_files
+--- @return integer n_viewed_comments
+function M.render_diff(pr_data, diff_stdout)
   local viewed = pr_data.viewed
   local diff_lines, n_files = prepare_pr_diff(diff_stdout, viewed)
   local line_map = to_line_map(diff_lines)
@@ -521,17 +524,16 @@ function M.render_diff(pr_data, diff_stdout, cb)
       end
     end
   end
-  M.to_threads(pr_data.raw_comments, function(threads)
-    local lines = vim
-      .iter({
-        to_offdiff_section(threads, 'outdated'),
-        to_offdiff_section(threads, 'outside'),
-        diff_lines,
-      })
-      :flatten()
-      :totable()
-    cb(lines, threads, n_files, n_viewed_comments)
-  end)
+  local threads = M.to_threads(pr_data.raw_comments)
+  local lines = vim
+    .iter({
+      to_offdiff_section(threads, 'outdated'),
+      to_offdiff_section(threads, 'outside'),
+      diff_lines,
+    })
+    :flatten()
+    :totable()
+  return lines, threads, n_files, n_viewed_comments
 end
 
 --- Finds the comment(s) at or above `linenr` by walking up to the nearest diagnostic (from the

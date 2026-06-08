@@ -178,10 +178,9 @@ describe('pr + comments view', function()
               c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
             end
           end
-          require('guh.comments').to_threads(pr.raw_comments, function(threads_by_path)
-            assert_threads(threads_by_path)
-            done = true
-          end)
+          local threads_by_path = require('guh.comments').to_threads(pr.raw_comments)
+          assert_threads(threads_by_path)
+          done = true
         end)
         assert(
           vim.wait(5000, function()
