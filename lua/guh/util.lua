@@ -61,8 +61,9 @@ end
 --- Parses a :Guh argument. Accepts:
 ---   - bare number: `"13"`
 ---   - bare commit SHA (7-40 hex chars, must contain a-f): `"a1b2c3d"`
----   - GitHub URL: `"https://github.com/owner/repo/pull/13"`, `"…/issues/13"`, or `"…/commit/<sha>"`
----   - slug: `"owner/repo#13"`
+---   - GitHub URL: `"https://github.com/owner/repo/pull/13"`, `"…/issues/13"`, `"…/commit/<sha>"`
+---   - Repo URL: `"https://github.com/owner/repo"`
+---   - slug: `"owner/repo#13"`, or bare repo slug `"owner/repo"`.
 ---   - guh URI: `"guh://owner/repo/pr/13"`, `"guh://owner/repo/issue/13"`, `"guh://owner/repo/commit/<sha>"`, …
 ---
 --- @param arg string
@@ -83,6 +84,11 @@ function M.parse_target(arg)
   if owner then
     return { owner = owner, repo = repo, sha = sha }
   end
+  -- Bare GitHub repo URL (with optional trailing slash) -> status view for that repo.
+  owner, repo = arg:match('^https?://github%.com/([^/]+)/([^/]+)/?$')
+  if owner then
+    return { owner = owner, repo = repo }
+  end
 
   owner, repo, sha = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/commit/(%x+)$')
   if owner then
@@ -97,6 +103,12 @@ function M.parse_target(arg)
   owner, repo, num = arg:match('^([%w%._-]+)/([%w%._-]+)#(%d+)$')
   if owner then
     return { owner = owner, repo = repo, id = tonumber(num) }
+  end
+
+  -- Bare "owner/name" slug (no id) -> status view for that repo.
+  owner, repo = arg:match('^([%w%._-]+)/([%w%._-]+)$')
+  if owner then
+    return { owner = owner, repo = repo }
   end
 
   num = arg:match('^#(%d+)$')

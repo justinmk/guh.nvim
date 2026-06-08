@@ -210,15 +210,17 @@ Without [target]: shows a status dashboard.
   buffer or |current-directory|).
 - Hit <Enter> or `CTRL-W<Enter>` to view any PR/issue at cursor. |guh-mappings|
 
-With [target]: views or refreshes the PR, issue, or commit given by:
+With [target]: views or refreshes the PR, issue, commit, or repo-status given by:
 - PR or issue number (current repo): `:Guh 35951`
 - Commit SHA (current repo): `:Guh a1b2c3d`
 - GitHub URL: `:Guh https://github.com/neovim/neovim/issues/35951`
 - GitHub commit URL: `:Guh https://github.com/neovim/neovim/commit/a1b2c3d`
+- Bare repo URL (status view): `:Guh https://github.com/neovim/neovim`
 - Guh buffer name: `:Guh guh://neovim/neovim/pr/35951`
-- Slug ("owner/repo#123") >
+- Slug ("owner/repo#123" or repo-only "owner/repo") >
     :Guh neovim/neovim#35951
     :Guh #35951
+    :Guh neovim/neovim
 <
 Commits are fetched via the GitHub API (no local checkout required) and
 shown as a |ft-gitcommit-plugin| buffer. <Enter> on a SHA in any `guh://`

@@ -122,6 +122,9 @@ function M.select(opts)
       M.show_status(focus)
     elseif target.sha then
       M.show_commit(target.sha, repo, focus)
+    elseif not target.id then
+      -- Repo target ("owner/repo" or "https://github.com/owner/repo" )
+      M.show_status(focus, repo)
     elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
       M.show_pr(target.id, repo, focus)
     else
@@ -330,8 +333,9 @@ function M.merge_pr()
 end
 
 --- @param focus boolean
-function M.show_status(focus)
-  local repo = (vim.b.guh or {}).repo or resolve_local_repo()
+--- @param repo? string Optional "owner/name" repo.
+function M.show_status(focus, repo)
+  repo = repo or (vim.b.guh or {}).repo or resolve_local_repo()
   local buf = state.init_buf('status', focus, nil, 'all', { repo = repo })
   local cmd = { 'gh', 'status' }
   if repo then
