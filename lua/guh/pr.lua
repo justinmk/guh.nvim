@@ -34,16 +34,16 @@ local function find_pr_for_commit_sha(sha)
   end
 end
 
---- Resolves `(pr_id, repo)` from a `:Guh` arg, falling back to `b:guh` and `resolve_local_repo()`.
+--- Resolves `(pr_id, repo, commit_idx)` from a `:Guh` arg, falling back to `b:guh` and `resolve_local_repo()`.
 ---
---- If `b:guh.id` is a SHA ("commit/…" buffer), searches for a `pr/…` which has a matching commit in its `b:guh.pr_data`.
+--- If curbuf is "commit/…", searches for the related `pr/…` buf which has that commit.
 ---
 --- @param opts integer|string|table|nil
 --- @return Feat? feat `b:guh.feat`, or nil if `opts` provided an explicit id.
 --- @return integer id
 --- @return string repo
 --- @return integer? commit_idx Index of the `pr_data.commits` item matching this `commit/…` buf (if applicable).
-local function resolve_pr_target(opts)
+local function resolve_pr(opts)
   local b_guh = vim.b.guh
   local id = (type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts)
   if not id and not b_guh then
@@ -57,7 +57,7 @@ local function resolve_pr_target(opts)
     if b_guh.feat == 'commit' then
       id, commit_idx = find_pr_for_commit_sha(b_guh.id)
     else
-      id = tonumber(b_guh.id)
+      id = vim._tointeger(b_guh.id)
     end
   end
   if not id then
@@ -175,7 +175,7 @@ end
 ---
 --- @param delta integer # +1 for next, -1 for previous.
 function M.show_next_commit(delta)
-  local _, id, repo, commit_idx = resolve_pr_target()
+  local _, id, repo, commit_idx = resolve_pr()
   local pr_buf = assert(state.get_buf('pr', repo, id, false))
   local pr_data = vim.fn.getbufvar(pr_buf, 'guh', {}).pr_data
   local commits = pr_data and pr_data.commits
@@ -194,7 +194,7 @@ end
 ---
 --- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
 function M.review_pr()
-  local _, id, repo = resolve_pr_target()
+  local _, id, repo = resolve_pr()
 
   local labels = {
     ['approve'] = { gerund = 'Approving', past = 'Approved' },
@@ -254,7 +254,7 @@ end
 
 --- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
 function M.merge_pr()
-  local _, id, repo = resolve_pr_target()
+  local _, id, repo = resolve_pr()
 
   local function do_merge(choice, subject, body)
     local method = choice:match('^(%S+)')
@@ -417,7 +417,7 @@ end
 --- - "Viewed" files collapse to a `(viewed) <path>` line.
 --- - Diff + comments are presented as 2 'scrollbind' windows.
 function M.show_pr_diff(opts)
-  local _, id, repo = resolve_pr_target(opts)
+  local _, id, repo = resolve_pr(opts)
   local buf = state.init_buf('prdiff', true, repo, id)
   local diff_win = vim.api.nvim_get_current_win()
 
@@ -493,7 +493,7 @@ end
 
 --- Posts a top-level comment on the current PR or issue.
 function M.comment_overview()
-  local feat, id, repo = resolve_pr_target()
+  local feat, id, repo = resolve_pr()
   local kind = feat == 'issue' and 'issue' or 'pr'
 
   comments.edit_comment('comment', id, { '' }, nil, function(input)
@@ -510,7 +510,7 @@ end
 
 --- Runs `gh pr edit <id>` (or `gh issue edit <id>`) in a :terminal.
 function M.edit_pr()
-  local feat, id, repo = resolve_pr_target()
+  local feat, id, repo = resolve_pr()
   local kind = feat == 'issue' and 'issue' or 'pr'
   local buf = state.init_buf('edit', true, repo, id)
   util.run_term_cmd(buf, gh.cmd(repo, kind, 'edit', tostring(id)), function()
@@ -520,7 +520,7 @@ end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
-  local _, id, repo = resolve_pr_target(opts)
+  local _, id, repo = resolve_pr(opts)
   gh.get_pr_data(id, repo, nil, function(pr)
     if not pr then
       return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)

@@ -202,7 +202,7 @@ describe('pr + comments view', function()
       local gh = require('guh.gh')
       local state = require('guh.state')
 
-      -- Load PR so state.bufs.pr has a `pr_data` with commits (needed by resolve_pr_target).
+      -- Load PR so state.bufs.pr has a `pr_data` with commits (needed by resolve_pr).
       local done = false
       gh.get_pr_data(pr_num_, repo_, { force = true }, function(pr_data)
         assert(pr_data, 'get_pr_data returned nil')
