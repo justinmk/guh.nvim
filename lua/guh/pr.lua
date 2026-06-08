@@ -93,7 +93,7 @@ function M.select(opts)
     local row, col = unpack(vim.api.nvim_win_get_cursor(0))
     local line = vim.api.nvim_get_current_line()
     local s = (line:sub(1, col + 1):match('()%S+$') or col + 2) - 1
-    util.flash_region(0, { row - 1, s }, { row - 1, s + #arg })
+    util.hl_flash(0, { row - 1, s }, { row - 1, s + #arg })
   end
 
   -- Support command mods (`:vertical Guh …`). See `:help <mods>`.
@@ -136,7 +136,7 @@ function M.select(opts)
   end
 
   if target and target.id and target.is_pr == nil and not target.sha then
-    -- Probe PR-vs-issue. Async so the flash_region() highlight works.
+    -- Probe PR-vs-issue. Async so the hl_flash() highlight works.
     vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }, function(r)
       vim.schedule(function()
         dispatch(r.code == 0)

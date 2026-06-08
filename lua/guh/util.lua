@@ -7,11 +7,15 @@ local flash_ns = vim.api.nvim_create_namespace('guh.flash')
 
 --- Flashes the given region so the user can see the target of an action.
 ---
+--- If `start`/`end_` are integers, the region is treated as linewise (regtype="V").
+---
 --- @param buf integer
---- @param start [integer, integer] `{row, col}` 0-indexed start position.
---- @param end_ [integer, integer] `{row, col}` 0-indexed end position.
-function M.flash_region(buf, start, end_)
-  vim.hl.range(buf, flash_ns, 'Visual', start, end_, {
+--- @param start integer|[integer, integer]
+--- @param end_ integer|[integer, integer]
+function M.hl_flash(buf, start, end_)
+  local linewise = type(start) == 'number'
+  vim.hl.range(buf, flash_ns, 'Visual', linewise and { start, 0 } or start, linewise and { end_, 0 } or end_, {
+    regtype = linewise and 'V' or 'v',
     priority = 300, -- Overrule diffs.nvim: https://github.com/barrettruth/diffs.nvim/blob/d280baf3e937a487038766f51156dd41ceb0f8e7/lua/diffs/config.lua#L124-L129
     timeout = 200,
   })

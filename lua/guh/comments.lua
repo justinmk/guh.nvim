@@ -613,7 +613,7 @@ function M.update_comment(linenr)
   local function do_it(cand)
     local c = cand.comment
     local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
-    util.flash_region(buf, { r[1] - 1, 0 }, { r[2] - 1, -1 })
+    util.hl_flash(buf, r[1] - 1, r[2] - 1)
     local content = vim.split(c.body or '', '\n', { plain = true })
     local same = gh.get_user() == c.user
     local msg = same and ('Updating comment %d. ZZ to confirm (ZQ to abort).'):format(c.id)
@@ -649,7 +649,7 @@ function M.reply_or_resolve(linenr)
   local function do_it(cand)
     local c = cand.comment
     local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
-    util.flash_region(buf, { r[1] - 1, 0 }, { r[2] - 1, -1 })
+    util.hl_flash(buf, r[1] - 1, r[2] - 1)
 
     vim.ui.select({ 'Reply', 'Resolve' }, {
       prompt = ('Thread on %s:%d:'):format(c.path or '?', c.line or 0),
@@ -760,7 +760,7 @@ function M.do_comment(line1, line2)
     return
   end
 
-  util.flash_region(info.buf, { line1 - 1, 0 }, { line2 - 1, -1 })
+  util.hl_flash(info.buf, line1 - 1, line2 - 1)
 
   gh.get_pr_data(info.pr_id, info.repo, nil, function(pr)
     if not pr then
