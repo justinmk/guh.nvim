@@ -83,7 +83,7 @@ Default mappings (local to `guh://` buffers):
     <Plug>(guh-comment-overview)
   - `cM` Merge PR. |guh-merge|
     <Plug>(guh-merge)
-  - `cR` Review PR (approve / request-changes / comment).
+  - `cR` Review PR (approve / comment / request-changes).
     <Plug>(guh-review)
   - `c:` Edit various properties, via `gh` in a :terminal.
     <Plug>(guh-edit)
@@ -179,8 +179,8 @@ Review PRs: approve, request changes, or reject                   *guh-review*
 `cR` on a PR view opens a picker ("approve"/"request-changes"/"comment").
 `[count]cR` skips the picker:
 - `1cR` = approve
-- `2cR` = request-changes
-- `3cR` = comment
+- `2cR` = comment
+- `3cR` = request-changes
 
 To confirm the "review" action, Guh presents a `guh://…/review/<id>` buffer.
 Write-and-close to confirm the "review" action. |guh-confirm|

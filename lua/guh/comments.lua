@@ -136,6 +136,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
   if not state.try_show('prcomments', repo, id) then
+    -- TODO: should state.init_buf() handle this? maybe helpful for <mods> handling on :Guh too?
     vim.cmd [[botright vertical split]]
   end
   local buf = state.init_buf('prcomments', true, repo, id)

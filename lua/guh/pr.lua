@@ -133,8 +133,8 @@ function M.review_pr()
 
   local labels = {
     ['approve'] = { gerund = 'Approving', past = 'Approved' },
-    ['request-changes'] = { gerund = 'Requesting changes on', past = 'Requested changes on' },
     ['comment'] = { gerund = 'Posting review on', past = 'Posted review on' },
+    ['request-changes'] = { gerund = 'Requesting changes on', past = 'Requested changes on' },
   }
 
   local function do_action(action)
