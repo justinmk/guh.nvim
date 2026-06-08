@@ -145,11 +145,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   local win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(win, buf)
 
-  -- match window options of diff
-  vim.wo.wrap = true
-  vim.wo.number = false
-  vim.wo.relativenumber = false
-  vim.wo.list = false
+  vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
 
   ---------------------------------------------------------------------------
   -- Step 1: Parse diff → map each *visible line* to its file + new/old line num

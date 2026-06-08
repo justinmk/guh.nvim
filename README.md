@@ -6,7 +6,7 @@
 Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI with a minimalist yet
 effective workflow.
 
-Guh is ~2k lines of code, leveraging builtin Nvim mechanisms such as diagnostics
+Guh is ~2k lines of unimpeachable code, leveraging builtin Nvim mechanisms such as diagnostics
 and 'scrollbind' buffers, and otherwise delegating to the `gh` CLI.
 
 ## Usage

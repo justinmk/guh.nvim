@@ -494,21 +494,25 @@ describe(':Guh', function()
     }
   end)
 
-  it('":Guh 1" shows issue/pr', function()
+  it('":Guh 1" loads pr/, shows prdiff/ + prcomments/', function()
     n.command('Guh 1')
 
+    -- Auto-load opens prdiff/ + prcomments/ as a split; pr/ becomes the alternate file.
     screen:expect {
+      timeout = 15000,
       attr_ids = {}, -- Don't care about colors.
       grid = [[
-        ^{MATCH:.*#1 +}|
-        {MATCH:.*}|*7
-        {MATCH:guh://.*/1 .*}|
-        {MATCH: +}|
+        {MATCH:.*}|*8
+        {MATCH:guh://.*/prdiff/1 .* guh://.*/prcomments/1 +}|
+        {MATCH:.*}|
       ]],
     }
-
-    -- local buf = n.fn.bufname('%')
-    -- t.ok(buf == 'guh://issue/1' or buf == 'guh://pr/1', 'guh://{pr,issue}/1', buf)
+    -- pr/ buf still exists and is the alt-buf of the prdiff window. (Its name is briefly `term://…`
+    -- until the `gh pr view` on_exit renames it, so check `b:guh.feat` directly.)
+    local alt_feat = n.exec_lua(function()
+      return (vim.b[vim.fn.bufnr('#')].guh or {}).feat
+    end)
+    assert(alt_feat == 'pr', ('alt-buf feat: %s'):format(tostring(alt_feat)))
   end)
 end)
 

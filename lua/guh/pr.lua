@@ -1,3 +1,5 @@
+--- The main "app" code. Displays PRs/issues/repo-status.
+
 local comments = require('guh.comments')
 local gh = require('guh.gh')
 local state = require('guh.state')
@@ -38,14 +40,15 @@ end
 ---
 --- If curbuf is "commit/…", searches for the related `pr/…` buf which has that commit.
 ---
---- @param opts integer|string|table|nil
+--- @param opts integer|string|table|nil Table form may be cmdline "args", or explicit `{id=…,repo=…}`.
 --- @return Feat? feat `b:guh.feat`, or nil if `opts` provided an explicit id.
 --- @return integer id
 --- @return string repo
 --- @return integer? commit_idx Index of the `pr_data.commits` item matching this `commit/…` buf (if applicable).
 local function resolve_pr(opts)
   local b_guh = vim.b.guh
-  local id = (type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts)
+  local opts_t = type(opts) == 'table' and opts or {}
+  local id = opts_t.id or (opts_t.args and tonumber(opts_t.args)) or tonumber(opts)
   if not id and not b_guh then
     -- UX: `error(…, 0)` skips the "file:line:" prefix.
     error('guh: Not in a guh:// buffer', 0)
@@ -64,7 +67,7 @@ local function resolve_pr(opts)
     error('guh: Failed to resolve PR id', 0)
   end
 
-  local repo = (b_guh or {}).repo or resolve_local_repo()
+  local repo = opts_t.repo or (b_guh or {}).repo or resolve_local_repo()
   if not repo then
     error('guh: Failed to resolve repo', 0)
   end
@@ -355,9 +358,9 @@ function M.show_status(focus, repo)
     local tmpl = vim.text.indent(
       0,
       [[
-      {{"\nRecent (open) PRs:\n" -}}
+      {{"\nOpen PRs (recently updated):\n" -}}
       {{range .data.repository.pullRequests.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end -}}
-      {{"\nRecent (open) issues:\n" -}}
+      {{"\nOpen issues (recently updated):\n" -}}
       {{range .data.repository.issues.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end}}
     ]]
     )
@@ -387,6 +390,8 @@ end
 
 --- Shows PR details + the most-recent commits (since the last force-push).
 ---
+--- Loads the prdiff/ + prcomments/ buffers also.
+---
 --- @param id integer
 --- @param repo string "owner/name"
 --- @param focus boolean
@@ -408,10 +413,16 @@ function M.show_pr(id, repo, focus)
     repo,
     commits_tmpl
   )
-  -- XXX: Prefetch pr_data into b:guh.pr_data so later actions are fast.
-  gh.get_pr_data(id, repo, nil, function() end)
+
   util.run_term_cmd(buf, cmd, function()
     util.set_default_keymaps(buf)
+  end)
+
+  -- Load prdiff/ + prcomments/. The pr/ buf (init_buf above) becomes the alt-buf of prdiff/.
+  -- Deferred via `vim.schedule` so it runs AFTER `run_term_cmd`'s own scheduled
+  -- `state.show_buf(pr_buf)`, so we can focus prdiff/ as curbuf.
+  vim.schedule(function()
+    M.show_pr_diff({ id = id, repo = repo })
   end)
 end
 

@@ -78,7 +78,7 @@ Default mappings (local to `guh://` buffers):
     <Plug>(guh-logs)
   - `]f` View the next PR commit (from the most-recent push).
     <Plug>(guh-next-commit)
-  - `[f` View the next PR commit (from the most-recent push).
+  - `[f` View the previous PR commit (from the most-recent push).
     <Plug>(guh-prev-commit)
   - `g?` View this help section.
     <Plug>(guh-help)
@@ -222,6 +222,10 @@ With [target]: views or refreshes the PR, issue, commit, or repo-status given by
     :Guh #35951
     :Guh neovim/neovim
 <
+For a PR target, `:Guh` loads the pr/ + prdiff/ + prcomments/ views.
+The pr/ view becomes the |alternate-file| of the prdiff/ view (so `CTRL-^`
+returns to it).
+
 Commits are fetched via the GitHub API (no local checkout required) and
 shown as a |ft-gitcommit-plugin| buffer. <Enter> on a SHA in any `guh://`
 buffer, opens that commit.

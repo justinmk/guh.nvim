@@ -170,13 +170,6 @@ function M.set_buf_name(buf, feat, key)
   end
 end
 
--- M.on_win_open = function()
---   vim.cmd [[
---      vertical topleft split
---      set wrap breakindent nonumber norelativenumber nolist
---    ]]
--- end
-
 M.bufs = bufs
 
 return M
