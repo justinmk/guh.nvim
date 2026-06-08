@@ -561,7 +561,9 @@ function M.show_ci_logs(opts)
         gh.get_pr_ci_logs(picked.databaseId, repo, function(logs, err)
           assert(logs, ('failed to get CI log: %s'):format(err))
 
-          local buf = state.init_buf('logs', true, repo, id)
+          -- Key the bufname by the `job.databaseId` to disambiguate (so multiple logs can be viewed on the same PR).
+          -- XXX: store pr-id in `b:guh.id` for refresh/actions.
+          local buf = state.init_buf('logs', true, repo, picked.databaseId, { id = id })
           vim.cmd.buffer(buf)
           -- Logs from `gh run view --log` contain termcodes. Open the buffer as a terminal so it renders nicely.
           local chan = vim.api.nvim_open_term(0, {})

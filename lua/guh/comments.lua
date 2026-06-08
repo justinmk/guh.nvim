@@ -645,9 +645,12 @@ function M.reply_or_resolve(linenr)
     return
   end
   -- Reply/Resolve is a _thread_ action: dedupe so that user is not prompted for "Which comment?".
-  candidates = vim.iter(candidates):unique(function(c)
-    return c.comment.thread_id
-  end):totable()
+  candidates = vim
+    .iter(candidates)
+    :unique(function(c)
+      return c.comment.thread_id
+    end)
+    :totable()
   local block = find_block()
 
   local function do_it(cand)
