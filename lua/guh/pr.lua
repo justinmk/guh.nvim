@@ -353,7 +353,7 @@ function M.show_pr_diff(opts)
     if not pr_data or not diff_stdout then
       return
     end
-    local lines, threads, n_files, n_viewed_comments = comments.render_diff(pr_data, diff_stdout)
+    local lines, threads, n_files, n_viewed_threads = comments.render_diff(pr_data, diff_stdout)
     util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
     -- filetype=gitcommit enables plugins like https://github.com/barrettruth/diffs.nvim
     util.buf_set_readonly_lines(buf, lines, 'gitcommit')
@@ -372,7 +372,7 @@ function M.show_pr_diff(opts)
       n_files,
       pr_data.n_threads,
       pr_data.n_resolved,
-      n_viewed_comments
+      n_viewed_threads
     )
     progress('success')
   end

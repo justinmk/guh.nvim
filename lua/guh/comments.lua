@@ -137,8 +137,8 @@ end
 --- @param n_files integer Count of all files in the HEAD diff.
 --- @param n_threads integer Total review-thread count (resolved + unresolved).
 --- @param n_resolved integer Resolved review-thread count.
---- @param n_viewed_comments integer Count of comments hidden because their file is "viewed".
-function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n_resolved, n_viewed_comments)
+--- @param n_viewed_threads integer Unresolved threads hidden in "Viewed" files.
+function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n_resolved, n_viewed_threads)
   viewed = viewed or {}
   local n_viewed = vim.tbl_count(viewed)
   local diff_buf = vim.api.nvim_win_get_buf(diff_win)
@@ -347,25 +347,25 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
 
   vim.cmd [[wincmd p]] -- Return to diff window.
-  local viewed_msg = (' files: %d/%d | '):format(n_viewed, n_files)
-  local resolved_msg = (' comments: %d/%d '):format(n_resolved or 0, n_threads)
-  local msg = {
+  local visible_threads = n_threads - n_resolved - n_viewed_threads
+  local prdiff_msg = {
     { 'PR diff | ', 'Comment' },
+    { ('Files: %d ('):format(n_files, n_viewed), 'Comment' },
     { 'Viewed', { '@markup.italic', 'Comment' } },
-    { viewed_msg, 'Comment' },
-    { 'Resolved', { '@markup.italic', 'Comment' } },
-    { resolved_msg, 'Comment' },
-    { ' (`g?` for help)', 'Comment' },
+    { (': %d) | '):format(n_viewed), 'Comment' },
+    { 'Unresolved', { '@markup.italic', 'Comment' } },
+    { (' threads: %d'):format(visible_threads), 'Comment' },
+    { ' | g? for help', 'Comment' },
   }
-  util.show_info_overlay(diff_buf, { msg })
-  local hidden_msg = {
-    { 'PR comments | ', 'Comment' },
-    { ('Not showing %d comments in '):format(n_viewed_comments), 'Comment' },
+  util.show_info_overlay(diff_buf, { prdiff_msg })
+
+  local prcomments_msg = {
+    { ('PR comments | Visible: %d | Unresolved in '):format(visible_threads), 'Comment' },
     { 'Viewed', { '@markup.italic', 'Comment' } },
-    { ' files.', 'Comment' },
-    { ' (`g?` for help)', 'Comment' },
+    { (' files: %d'):format(n_viewed_threads), 'Comment' },
+    { ' | g? for help', 'Comment' },
   }
-  util.show_info_overlay(buf, { hidden_msg })
+  util.show_info_overlay(buf, { prcomments_msg })
 
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true
@@ -383,6 +383,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   vim.api.nvim_win_call(win, function()
     vim.cmd [[setlocal scrollbind cursorbind]]
   end)
+  vim.fn.feedkeys(vim.keycode('<c-y>'), 'n') -- XXX: Ensure header is visible.
 end
 
 --- Marshalls an API comment to local `Comment` type.
@@ -504,15 +505,15 @@ end
 --- @return string[] lines
 --- @return table<string,CommentThread[]> threads
 --- @return integer n_files
---- @return integer n_viewed_comments
+--- @return integer n_viewed_threads Unresolved threads in "viewed" files.
 function M.render_diff(pr_data, diff_stdout)
   local viewed = pr_data.viewed
   local diff_lines, n_files = prepare_pr_diff(diff_stdout, viewed)
   local line_map = to_line_map(diff_lines)
-  local n_viewed_comments = 0
+  local viewed_threads = {} ---@type table<integer, true>
   for _, c in ipairs(pr_data.raw_comments) do
-    if viewed[c.path] then
-      n_viewed_comments = n_viewed_comments + 1
+    if viewed[c.path] and c.thread_id then
+      viewed_threads[c.thread_id] = true
     end
     if c.thread_id then
       if c.outdated then
@@ -533,7 +534,7 @@ function M.render_diff(pr_data, diff_stdout)
     })
     :flatten()
     :totable()
-  return lines, threads, n_files, n_viewed_comments
+  return lines, threads, n_files, vim.tbl_count(viewed_threads)
 end
 
 --- Finds the comment(s) at or above `linenr` by walking up to the nearest diagnostic (from the
