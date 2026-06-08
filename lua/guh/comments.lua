@@ -248,8 +248,9 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
         if body ~= '' then
           table.insert(diagnostics, {
             lnum = start_idx - 1,
-            end_lnum = end_idx - 1,
+            end_lnum = end_idx,
             col = 0,
+            end_col = 0,
             message = body,
             severity = severity.INFO,
             source = 'guh.nvim',
