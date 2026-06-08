@@ -3,6 +3,19 @@ local state = require('guh.state')
 local M = {}
 
 local overlay_ns = vim.api.nvim_create_namespace('guh.info_overlay')
+local flash_ns = vim.api.nvim_create_namespace('guh.flash')
+
+--- Flashes the given region so the user can see the target of an action.
+---
+--- @param buf integer
+--- @param start [integer, integer] `{row, col}` 0-indexed start position.
+--- @param end_ [integer, integer] `{row, col}` 0-indexed end position.
+function M.flash_region(buf, start, end_)
+  vim.hl.range(buf, flash_ns, 'Visual', start, end_, {
+    priority = 300, -- Overrule diffs.nvim: https://github.com/barrettruth/diffs.nvim/blob/d280baf3e937a487038766f51156dd41ceb0f8e7/lua/diffs/config.lua#L124-L129
+    timeout = 200,
+  })
+end
 
 --- Shared `nvim_echo` notification id. Re-using it makes successive emits
 --- update the same notification in place, so progress events from different
@@ -252,8 +265,11 @@ function M.set_default_keymaps(buf)
   M.map_default(buf, 'n', 'c:', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`, `gh issue edit`)')
 
   -- "Local" (cursor-relative) actions:
-  M.map_default(buf, { 'n', 'x' }, 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  M.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  M.map_default(buf, 'x', 'c',  '<Plug>(guh-comment)', 'Comment on PR or diff')
   M.map_default(buf, 'n', 'cr', '<Plug>(guh-thread)', 'Reply-to or Resolve a comment thread')
+  M.map_default(buf, 'n', '<Enter>', '<Plug>(guh-open)', 'Open :Guh target at cursor')
+  M.map_default(buf, 'n', '<C-W><Enter>', '<Plug>(guh-open-split)', 'Open :Guh target at cursor in a split')
 end
 
 function M.buf_keymap(buf, mode, lhs, desc, rhs)

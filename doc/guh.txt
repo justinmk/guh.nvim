@@ -34,7 +34,7 @@ file which Nvim automatically runs at startup. |lua-plugin-init|
 To review a PR without doing a checkout in your repo:
 
 - Run `:Guh` to see your status (list of PRs, issues, etc.).
-  - Hit <Enter> on a PR/issue to view it.
+  - Hit <Enter> or `CTRL-W<Enter>` on a PR/issue to view it.
 - Run `:Guh [target]` to view a specific PR/issue. |guh-commands|
   - Hit `R` to refresh the view.
 - All "guh://…" buffers have the same basic mappings. |guh-mappings|
@@ -88,7 +88,10 @@ Default mappings (local to `guh://` buffers):
   - `c:` Edit various properties, via `gh` in a :terminal.
     <Plug>(guh-edit)
 - "Local" (cursor-relative) actions:
-  - `<Enter>` invokes |:Guh| on the target at cursor.
+  - `<Enter>` invokes |:Guh| on the |WORD| at cursor.
+    <Plug>(guh-open)
+  - `CTRL-W<Enter>` invokes |:Guh| on the |WORD| at cursor, in a split window.
+    <Plug>(guh-open-split)
   - `cc` (or `c` in Visual mode): Comment on a diff-line. |guh-comment|
     In a `guh://…/prcomments/` buffer, edits the comment at cursor.
     <Plug>(guh-comment)
@@ -187,11 +190,21 @@ COMMANDS                                                        *guh-commands*
 
 :Guh [target]                                                           *:Guh*
 
+Views or reloads the given [target], or shows a status if [target] is not
+given (or is a repo). Accepts |<mods>|: >
+
+    :vertical Guh …
+    :horizontal Guh …
+    :tab Guh …
+
+If |<mods>| is not given, the existing window for [target] (if any) is
+focused.
+
 Without [target]: shows a status dashboard.
 - Top part shows `gh pr status`.
 - Bottom part shows info for the current repo (based on the current `guh://`
   buffer or |current-directory|).
-- Hit <Enter> to view any PR/issue at cursor. |guh-mappings|
+- Hit <Enter> or `CTRL-W<Enter>` to view any PR/issue at cursor. |guh-mappings|
 
 With [target]: views or refreshes the PR, issue, or commit given by:
 - PR or issue number (current repo): `:Guh 35951`

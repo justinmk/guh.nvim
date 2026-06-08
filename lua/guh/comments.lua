@@ -8,7 +8,6 @@ local M = {}
 
 local severity = vim.diagnostic.severity
 local diag_ns = vim.api.nvim_create_namespace('guh.comments')
-local comment_hl_ns = vim.api.nvim_create_namespace('guh.comment_hl')
 
 --- Filename prefixes for threads that anchor outside the visible HEAD diff. They get
 --- rewritten by `pr.show_pr_diff` so each becomes a own quasi-file entry; the mini-diff below
@@ -18,14 +17,6 @@ local comment_hl_ns = vim.api.nvim_create_namespace('guh.comment_hl')
 --- - `outside-<thread_id>:` : Thread is on HEAD, but outside the PR diff.
 local outdated_prefix_pat = '^outdated%-%d+:'
 local outside_prefix_pat = '^outside%-%d+:'
-
--- Flashes a text region so the user can see the target of an action.
-local function flash_region(buf, line1, line2)
-  vim.hl.range(buf, comment_hl_ns, 'Visual', { line1 - 1, 0 }, { line2 - 1, -1 }, {
-    priority = 300, -- Overrule diffs.nvim: https://github.com/barrettruth/diffs.nvim/blob/d280baf3e937a487038766f51156dd41ceb0f8e7/lua/diffs/config.lua#L124-L129
-    timeout = 200,
-  })
-end
 
 -- Returns the 1-indexed inclusive [line1, line2] of the rendered comment block at cursor.
 local function find_block()
@@ -147,7 +138,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   if not state.try_show('prcomments', repo, id) then
     vim.cmd [[botright vertical split]]
   end
-  local buf = state.init_buf('prcomments', repo, id)
+  local buf = state.init_buf('prcomments', true, repo, id)
   util.set_default_keymaps(buf)
 
   local win = vim.api.nvim_get_current_win()
@@ -624,7 +615,7 @@ function M.update_comment(linenr)
   local function do_it(cand)
     local c = cand.comment
     local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
-    flash_region(buf, r[1], r[2])
+    util.flash_region(buf, { r[1] - 1, 0 }, { r[2] - 1, -1 })
     local content = vim.split(c.body or '', '\n', { plain = true })
     local same = gh.get_user() == c.user
     local msg = same and ('Updating comment %d. ZZ to confirm (ZQ to abort).'):format(c.id)
@@ -660,7 +651,7 @@ function M.reply_or_resolve(linenr)
   local function do_it(cand)
     local c = cand.comment
     local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
-    flash_region(buf, r[1], r[2])
+    util.flash_region(buf, { r[1] - 1, 0 }, { r[2] - 1, -1 })
 
     vim.ui.select({ 'Reply', 'Resolve' }, {
       prompt = ('Thread on %s:%d:'):format(c.path or '?', c.line or 0),
@@ -771,7 +762,7 @@ function M.do_comment(line1, line2)
     return
   end
 
-  flash_region(info.buf, line1, line2)
+  util.flash_region(info.buf, { line1 - 1, 0 }, { line2 - 1, -1 })
 
   gh.get_pr_data(info.pr_id, info.repo, nil, function(pr)
     if not pr then
@@ -807,7 +798,7 @@ function M.edit_comment(feat, prnum, content, infomsg, cb)
   if not state.try_show(feat, repo, prnum) then
     vim.cmd [[split]]
   end
-  local buf = state.init_buf(feat, repo, prnum)
+  local buf = state.init_buf(feat, true, repo, prnum)
   vim._with({ buf = buf }, function()
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)

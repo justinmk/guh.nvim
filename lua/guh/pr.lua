@@ -5,10 +5,6 @@ local util = require('guh.util')
 
 local M = {}
 
---- Shows...
---- - Status (if no args given)
---- - PR detail
---- - Issue detail
 --- Resolves the current local repo "owner/name", blocking up to 5s.
 --- @return string?
 local function resolve_local_repo()
@@ -34,6 +30,12 @@ local function resolve_pr_target(opts)
   return id, repo
 end
 
+--- Implements `:Guh`.
+---
+--- Shows...
+--- - Status (if no args given)
+--- - PR detail
+--- - Issue detail
 function M.select(opts)
   if not gh.get_user() then
     util.msg('Not logged in to gh. Run: "gh auth login"', vim.log.levels.ERROR)
@@ -41,8 +43,26 @@ function M.select(opts)
   end
 
   local arg = (opts or {}).args or ''
+
+  -- Flash the cWORD if it matches the arg (so keymaps can use `:Guh <cWORD>` instead of a wrapper).
+  if arg == vim.fn.expand('<cWORD>') then
+    local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+    local line = vim.api.nvim_get_current_line()
+    local s = (line:sub(1, col + 1):match('()%S+$') or col + 2) - 1
+    util.flash_region(0, { row - 1, s }, { row - 1, s + #arg })
+  end
+
+  -- Support command mods (`:vertical Guh …`). See `:help <mods>`.
+  local smods = (opts or {}).smods or {}
+  local window_mod = (smods.split or '') ~= '' or smods.vertical or smods.horizontal or (smods.tab or -1) >= 0
+  if window_mod then
+    vim.cmd(((opts or {}).mods or '') .. ' new')
+  end
+  -- If a command mod was given (`:vertical Guh …`), don't attempt to navigate to an existing window.
+  local focus = not window_mod
+
   if 0 == #arg then
-    M.show_status()
+    M.show_status(focus)
     return
   end
 
@@ -59,26 +79,25 @@ function M.select(opts)
   end
 
   if target.sha then
-    M.show_commit(target.sha, repo)
+    M.show_commit(target.sha, repo, focus)
     return
   end
 
   -- URL form already tells us PR vs issue; skip the API probe.
-  if target.is_pr ~= nil then
-    if target.is_pr then
-      M.show_pr(target.id, repo)
-    else
-      M.show_issue(target.id, repo)
-    end
+  if target.is_pr == true then
+    M.show_pr(target.id, repo, focus)
+    return
+  elseif target.is_pr == false then
+    M.show_issue(target.id, repo, focus)
     return
   end
 
   local test_cmd = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }):wait()
   local is_pr = 0 == test_cmd.code
   if is_pr then
-    M.show_pr(target.id, repo)
+    M.show_pr(target.id, repo, focus)
   else
-    M.show_issue(target.id, repo)
+    M.show_issue(target.id, repo, focus)
   end
 end
 
@@ -86,7 +105,8 @@ end
 ---
 --- @param sha string Commit SHA (7-40 hex chars).
 --- @param repo string "owner/name"
-function M.show_commit(sha, repo)
+--- @param focus boolean
+function M.show_commit(sha, repo, focus)
   local done = util.progress(('Loading commit %s...'):format(sha))
   local cmd = {
     'gh',
@@ -102,7 +122,7 @@ function M.show_commit(sha, repo)
     end
     -- Patch format's first line is "From <full-sha> Mon Sep 17 00:00:00 2001".
     local full_sha = stdout:match('^From%s+(%x+)') or sha
-    local buf = state.init_buf('commit', repo, full_sha, { id = full_sha })
+    local buf = state.init_buf('commit', focus, repo, full_sha, { id = full_sha })
     local lines = vim.split(stdout, '\n', { plain = true, trimempty = true })
     util.buf_set_readonly_lines(buf, lines, 'gitcommit')
     util.set_default_keymaps(buf)
@@ -162,7 +182,7 @@ function M.refresh()
     return
   end
   if feat == 'status' then
-    return M.show_status()
+    return M.show_status(true)
   end
   -- Drop cached pr_data on the `/pr/…` buf so `gh.get_pr_data` doesn't use stale data.
   local b = vim.b.guh or {}
@@ -255,9 +275,10 @@ function M.merge_pr()
   end)
 end
 
-function M.show_status()
+--- @param focus boolean
+function M.show_status(focus)
   local repo = (vim.b.guh or {}).repo or resolve_local_repo()
-  local buf = state.init_buf('status', nil, 'all', { repo = repo })
+  local buf = state.init_buf('status', focus, nil, 'all', { repo = repo })
   local cmd = { 'gh', 'status' }
   if repo then
     local owner, name = repo:match('^([^/]+)/(.+)$')
@@ -298,8 +319,9 @@ end
 
 --- @param id integer
 --- @param repo string "owner/name"
-function M.show_issue(id, repo)
-  local buf = state.init_buf('issue', repo, id)
+--- @param focus boolean
+function M.show_issue(id, repo, focus)
+  local buf = state.init_buf('issue', focus, repo, id)
   util.run_term_cmd(buf, gh.cmd(repo, 'issue', 'view', tostring(id), '--comments'), function()
     util.set_default_keymaps(buf)
   end)
@@ -309,8 +331,9 @@ end
 ---
 --- @param id integer
 --- @param repo string "owner/name"
-function M.show_pr(id, repo)
-  local buf = state.init_buf('pr', repo, id)
+--- @param focus boolean
+function M.show_pr(id, repo, focus)
+  local buf = state.init_buf('pr', focus, repo, id)
   -- `oid` is the full SHA; slice the first 7 chars. `committedDate` is ISO-8601.
   local commits_tmpl = vim.text.indent(
     0,
@@ -341,7 +364,7 @@ end
 --- - Diff + comments are presented as 2 'scrollbind' windows.
 function M.show_pr_diff(opts)
   local id, repo = resolve_pr_target(opts)
-  local buf = state.init_buf('prdiff', repo, id)
+  local buf = state.init_buf('prdiff', true, repo, id)
   local diff_win = vim.api.nvim_get_current_win()
 
   local progress = util.new_progress_report('Loading PR diff...', buf)
@@ -441,7 +464,7 @@ function M.edit_pr()
     return
   end
   local kind = feat == 'issue' and 'issue' or 'pr'
-  local buf = state.init_buf('edit', repo, id)
+  local buf = state.init_buf('edit', true, repo, id)
   util.run_term_cmd(buf, gh.cmd(repo, kind, 'edit', tostring(id)), function()
     util.set_default_keymaps(buf)
   end)
@@ -475,7 +498,7 @@ function M.show_ci_logs(opts)
         gh.get_pr_ci_logs(picked.databaseId, repo, function(logs, err)
           assert(logs, ('failed to get CI log: %s'):format(err))
 
-          local buf = state.init_buf('logs', repo, id)
+          local buf = state.init_buf('logs', true, repo, id)
           vim.cmd.buffer(buf)
           -- Logs from `gh run view --log` contain termcodes. Open the buffer as a terminal so it renders nicely.
           local chan = vim.api.nvim_open_term(0, {})

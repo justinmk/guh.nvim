@@ -26,34 +26,6 @@ vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
   command = 'keepjumps syncbind',
 })
 
-vim.api.nvim_create_autocmd('BufFilePost', {
-  pattern = 'guh://*',
-  group = group,
-  callback = function(args)
-    vim.keymap.set('n', '<Enter>', function()
-      local util = require('guh.util')
-      local text = vim.fn.expand('<cWORD>')
-      -- Flash the cWORD so the user can see what got picked.
-      local row, col = unpack(vim.api.nvim_win_get_cursor(0))
-      local line = vim.api.nvim_get_current_line()
-      local s = (line:sub(1, col + 1):match('()%S+$') or col + 2) - 1
-      vim.hl.range(
-        0,
-        vim.api.nvim_create_namespace('guh.cword_hl'),
-        'Visual',
-        { row - 1, s },
-        { row - 1, s + #text },
-        { timeout = 200 }
-      )
-      local done = util.progress('Loading...')
-      vim.schedule(function()
-        vim.cmd('Guh ' .. text)
-        done()
-      end)
-    end, { buffer = args.buf, desc = 'Open :Guh target at cursor' })
-  end,
-})
-
 vim.api.nvim_create_user_command('Guh', function(opts)
   require('guh.pr').select(opts)
 end, { nargs = '?' })
@@ -85,4 +57,10 @@ end, opts)
 vim.keymap.set('n', '<Plug>(guh-help)', '<cmd>help guh-mappings<cr>', opts)
 vim.keymap.set('n', '<Plug>(guh-refresh)', function()
   require('guh.pr').refresh()
+end, opts)
+vim.keymap.set('n', '<Plug>(guh-open)', function()
+  vim.cmd.Guh(vim.fn.expand('<cWORD>'))
+end, opts)
+vim.keymap.set('n', '<Plug>(guh-open-split)', function()
+  vim.api.nvim_cmd({ cmd = 'Guh', args = { vim.fn.expand('<cWORD>') }, mods = { horizontal = true } }, {})
 end, opts)

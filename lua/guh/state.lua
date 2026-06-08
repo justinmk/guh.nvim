@@ -57,7 +57,13 @@ end
 
 --- Navigates to the window/tabpage of the specified buffer, or else shows it
 --- in the current window.
-function M.show_buf(buf)
+--- @param buf integer
+--- @param focus boolean Navigate to existing window where the buffer is visible.
+function M.show_buf(buf, focus)
+  if not focus then
+    vim.api.nvim_set_current_buf(buf)
+    return
+  end
   local wins = vim.fn.win_findbuf(buf)
   if #wins > 0 then
     -- Already displayed elsewhere, focus it.
@@ -98,16 +104,17 @@ function M.set_b_guh(buf, bufstate)
 end
 
 --- @param feat Feat
+--- @param focus boolean Navigate to existing window where the buffer is visible (else use current).
 --- @param repo string|nil "owner/name", or nil for non-thing-bound feats (e.g. status).
 --- @param id string|integer PR/issue number, or "all" for status.
 --- @param bufstate? BufState
 --- @return integer buf
 --- @return string key the `(feat, key)` key
-function M.init_buf(feat, repo, id, bufstate)
+function M.init_buf(feat, focus, repo, id, bufstate)
   bufstate = bufstate or {}
   local key = get_key(repo, id)
   local buf = assert(M.get_buf(feat, repo, id))
-  M.show_buf(buf)
+  M.show_buf(buf, focus)
   if bufstate.id == nil then
     bufstate.id = id == 'all' and 0 or assert(tonumber(id))
   end
