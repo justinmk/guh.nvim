@@ -55,46 +55,38 @@ function M.select(opts)
   -- Support command mods (`:vertical Guh …`). See `:help <mods>`.
   local smods = (opts or {}).smods or {}
   local window_mod = (smods.split or '') ~= '' or smods.vertical or smods.horizontal or (smods.tab or -1) >= 0
-  if window_mod then
-    vim.cmd(((opts or {}).mods or '') .. ' new')
-  end
   -- If a command mod was given (`:vertical Guh …`), don't attempt to navigate to an existing window.
   local focus = not window_mod
 
-  if 0 == #arg then
-    M.show_status(focus)
-    return
+  -- Resolve target + repo (+ PR/issue probe) BEFORE potential `:new` split, so we can check `b:guh`.
+  local target, repo, is_pr
+  if #arg > 0 then
+    target = util.parse_target(arg)
+    if not target then
+      util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
+      return
+    end
+    repo = target.owner and (target.owner .. '/' .. target.repo) or (vim.b.guh or {}).repo or resolve_local_repo()
+    if not repo then
+      util.msg('Failed to get repo info', vim.log.levels.ERROR)
+      return
+    end
+    if target.id and target.is_pr == nil and not target.sha then
+      -- Probe PR-vs-issue (needs `repo`).
+      local r = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }):wait()
+      is_pr = r.code == 0
+    end
   end
 
-  local target = util.parse_target(arg)
+  if window_mod then
+    vim.cmd(((opts or {}).mods or '') .. ' new')
+  end
+
   if not target then
-    util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
-    return
-  end
-
-  local repo = target.owner and (target.owner .. '/' .. target.repo) or (vim.b.guh or {}).repo or resolve_local_repo()
-  if not repo then
-    util.msg('Failed to get repo info', vim.log.levels.ERROR)
-    return
-  end
-
-  if target.sha then
+    M.show_status(focus)
+  elseif target.sha then
     M.show_commit(target.sha, repo, focus)
-    return
-  end
-
-  -- URL form already tells us PR vs issue; skip the API probe.
-  if target.is_pr == true then
-    M.show_pr(target.id, repo, focus)
-    return
-  elseif target.is_pr == false then
-    M.show_issue(target.id, repo, focus)
-    return
-  end
-
-  local test_cmd = vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }):wait()
-  local is_pr = 0 == test_cmd.code
-  if is_pr then
+  elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
     M.show_pr(target.id, repo, focus)
   else
     M.show_issue(target.id, repo, focus)
