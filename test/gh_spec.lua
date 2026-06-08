@@ -101,7 +101,7 @@ describe('guh.gh', function()
 
       local ok = vim.wait(15000, function()
         return done
-      end)
+      end, 100)
       assert(ok, 'get_pr_ci_logs timed out')
 
       -- Logs may have been purged by GitHub (90 day retention). Either logs or
@@ -185,13 +185,72 @@ describe('pr + comments view', function()
         assert(
           vim.wait(5000, function()
             return done
-          end),
+          end, 100),
           'get_pr_data timed out'
         )
       end
 
       test_get_pr_data_full()
     end)
+  end)
+
+  it('"dd" from a `commit/…` buffer resolves to its PR', function()
+    local pr_num = 2
+    local repo = 'justinmk/guh.nvim'
+
+    local commit_buf = n.exec_lua(function(pr_num_, repo_)
+      local gh = require('guh.gh')
+      local state = require('guh.state')
+
+      -- Load PR so state.bufs.pr has a `pr_data` with commits (needed by resolve_pr_target).
+      local done = false
+      gh.get_pr_data(pr_num_, repo_, { force = true }, function(pr_data)
+        assert(pr_data, 'get_pr_data returned nil')
+        local pr_buf = state.init_buf('pr', true, repo_, pr_num_, { pr_data = pr_data })
+        assert(vim.b[pr_buf].guh.pr_data.commits[1], 'pr_data.commits is empty')
+        done = true
+      end)
+      assert(
+        vim.wait(15000, function()
+          return done
+        end, 100),
+        'get_pr_data timed out'
+      )
+
+      -- Open a `commit/…` buffer via `:Guh <sha>`.
+      local pr_buf = state.get_buf('pr', repo_, pr_num_)
+      local sha = vim.b[pr_buf].guh.pr_data.commits[1].oid
+      vim.cmd('Guh ' .. sha)
+      assert(
+        vim.wait(15000, function()
+          local b = state.get_buf('commit', repo_, sha, true)
+          return b and vim.api.nvim_get_current_buf() == b
+        end, 100),
+        ':Guh <sha> timed out'
+      )
+      assert(vim.b.guh.feat == 'commit', 'feat != commit')
+      return vim.api.nvim_get_current_buf()
+    end, pr_num, repo)
+
+    -- "dd" should return to the "prdiff/…" buffer.
+    n.feed('dd')
+
+    t.retry(nil, 10000, function()
+      local has_prdiff = n.exec_lua(function(pr_num_, repo_)
+        return require('guh.state').get_buf('prdiff', repo_, pr_num_, true) ~= nil
+      end, pr_num, repo)
+      assert(has_prdiff, 'prdiff buf was not created')
+    end)
+
+    -- Now :bwipeout the PR buf, then confirm that "dd" shows an error.
+    n.exec_lua(function(pr_num_, repo_, commit_buf_)
+      local state = require('guh.state')
+      vim.cmd('bwipeout! ' .. assert(state.get_buf('pr', repo_, pr_num_, false)))
+      vim.api.nvim_set_current_buf(commit_buf_)
+      local ok, err = pcall(require('guh.pr').show_pr_diff)
+      assert(not ok, 'expected show_pr_diff to error')
+      assert(err:match('Failed to resolve PR id'), ('error: %s'):format(err))
+    end, pr_num, repo, commit_buf)
   end)
 end)
 
@@ -378,8 +437,8 @@ describe('comments', function()
   end)
 end)
 
-describe('commands', function()
-  it(':Guh errors if not logged in', function()
+describe(':Guh', function()
+  it('shows error if not logged-in', function()
     n.exec_lua(function(tmpdir)
       vim.fn.setenv('GH_CONFIG_DIR', tmpdir)
       vim.fn.setenv('GH_TOKEN', '')
@@ -391,14 +450,14 @@ describe('commands', function()
       require('guh.pr').select({ args = '1' })
       vim.wait(1000, function()
         return captured ~= nil
-      end)
+      end, 20)
       assert(captured, 'vim.notify() was not called')
       assert(captured.msg:match('[Nn]ot logged in'), ('msg: %q'):format(captured.msg))
       assert(captured.level == vim.log.levels.ERROR, ('level: %s'):format(tostring(captured.level)))
     end, t.tmpname(true))
   end)
 
-  it(':Guh + dd loads PR diff + comments split window', function()
+  it('"dd" loads PR diff + comments split window', function()
     n.command('Guh 1')
     -- Wait for the PR diff-view.
     t.retry(nil, 10000, function()

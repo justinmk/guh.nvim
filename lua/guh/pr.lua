@@ -18,16 +18,45 @@ local function resolve_local_repo()
   return repo
 end
 
---- Resolves `(id, repo)` from a `:Guh` arg, falling back to `b:guh` and `resolve_local_repo()`.
+--- Finds the first `pr/…` buffer matching the given commit `sha`.
+local function find_pr_for_commit_sha(sha)
+  for _, pr_buf in pairs(state.bufs.pr or {}) do
+    local pr_data = vim.fn.getbufvar(pr_buf, 'guh', {}).pr_data
+    for _, c in ipairs(pr_data and pr_data.commits or {}) do
+      if c.oid == sha then
+        return pr_data.number
+      end
+    end
+  end
+end
+
+--- Resolves `(pr_id, repo)` from a `:Guh` arg, falling back to `b:guh` and `resolve_local_repo()`.
+---
+--- If `b:guh.id` is a SHA ("commit/…" buffer), searches for a `pr/…` which has a matching commit in its `b:guh.pr_data`.
 ---
 --- @param opts integer|string|table|nil
+--- @return Feat? feat `b:guh.feat`, or nil if `opts` provided an explicit id.
 --- @return integer id
 --- @return string repo
 local function resolve_pr_target(opts)
-  local id =
-    assert((type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts) or (vim.b.guh or {}).id)
-  local repo = assert((vim.b.guh or {}).repo or resolve_local_repo(), 'Failed to resolve repo')
-  return id, repo
+  local b_guh = vim.b.guh
+  local id = (type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts)
+  if not id and not b_guh then
+    -- UX: `error(…, 0)` skips the "file:line:" prefix.
+    error('guh: Not in a guh:// buffer', 0)
+  end
+
+  -- If we are in a "commit/…" buffer, find the pr with a matching commit.
+  id = id or (b_guh.feat == 'commit' and find_pr_for_commit_sha(b_guh.id) or tonumber(b_guh.id))
+  if not id then
+    error('guh: Failed to resolve PR id', 0)
+  end
+
+  local repo = (b_guh or {}).repo or resolve_local_repo()
+  if not repo then
+    error('guh: Failed to resolve repo', 0)
+  end
+  return b_guh and b_guh.feat or nil, id, repo
 end
 
 --- Implements `:Guh`.
@@ -126,10 +155,7 @@ end
 ---
 --- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
 function M.review_pr()
-  local id, repo = util.require_b_guh({ 'id', 'repo' })
-  if not id then
-    return
-  end
+  local _, id, repo = resolve_pr_target()
 
   local labels = {
     ['approve'] = { gerund = 'Approving', past = 'Approved' },
@@ -189,10 +215,7 @@ end
 
 --- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
 function M.merge_pr()
-  local id, repo = util.require_b_guh({ 'id', 'repo' })
-  if not id then
-    return
-  end
+  local _, id, repo = resolve_pr_target()
 
   local function do_merge(choice, subject, body)
     local method = choice:match('^(%S+)')
@@ -355,7 +378,7 @@ end
 --- - "Viewed" files collapse to a `(viewed) <path>` line.
 --- - Diff + comments are presented as 2 'scrollbind' windows.
 function M.show_pr_diff(opts)
-  local id, repo = resolve_pr_target(opts)
+  local _, id, repo = resolve_pr_target(opts)
   local buf = state.init_buf('prdiff', true, repo, id)
   local diff_win = vim.api.nvim_get_current_win()
 
@@ -431,10 +454,7 @@ end
 
 --- Posts a top-level comment on the current PR or issue.
 function M.comment_overview()
-  local id, repo, feat = util.require_b_guh({ 'id', 'repo', 'feat' })
-  if not id then
-    return
-  end
+  local feat, id, repo = resolve_pr_target()
   local kind = feat == 'issue' and 'issue' or 'pr'
 
   comments.edit_comment('comment', id, { '' }, nil, function(input)
@@ -451,10 +471,7 @@ end
 
 --- Runs `gh pr edit <id>` (or `gh issue edit <id>`) in a :terminal.
 function M.edit_pr()
-  local id, repo, feat = util.require_b_guh({ 'id', 'repo', 'feat' })
-  if not id then
-    return
-  end
+  local feat, id, repo = resolve_pr_target()
   local kind = feat == 'issue' and 'issue' or 'pr'
   local buf = state.init_buf('edit', true, repo, id)
   util.run_term_cmd(buf, gh.cmd(repo, kind, 'edit', tostring(id)), function()
@@ -464,7 +481,7 @@ end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
-  local id, repo = resolve_pr_target(opts)
+  local _, id, repo = resolve_pr_target(opts)
   gh.get_pr_data(id, repo, nil, function(pr)
     if not pr then
       return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
