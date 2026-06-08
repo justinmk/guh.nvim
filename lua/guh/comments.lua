@@ -542,7 +542,7 @@ local function comments_at_line(linenr)
     return
   end
 
-  local diff_buf = state.get_buf('prdiff', repo, prnum, true)
+  local diff_buf = state.get_buf('prdiff', repo, prnum, false)
   if not diff_buf then
     util.msg('No prdiff buffer for this PR', vim.log.levels.WARN)
     return

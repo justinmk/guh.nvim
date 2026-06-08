@@ -223,7 +223,7 @@ describe('pr + comments view', function()
       vim.cmd('Guh ' .. sha)
       assert(
         vim.wait(15000, function()
-          local b = state.get_buf('commit', repo_, sha, true)
+          local b = state.get_buf('commit', repo_, sha, false)
           return b and vim.api.nvim_get_current_buf() == b
         end, 100),
         ':Guh <sha> timed out'
@@ -237,7 +237,7 @@ describe('pr + comments view', function()
 
     t.retry(nil, 10000, function()
       local has_prdiff = n.exec_lua(function(pr_num_, repo_)
-        return require('guh.state').get_buf('prdiff', repo_, pr_num_, true) ~= nil
+        return require('guh.state').get_buf('prdiff', repo_, pr_num_, false) ~= nil
       end, pr_num, repo)
       assert(has_prdiff, 'prdiff buf was not created')
     end)
@@ -423,14 +423,14 @@ describe('comments', function()
 
       -- comments.show ends with `wincmd p` (focus back on diff window). Move focus to the prcomments
       -- window so `update_comment` reads its `b:guh`.
-      local prc_buf = assert(state.get_buf('prcomments', repo, pr_id, true))
+      local prc_buf = assert(state.get_buf('prcomments', repo, pr_id, false))
       vim.api.nvim_set_current_win(vim.fn.win_findbuf(prc_buf)[1])
 
       -- Row 6 is the heading of alice's comment (anchored to ' context', new=10).
       comments.update_comment(6)
 
       -- The 'comment' edit buf must exist and contain the comment's body.
-      local edit_buf = assert(state.get_buf('comment', repo, pr_id, true))
+      local edit_buf = assert(state.get_buf('comment', repo, pr_id, false))
       local lines = vim.api.nvim_buf_get_lines(edit_buf, 0, -1, false)
       assert(#lines == 1 and lines[1] == 'original body', vim.inspect(lines))
     end)

@@ -19,12 +19,16 @@ local function resolve_local_repo()
 end
 
 --- Finds the first `pr/…` buffer matching the given commit `sha`.
+---
+--- @param sha string
+--- @return integer? pr_id
+--- @return integer? commit_idx 1-based index of the matching commit in `pr_data.commits`.
 local function find_pr_for_commit_sha(sha)
   for _, pr_buf in pairs(state.bufs.pr or {}) do
     local pr_data = vim.fn.getbufvar(pr_buf, 'guh', {}).pr_data
-    for _, c in ipairs(pr_data and pr_data.commits or {}) do
+    for i, c in ipairs(pr_data and pr_data.commits or {}) do
       if c.oid == sha then
-        return pr_data.number
+        return pr_data.number, i
       end
     end
   end
@@ -38,6 +42,7 @@ end
 --- @return Feat? feat `b:guh.feat`, or nil if `opts` provided an explicit id.
 --- @return integer id
 --- @return string repo
+--- @return integer? commit_idx Index of the `pr_data.commits` item matching this `commit/…` buf (if applicable).
 local function resolve_pr_target(opts)
   local b_guh = vim.b.guh
   local id = (type(opts) == 'table' and opts.args and tonumber(opts.args)) or tonumber(opts)
@@ -46,8 +51,15 @@ local function resolve_pr_target(opts)
     error('guh: Not in a guh:// buffer', 0)
   end
 
-  -- If we are in a "commit/…" buffer, find the pr with a matching commit.
-  id = id or (b_guh.feat == 'commit' and find_pr_for_commit_sha(b_guh.id) or tonumber(b_guh.id))
+  local commit_idx
+  if not id then
+    -- If we are in a "commit/…" buffer, find the pr with a matching commit.
+    if b_guh.feat == 'commit' then
+      id, commit_idx = find_pr_for_commit_sha(b_guh.id)
+    else
+      id = tonumber(b_guh.id)
+    end
+  end
   if not id then
     error('guh: Failed to resolve PR id', 0)
   end
@@ -56,7 +68,7 @@ local function resolve_pr_target(opts)
   if not repo then
     error('guh: Failed to resolve repo', 0)
   end
-  return b_guh and b_guh.feat or nil, id, repo
+  return b_guh and b_guh.feat or nil, id, repo, commit_idx
 end
 
 --- Implements `:Guh`.
@@ -158,6 +170,26 @@ function M.show_commit(sha, repo, focus)
   end)
 end
 
+--- Navigates to the next/previous PR commit (from latest push), relative to the current `commit/…`
+--- buffer (or start/end otherwise).
+---
+--- @param delta integer # +1 for next, -1 for previous.
+function M.show_next_commit(delta)
+  local _, id, repo, commit_idx = resolve_pr_target()
+  local pr_buf = assert(state.get_buf('pr', repo, id, false))
+  local pr_data = vim.fn.getbufvar(pr_buf, 'guh', {}).pr_data
+  local commits = pr_data and pr_data.commits
+  if not commits or #commits == 0 then
+    error('guh: No commits found; try refresh (R)', 0)
+  end
+  local idx = commit_idx or (delta > 0 and 0) or (#commits + 1)
+  local next_idx = idx + delta
+  if next_idx < 1 or next_idx > #commits then
+    return util.msg(('No %s commit'):format(delta > 0 and 'next' or 'previous'))
+  end
+  M.show_commit(commits[next_idx].oid, repo, true)
+end
+
 --- Performs the "review PR" action. Shows a vim.ui.select picker unless `[count]` was given.
 ---
 --- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
@@ -212,7 +244,7 @@ function M.refresh()
   -- Drop cached pr_data on the `/pr/…` buf so `gh.get_pr_data` doesn't use stale data.
   local b = vim.b.guh or {}
   if b.repo and b.id then
-    local pr_buf = state.get_buf('pr', b.repo, b.id, true)
+    local pr_buf = state.get_buf('pr', b.repo, b.id, false)
     if pr_buf then
       state.set_b_guh(pr_buf, { pr_data = nil })
     end
@@ -360,7 +392,7 @@ function M.show_pr(id, repo, focus)
   local commits_tmpl = vim.text.indent(
     0,
     [[
-    {{"\nCommits:\n" -}}
+    {{printf "\nCommits (%d):\n" (len .commits) -}}
     {{range .commits}}  {{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
   ]]
   )

@@ -38,15 +38,15 @@ end
 --- @param feat Feat
 --- @param repo string|nil "owner/name", or nil for non-thing-bound feats (e.g. "guh://status").
 --- @param id string|integer PR/issue number, or "all" for "guh://status".
---- @param nocreate? boolean If true, return nil instead of creating a new buf.
+--- @param create? boolean (default: true) If false, return nil instead of creating a new buf.
 --- @return integer? buf
-function M.get_buf(feat, repo, id, nocreate)
+function M.get_buf(feat, repo, id, create)
   local key = get_key(repo, id)
   local b = bufs[feat][key]
   if type(b) == 'number' and vim.api.nvim_buf_is_valid(b) then
     return b
   end
-  if nocreate then
+  if create == false then
     return nil
   end
   b = vim.api.nvim_create_buf(true, true)
