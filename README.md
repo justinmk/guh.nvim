@@ -7,7 +7,7 @@ Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI with a minimalist yet
 effective workflow.
 
 Guh is ~2k lines of unimpeachable code, leveraging builtin Nvim mechanisms such as diagnostics
-and 'scrollbind' buffers, and otherwise delegating to the `gh` CLI.
+and 'scrollbind' buffers, and otherwise delegating to the `gh` CLI in a `:terminal` buffer.
 
 ## Usage
 
@@ -25,15 +25,23 @@ slug, or commit-id (SHA):
     :Guh guh://neovim/neovim/pr/35951
     :Guh https://github.com/neovim/neovim/commit/a1b2c3d
 
-Inside any `guh://` buffer, press `<Enter>` to run `:Guh` on the target at cursor.
+Inside any `guh://` buffer, press `<Enter>` to run `:Guh` on the target at cursor. Hit `g?` to
+review the keymaps.
 
-Editable buffers (comments, merge message) confirm the action on
-write-and-close:
+When viewing a PR,
 
-- `:wq` (or `ZZ`) submits.
-- `:q!` (or `ZQ`) discards.
+- Diff comments are presented (1) in a 'scrollbind' split, (2) as "diagnostics" (`vim.diagnostic`),
+  (3) loaded in quickfix.
+- Files marked as "Viewed" are collapsed to a `(viewed) <path>` line.
+- You can view the most-recent CI logs for all "jobs" in the CI matrix.
 
-See help file for details.
+Editable buffers (comments, merge message) confirm the action on write-and-close (`ZZ` submits, `ZQ`
+discards).
+
+Keymaps are provided as `<Plug>(guh-…)`. To customize, just define a mapping to the relevant
+`<Plug>(guh-…)` and Guh will skip its default.
+
+See [help file](./doc/guh.txt) for details.
 
 ## Install
 
@@ -41,46 +49,12 @@ See help file for details.
 vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
 ```
 
-See help for default config.
-
 Requirements:
-- nvim 0.13+
+
+- Nvim 0.13+
 - ["gh" (GitHub CLI)](https://cli.github.com/)
-- For working with Git, use any Git plugin such as [vim-fugitive](https://github.com/tpope/vim-fugitive).
-- For highlighting diffs, use a plugin such as [diffs.nvim](https://github.com/barrettruth/diffs.nvim).
-
-## How it works
-
-1. Shows `gh` output in a `:terminal` buffer.
-2. Sets global `<Plug>(guh-…)` keymaps. Provides default buffer-local mappings
-   if you don't set any mappings to the `<Plug>` mappings.
-3. `:Guh` is the main entrypoint. It shows status, or views a given item (PR, issue).
-4. PR diff comments are presented:
-    - in a 'scrollbind' split window
-    - as "diagnostics" (`vim.diagnostic`), loaded in quickfix
-5. Work with comments:
-    - Create
-    - Reply
-    - Update
-    - Resolve
-6. PR files marked as "Viewed" are collapsed to a `(viewed) <path>` line.
-   The diff overlay shows `(N/M viewed)`.
-    - (TODO) Set/reset the "Viewed" state of a file.
-7. Loads most-recent CI logs for all "jobs" in the CI matrix.
-8. (TODO) Fetch the git data into `.git` (without doing a checkout).
-9. (TODO) When viewing the diff, user can navigate to the git object (file)
-   without doing a checkout.
-10. (TODO) PR comments will display on relevant *local* git objects.
-
-## Development
-
-Run the tests:
-
-    NEOVIM_PATH='/path/to/neovim/' make test
-
-Run specific tests:
-
-    NEOVIM_PATH='/path/to/neovim/' make test TEST_FILTER=load_comments
+- (Optional) For working with Git, use a plugin such as [vim-fugitive](https://github.com/tpope/vim-fugitive).
+- (Optional) For highlighting diffs, use a plugin such as [diffs.nvim](https://github.com/barrettruth/diffs.nvim).
 
 ## Related
 
