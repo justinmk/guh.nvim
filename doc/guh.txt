@@ -16,10 +16,10 @@ Tenets:
 INSTALLATION                                                     *guh-install*
 
 Requirements:
-- nvim 0.13+
+- Nvim 0.13+
 - "gh" (GitHub CLI): https://cli.github.com/
-- For working with Git, use any Git plugin such as: https://github.com/tpope/vim-fugitive
-- For highlighting diffs, use a plugin such as: https://github.com/barrettruth/diffs.nvim
+- (Optional) For working with Git, use a plugin such as: https://github.com/tpope/vim-fugitive
+- (Optional) For highlighting diffs, use a plugin such as: https://github.com/barrettruth/diffs.nvim
 
 Install: >lua
   vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }
@@ -252,17 +252,30 @@ Guh defines these highlight groups (with `default = true`, so a colorscheme
 that defines them wins). Link or `:hi` them to customize.
 
 GuhHeading
-    Comment-thread heading line in the `guh://…/prcomments/` buffer.
+    Heading for comment-threads and various other headings.
 
 GuhWarning
-    Inline notices such as `(outdated)`, `(truncated)`, `(viewed)` in the
-    `guh://…/prcomments/` buffer.
+    Hints such as `(outdated)`, `(outside)`, `(truncated)`, `(viewed)` in
+    `guh://` buffers.
 
 ==============================================================================
 DEVELOPMENT                                                          *guh-dev*
 
->lua
+Enable debug logging: >lua
+
     vim.g.guh_debug = true
+
+View the logs: >
+
+    :log guh
+
+Run the tests: >
+
+    NEOVIM_PATH='/path/to/neovim/' make test
+
+Run specific tests: >
+
+    NEOVIM_PATH='/path/to/neovim/' make test TEST_FILTER=load_comments
 
 
 ------------------------------------------------------------------------------
