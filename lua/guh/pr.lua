@@ -74,19 +74,27 @@ local function resolve_pr(opts)
   return b_guh and b_guh.feat or nil, id, repo, commit_idx
 end
 
---- Implements `:Guh`.
+--- Implements `:Guh`. Also provides an overload for programmatic callers.
 ---
 --- Shows...
 --- - Status (if no args given)
 --- - PR detail
 --- - Issue detail
-function M.select(opts)
+---
+--- @param args vim.api.keyset.create_user_command.command_args
+--- @overload fun(feat: Feat, id?: integer|string, repo?: string)
+function M.select(args, id, repo)
   if not gh.get_user() then
     util.msg('Not logged in to gh. Run: "gh auth login"', vim.log.levels.ERROR)
     return
   end
 
-  local arg = (opts or {}).args or ''
+  -- Overloads:
+  -- - cmdargs for :Guh.
+  -- - `{feat, id, repo}` for programmatic callers.
+  local cmdargs = type(args) == 'table' and args or {}
+  local feat = type(args) == 'string' and args or nil
+  local arg = cmdargs.args or ''
 
   -- Flash the cWORD if it matches the arg (so `:Guh <cWORD>` works, avoids the need for a wrapper).
   if arg == vim.fn.expand('<cWORD>') then
@@ -97,14 +105,21 @@ function M.select(opts)
   end
 
   -- Support command mods (`:vertical Guh …`). See `:help <mods>`.
-  local smods = (opts or {}).smods or {}
+  local smods = cmdargs.smods or {}
   local window_mod = (smods.split or '') ~= '' or smods.vertical or smods.horizontal or (smods.tab or -1) >= 0
   -- If a command mod was given (`:vertical Guh …`), don't attempt to navigate to an existing window.
   local focus = not window_mod
 
   -- Resolve target + repo (+ PR/issue probe) BEFORE potential `:new` split, so we can check `b:guh`.
-  local target, repo
-  if #arg > 0 then
+  local target --[[@type table?]]
+  if feat then
+    -- Programmatic caller provided (feat, id, repo) directly. Skip parsing.
+    target = {
+      id = id,
+      is_pr = ({ pr = true, prdiff = true, prcomments = true, issue = false })[feat],
+    }
+    repo = repo or (vim.b.guh or {}).repo or resolve_local_repo()
+  elseif #arg > 0 then
     target = util.parse_target(arg)
     if not target then
       util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
@@ -119,7 +134,7 @@ function M.select(opts)
 
   local function dispatch(is_pr)
     if window_mod then
-      vim.cmd(((opts or {}).mods or '') .. ' new')
+      vim.cmd((cmdargs.mods or '') .. ' new')
     end
     if not target then
       M.show_status(focus)
@@ -240,24 +255,31 @@ function M.review_pr()
   end)
 end
 
---- Refreshes the current `guh://*` buffer by invoking `:Guh <bufname>`.
-function M.refresh()
-  local feat = util.require_b_guh({ 'feat' })
+--- Refreshes the specified `guh://*` buffer, or current buffer if `opts` is nil.
+---
+--- @param target? { feat?: Feat, id?: integer|string, repo?: string }
+function M.refresh(target)
+  target = target or {}
+  local feat = target.feat or util.require_b_guh({ 'feat' })
   if not feat then
     return
   end
   if feat == 'status' then
     return M.show_status(true)
   end
-  -- Drop cached pr_data on the `/pr/…` buf so `gh.get_pr_data` doesn't use stale data.
   local b = vim.b.guh or {}
-  if b.repo and b.id then
-    local pr_buf = state.get_buf('pr', b.repo, b.id, false)
+  local id = target.id or b.id
+  local repo = target.repo or b.repo
+
+  -- Clear cached pr_data on the `/pr/…` buf so `gh.get_pr_data` doesn't use stale data.
+  if repo and id then
+    local pr_buf = state.get_buf('pr', repo, id, false)
     if pr_buf then
       state.set_b_guh(pr_buf, { pr_data = nil })
     end
   end
-  M.select({ args = vim.api.nvim_buf_get_name(0) })
+
+  M.select(feat, id, repo)
 end
 
 --- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
@@ -504,6 +526,7 @@ local function comment_overview()
     gh.new_overview_comment(kind, id, repo, input, function(ok, stderr)
       if ok then
         progress('success', nil, 'Comment sent.')
+        M.refresh({ feat = (kind == 'issue' and 'issue' or 'pr'), id = id, repo = repo })
       else
         progress('failed', nil, ('Failed to send comment: %s'):format(vim.trim(stderr or '')))
       end
