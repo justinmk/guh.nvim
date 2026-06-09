@@ -364,9 +364,9 @@ function M.show_status(focus, repo)
       0,
       [[
       {{"\nOpen PRs (last-updated):\n" -}}
-      {{range .data.repository.pullRequests.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end -}}
+      {{range .data.repository.pullRequests.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end -}}
       {{"\nOpen issues (last-updated):\n" -}}
-      {{range .data.repository.issues.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end}}
+      {{range .data.repository.issues.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end}}
     ]]
     )
     cmd = util.shell_cmd(
