@@ -100,7 +100,7 @@ function M.parse_target(arg)
   end
   owner, repo, feat, num = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/(%w+)/(%d+)$')
   if owner then
-    local is_pr = (feat == 'pr' or feat == 'prdiff') or nil
+    local is_pr = ({ pr = true, prdiff = true, prcomments = true, issue = false })[feat]
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = is_pr }
   end
 

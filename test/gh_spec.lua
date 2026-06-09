@@ -532,7 +532,7 @@ describe('util', function()
       { owner = 'justinmk', repo = 'guh.nvim', id = 24, is_pr = true },
       parse_target('guh://justinmk/guh.nvim/prdiff/24')
     )
-    t.eq({ owner = 'neovim', repo = 'neovim', id = 24 }, parse_target('guh://neovim/neovim/issue/24'))
+    t.eq({ owner = 'neovim', repo = 'neovim', id = 24, is_pr = false }, parse_target('guh://neovim/neovim/issue/24'))
 
     t.eq(nil, parse_target('garbage'))
     t.eq(nil, parse_target(''))
