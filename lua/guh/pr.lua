@@ -91,9 +91,9 @@ function M.select(opts)
   -- Flash the cWORD if it matches the arg (so `:Guh <cWORD>` works, avoids the need for a wrapper).
   if arg == vim.fn.expand('<cWORD>') then
     local row, col = unpack(vim.api.nvim_win_get_cursor(0))
-    local line = vim.api.nvim_get_current_line()
-    local s = (line:sub(1, col + 1):match('()%S+$') or col + 2) - 1
-    util.hl_flash(0, { row - 1, s }, { row - 1, s + #arg })
+    local on_blank = vim.api.nvim_get_current_line():sub(col + 1, col + 1):match('%S') == nil
+    local _, c = unpack(vim.fn.searchpos([[\v(^|\s)@<=\S]], on_blank and 'cnW' or 'bcnW'))
+    util.hl_flash(0, { row - 1, c - 1 }, { row - 1, c - 1 + #arg })
   end
 
   -- Support command mods (`:vertical Guh …`). See `:help <mods>`.
