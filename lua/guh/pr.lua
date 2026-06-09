@@ -210,6 +210,13 @@ local function open_ci_log(job, pr_id, repo)
     vim.api.nvim_chan_send(chan, logs)
     vim.cmd.norm [[gg0]]
     util.set_default_keymaps(buf)
+    local status = job.conclusion or job.status or '?'
+    util.show_winbar(0, {
+      { ('Logs | PR #%s | '):format(pr_id), 'Comment' },
+      { status == 'success' and '✅' or '❌' },
+      { ('"%s"'):format(job.name), 'Comment' },
+      { ' | g? for help', 'Comment' },
+    })
   end)
 end
 
