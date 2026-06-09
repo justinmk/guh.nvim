@@ -151,12 +151,18 @@ function M.select(args, id, repo)
   end
 
   if target and target.id and target.is_pr == nil and not target.sha then
-    -- Probe PR-vs-issue. Async so the hl_flash() highlight works.
-    vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }, function(r)
-      vim.schedule(function()
-        dispatch(r.code == 0)
+    -- Optimization: skip the probe (API request) if the key is already stored locally.
+    if state.get_buf('pr', repo, target.id, false) then
+      dispatch(true)
+    elseif state.get_buf('issue', repo, target.id, false) then
+      dispatch(false)
+    else -- Probe PR-vs-issue. Async so the hl_flash() highlight works.
+      vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }, function(r)
+        vim.schedule(function()
+          dispatch(r.code == 0)
+        end)
       end)
-    end)
+    end
   else
     dispatch(nil)
   end
