@@ -827,15 +827,15 @@ function M.new_comment(line1, line2)
 end
 
 --- Opens a markdown buffer prefilled with `content`.
---- - Write-and-save (fugitive-style) confirms the action (invokes `cb`);
---- - Close-without-write or write-empty-buffer aborts the action.
+--- - Write-and-close (fugitive-style) confirms the action (invokes `on_confirm`);
+--- - Close-without-write or write-empty-buffer aborts the action (shows a message, skips `on_confirm`).
 ---
 --- @param feat 'comment'|'merge'|'review' kind of edit; each has its own per-PR buffer.
 --- @param prnum integer
 --- @param content string[] lines to prefill the buffer with
 --- @param infomsg? [string, string?][] Heading text + highlights; nil = default.
---- @param cb fun(input: string) called only on save-then-close
-function M.edit_comment(feat, prnum, content, infomsg, cb)
+--- @param on_confirm fun(input: string) Called on write-and-close (not on abort/cancel).
+function M.edit_comment(feat, prnum, content, infomsg, on_confirm)
   local repo = assert((vim.b.guh or {}).repo, 'edit_comment: not in a guh:// buffer (no b:guh.repo)')
   if not state.try_show(feat, repo, prnum) then
     vim.cmd [[split]]
@@ -858,28 +858,21 @@ function M.edit_comment(feat, prnum, content, infomsg, cb)
   vim.bo[buf].modified = true
   vim.cmd [[normal! gg]]
 
-  local group = vim.api.nvim_create_augroup('guh.edit_comment.' .. buf, { clear = true })
-
   -- Write-and-close confirms the action (vim-fugitive style).
+  -- Defer via vim.schedule so `on_confirm` runs after the "close" step (and the edit window is gone).
   vim.api.nvim_create_autocmd('BufWriteCmd', {
-    group = group,
     buffer = buf,
     once = true,
     callback = function()
       local input = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
       vim.bo[buf].modified = false
-      vim.api.nvim_create_autocmd('BufWipeout', {
-        group = group,
-        buffer = buf,
-        once = true,
-        callback = function()
-          if vim.trim(input) ~= '' then
-            cb(input)
-          else
-            util.msg('aborted (empty buffer)')
-          end
-        end,
-      })
+      vim.schedule(function()
+        if vim.trim(input) ~= '' then
+          on_confirm(input)
+        else
+          util.msg('aborted (empty buffer)')
+        end
+      end)
     end,
   })
 end
