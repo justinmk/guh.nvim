@@ -211,7 +211,9 @@ function M.review_pr()
   local function do_action(action)
     local L = labels[action]
     local msg = ('%s PR #%s | ZZ to submit (ZQ to abort)'):format(L.gerund, id)
-    comments.edit_comment('review', id, { '' }, { { msg, 'Comment' } }, function(input)
+    -- Prefill ":+1:" in the Approve body, so the user can Approve without writing a comment. #64
+    local content = action == 'approve' and { ':+1:' } or { '' }
+    comments.edit_comment('review', id, content, { { msg, 'Comment' } }, function(input)
       local body = vim.trim(input)
       local done = util.progress(('%s PR #%s…'):format(L.gerund, id))
       gh.review_pr(id, repo, action, body, function(ok, stderr)
