@@ -41,23 +41,21 @@ local function flatten_threads_to_comments(threads)
       -- `diffSide` is a thread-level property in GraphQL; every comment in the thread inherits it.
       local c_side = thread.diffSide
       for _, c in ipairs(nodes) do
-        local c_path = (not vim.isnil(c.path)) and c.path or head_path
+        local c_path = c.path ~= nil and c.path or head_path
         -- LEFT-side (deleted-line) comments, and outdated threads, have a null `line` on HEAD; fallback to `originalLine` then.
-        local effective_end_line = (not vim.isnil(c.line)) and c.line
-          or (not vim.isnil(c.originalLine)) and c.originalLine
-          or head_line
-        local effective_start = (not vim.isnil(c.startLine)) and c.startLine
-          or (not vim.isnil(c.originalStartLine)) and c.originalStartLine
+        local effective_end_line = c.line ~= nil and c.line or c.originalLine ~= nil and c.originalLine or head_line
+        local effective_start = c.startLine ~= nil and c.startLine
+          or c.originalStartLine ~= nil and c.originalStartLine
           or head_start
-        if not vim.isnil(effective_end_line) and not vim.isnil(c_path) then
+        if effective_end_line ~= nil and c_path ~= nil then
           local reply_to
-          if not vim.isnil(c.replyTo) and c.replyTo.databaseId then
+          if c.replyTo ~= nil and c.replyTo.databaseId then
             reply_to = c.replyTo.databaseId
           end
           table.insert(out, {
             id = c.databaseId,
             html_url = c.url,
-            user = { login = (not vim.isnil(c.author)) and c.author.login or '?' },
+            user = { login = c.author ~= nil and c.author.login or '?' },
             body = c.body or '',
             diff_hunk = c.diffHunk or '',
             path = c_path,

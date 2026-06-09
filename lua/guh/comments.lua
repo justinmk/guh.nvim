@@ -172,7 +172,7 @@ function M.show_pr_comments(id, repo, diff_win, comments_list, viewed, n_files, 
   -- Find the diff-buf line for `gh_line` of `filename`. `side` selects the
   -- axis: 'LEFT' = old-file (deleted/context), anything else = new-file.
   local function find_idx(filename, gh_line, side)
-    if vim.isnil(gh_line) then
+    if gh_line == nil then
       return nil
     end
     local axis = (side == 'LEFT') and 'old_line' or 'new_line'
@@ -473,7 +473,7 @@ end
 --- @param line_map table<integer, {file:string, new_line:integer|nil, old_line:integer|nil}>
 --- @param c Comment
 local function in_diff(line_map, c)
-  if vim.isnil(c.end_line) then
+  if c.end_line == nil then
     return false
   end
   local axis = c.side == 'LEFT' and 'old_line' or 'new_line'
@@ -679,9 +679,12 @@ end
 function M.reply_or_resolve(linenr)
   -- Reply/Resolve is a _thread_ action: dedupe so the user isn't prompted for "Which comment?".
   local function dedupe_threads(candidates)
-    return vim.iter(candidates):unique(function(c)
-      return c.thread_id
-    end):totable()
+    return vim
+      .iter(candidates)
+      :unique(function(c)
+        return c.thread_id
+      end)
+      :totable()
   end
   with_comment(linenr, 'Which comment thread?', function(c, prnum, repo, buf)
     vim.ui.select({ 'Reply', 'Resolve' }, {
