@@ -26,11 +26,11 @@ vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
   command = 'keepjumps syncbind',
 })
 
-vim.api.nvim_create_user_command('Guh', function(opts)
-  require('guh.pr').select(opts)
+vim.api.nvim_create_user_command('Guh', function(args)
+  require('guh.pr').select(args)
 end, { nargs = '?' })
-vim.api.nvim_create_user_command('GuhComment', function(opts)
-  require('guh.pr').comment(opts)
+vim.api.nvim_create_user_command('GuhComment', function(args)
+  require('guh.pr').comment(args)
 end, { bang = true, range = true })
 
 local opts = { silent = true }
@@ -46,7 +46,7 @@ end, opts)
 vim.keymap.set('n', '<Plug>(guh-comment)', '<cmd>GuhComment<cr>', opts)
 -- Use ":" in Visual mode so the `'<,'>` range is passed to the command.
 vim.keymap.set('x', '<Plug>(guh-comment)', ':GuhComment<cr>', opts)
-vim.keymap.set('n', '<Plug>(guh-comment-overview)', '<cmd>GuhComment!<cr>', opts)
+vim.keymap.set('n', '<Plug>(guh-comment-overview)', '<cmd>%GuhComment<cr>', opts)
 vim.keymap.set('n', '<Plug>(guh-thread)', function()
   require('guh.comments').reply_or_resolve(vim.fn.line('.'))
 end, opts)

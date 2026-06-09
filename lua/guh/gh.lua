@@ -43,13 +43,13 @@ local function flatten_threads_to_comments(threads)
       for _, c in ipairs(nodes) do
         local c_path = (not vim.isnil(c.path)) and c.path or head_path
         -- LEFT-side (deleted-line) comments, and outdated threads, have a null `line` on HEAD; fallback to `originalLine` then.
-        local effective_line = (not vim.isnil(c.line)) and c.line
+        local effective_end_line = (not vim.isnil(c.line)) and c.line
           or (not vim.isnil(c.originalLine)) and c.originalLine
           or head_line
         local effective_start = (not vim.isnil(c.startLine)) and c.startLine
           or (not vim.isnil(c.originalStartLine)) and c.originalStartLine
           or head_start
-        if not vim.isnil(effective_line) and not vim.isnil(c_path) then
+        if not vim.isnil(effective_end_line) and not vim.isnil(c_path) then
           local reply_to
           if not vim.isnil(c.replyTo) and c.replyTo.databaseId then
             reply_to = c.replyTo.databaseId
@@ -61,7 +61,7 @@ local function flatten_threads_to_comments(threads)
             body = c.body or '',
             diff_hunk = c.diffHunk or '',
             path = c_path,
-            line = effective_line,
+            end_line = effective_end_line,
             start_line = effective_start,
             side = c_side,
             updated_at = c.updatedAt,
@@ -272,6 +272,8 @@ local function gh_api(logname, method, endpoint, fields, cb)
   end)
 end
 
+--- Note: The REST API takes a comment-id, not a thread-id. Any comment in the thread works.
+---
 --- @param repo? string "owner/name" for non-local repo.
 function M.reply_to_comment(prnum, body, reply_to, repo, cb)
   vim.validate('repo', repo, 'string')

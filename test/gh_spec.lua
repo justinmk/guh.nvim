@@ -138,7 +138,7 @@ describe('pr + comments view', function()
           assert(#threads > 0, 'threads should not be empty')
           for _, thread in ipairs(threads) do
             assert(thread.id, 'thread.id missing')
-            assert(type(thread.line) == 'number', 'thread.line should be number')
+            assert(type(thread.end_line) == 'number', 'thread.end_line should be number')
             assert(
               type(thread.start_line) == 'number' or thread.start_line == nil,
               'thread.start_line should be number or nil'
@@ -150,7 +150,7 @@ describe('pr + comments view', function()
               assert(comment.id, 'comment.id missing')
               assert(type(comment.url) == 'string', 'comment.url should be string')
               assert(type(comment.path) == 'string', 'comment.path should be string')
-              assert(type(comment.line) == 'number', 'comment.line should be number')
+              assert(type(comment.end_line) == 'number', 'comment.end_line should be number')
               assert(
                 type(comment.start_line) == 'number' or comment.start_line == nil,
                 'comment.start_line should be number or nil'
@@ -327,7 +327,7 @@ describe('comments', function()
           -- LEFT (deleted-line) comment: must resolve to row 7 (the '-' row).
           {
             id = 1,
-            line = 11,
+            end_line = 11,
             start_line = 11,
             url = '',
             comments = {
@@ -337,7 +337,7 @@ describe('comments', function()
                 body = 'hi',
                 updated_at = '2024-01-01',
                 side = 'LEFT',
-                line = 11,
+                end_line = 11,
                 path = 'f.lua',
               },
             },
@@ -345,7 +345,7 @@ describe('comments', function()
           -- RIGHT (new-side) comment: control — must resolve to row 6.
           {
             id = 2,
-            line = 10,
+            end_line = 10,
             start_line = 10,
             url = '',
             comments = {
@@ -355,7 +355,7 @@ describe('comments', function()
                 body = 'yo',
                 updated_at = '2024-01-01',
                 side = 'RIGHT',
-                line = 10,
+                end_line = 10,
                 path = 'f.lua',
               },
             },
@@ -363,7 +363,7 @@ describe('comments', function()
         },
       }
 
-      comments.show(pr_id, repo, diff_win, threads, nil, 0, 0, 0, 0)
+      comments.show_pr_comments(pr_id, repo, diff_win, threads, nil, 0, 0, 0, 0)
 
       local prc = state.get_buf('prcomments', repo, pr_id)
       local rows = vim.api.nvim_buf_get_lines(prc, 0, -1, false)
@@ -401,7 +401,7 @@ describe('comments', function()
         ['f.lua'] = {
           {
             id = 999,
-            line = 10,
+            end_line = 10,
             start_line = 10,
             url = '',
             comments = {
@@ -411,7 +411,7 @@ describe('comments', function()
                 body = 'original body',
                 updated_at = '2024-01-01',
                 side = 'RIGHT',
-                line = 10,
+                end_line = 10,
                 path = 'f.lua',
               },
             },
@@ -419,7 +419,7 @@ describe('comments', function()
         },
       }
 
-      comments.show(pr_id, repo, diff_win, threads, nil, 0, 0, 0, 0)
+      comments.show_pr_comments(pr_id, repo, diff_win, threads, nil, 0, 0, 0, 0)
 
       -- comments.show ends with `wincmd p` (focus back on diff window). Move focus to the prcomments
       -- window so `update_comment` reads its `b:guh`.

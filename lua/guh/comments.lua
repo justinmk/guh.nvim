@@ -129,7 +129,7 @@ end
 --- @param n_threads integer Total review-thread count (resolved + unresolved).
 --- @param n_resolved integer Resolved review-thread count.
 --- @param n_viewed_threads integer Unresolved threads hidden in "Viewed" files.
-function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n_resolved, n_viewed_threads)
+function M.show_pr_comments(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n_resolved, n_viewed_threads)
   viewed = viewed or {}
   local n_viewed = vim.tbl_count(viewed)
   local diff_buf = vim.api.nvim_win_get_buf(diff_win)
@@ -186,6 +186,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
 
   local diagnostics = {} ---@type vim.Diagnostic[]
   --- Walks the comment threads on a non-"viewed" file. For each thread on visible diff, this function:
+  ---   - sets start_bufline/end_bufline on each Comment.
   ---   - appends comment lines to `entries[start_idx]` (per-line list of text rows),
   ---   - appends a `diagnostics` entry, scoped to the `[start_idx..end_idx]` range of `diff_buf`.
   ---
@@ -204,7 +205,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
       -- The thread's head comment sets the side; replies inherit. Comments
       -- with side='LEFT' anchor to deleted/old-file lines.
       local side = thread.comments[1] and thread.comments[1].side
-      local end_idx = find_idx(normalized_filename, thread.line, side)
+      local end_idx = find_idx(normalized_filename, thread.end_line, side)
       if end_idx then
         local start_idx = find_idx(normalized_filename, thread.start_line, side) or end_idx
         if start_idx > end_idx then
@@ -224,7 +225,7 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
                 c.user or '?',
                 c.updated_at or '',
                 filename,
-                thread.line
+                thread.end_line
               )
             or ('%s%s %s'):format(heading_prefix, c.user or '?', c.updated_at or '')
           local body = {}
@@ -246,6 +247,11 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
           '\n'
         )
         if body ~= '' then
+          -- XXX: Store the rendered buf-line range on each Comment.
+          for _, c in ipairs(thread_comments) do
+            c.start_bufline = start_idx
+            c.end_bufline = end_idx
+          end
           table.insert(diagnostics, {
             lnum = start_idx - 1,
             end_lnum = end_idx,
@@ -415,7 +421,7 @@ function M.to_threads(gh_comments)
     --- @type CommentThread
     local comment_thread = {
       id = comments[1].id,
-      line = comments[1].line,
+      end_line = comments[1].end_line,
       start_line = comments[1].start_line,
       url = comments[#comments].url,
       comments = comments,
@@ -467,12 +473,12 @@ end
 --- @param line_map table<integer, {file:string, new_line:integer|nil, old_line:integer|nil}>
 --- @param c Comment
 local function in_diff(line_map, c)
-  if vim.isnil(c.line) then
+  if vim.isnil(c.end_line) then
     return false
   end
   local axis = c.side == 'LEFT' and 'old_line' or 'new_line'
   for _, m in pairs(line_map) do
-    if m.file == c.path and m[axis] == c.line then
+    if m.file == c.path and m[axis] == c.end_line then
       return true
     end
   end
@@ -531,7 +537,7 @@ end
 --- @param linenr integer 1-indexed line number.
 --- @return integer? prnum
 --- @return string? repo
---- @return { comment: Comment, range: { integer, integer } }[]? candidates
+--- @return Comment[]? candidates
 local function comments_at_line(linenr)
   local prnum, repo = util.require_b_guh({ 'id', 'repo' })
   if not prnum then
@@ -556,12 +562,11 @@ local function comments_at_line(linenr)
     end
   end
 
-  -- One diagnostic per thread; flatten to candidates. `range` carries the thread's diff-range so
-  -- the action can highlight it with `vim.hl.range`.
+  -- One diagnostic per thread; flatten to candidates.
   local candidates = {}
   for _, d in ipairs(ds) do
     for _, c in ipairs(d.user_data.comments or {}) do
-      table.insert(candidates, { comment = c, range = { d.lnum, d.end_lnum } })
+      table.insert(candidates, c)
     end
   end
 
@@ -574,45 +579,81 @@ local function comments_at_line(linenr)
 end
 
 --- Auto-picks the candidate (if exactly one) or shows a `vim.ui.select` picker.
+---
+---@param on_pick fun(choice: Comment)
 local function pick_comment(comments, prompt, on_pick)
   if #comments == 1 then
     return on_pick(comments[1])
   end
   vim.ui.select(comments, {
     prompt = prompt,
-    format_item = function(cand)
-      local c = cand.comment
+    format_item = function(c)
       local snippet = (c.body or ''):gsub('\n.*$', ''):sub(1, 60)
       return ('%s %s: %s'):format(c.user or '?', c.updated_at or '', snippet)
     end,
-  }, function(cand)
-    if cand then
-      on_pick(cand)
+  }, function(c)
+    if c then
+      on_pick(c)
     end
   end)
 end
 
---- Updates the comment near `linenr`, in a `prcomments/…` buffer. Identifies the comment by querying the
---- sibling `prdiff/…` buffer's per-comment diagnostics.
+--- Performs an action on a comment at `linenr`. Identifies the comment by querying the sibling
+--- `prdiff/…` buffer's per-comment diagnostics.
 ---
 --- - When multiple comments share a diff row, prompts via `vim.ui.select`.
 --- - Flashes the comment region.
---- - Opens a prefilled `edit_comment` buffer.
---- - Posts on write-and-close.
 ---
---- @param linenr integer 1-indexed cursor row in the prcomments buffer.
-function M.update_comment(linenr)
+--- @param linenr integer 1-indexed line number
+--- @param prompt string Picker prompt text (only if there are multiple candidates).
+--- @param on_comment fun(c: Comment, prnum: integer, repo: string, buf: integer): nil
+--- @param filter? fun(c: Comment[]): Comment[] Optional candidate filter (e.g. dedupe by thread).
+local function with_comment(linenr, prompt, on_comment, filter)
   local buf = vim.api.nvim_get_current_buf()
   local prnum, repo, candidates = comments_at_line(linenr)
   if not prnum then
     return
   end
+  if filter then
+    candidates = filter(candidates)
+  end
   local block = find_block()
-
-  local function do_it(cand)
-    local c = cand.comment
-    local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
+  pick_comment(candidates, prompt, function(c)
+    local r = block or { c.start_bufline, c.end_bufline }
     util.hl_flash(buf, r[1] - 1, r[2] - 1)
+    on_comment(c, prnum, assert(repo), buf)
+  end)
+end
+
+--- Deletes the PR review comment at `linenr`. Prompts for confirmation.
+---
+--- @param linenr integer 1-indexed line number in the prdiff/prcomments buffer.
+function M.delete_comment(linenr)
+  with_comment(linenr, 'Delete which comment?', function(c, prnum, repo, buf)
+    local prompt = ('Delete comment by %s? %q'):format(c.user or '?', (c.body or ''):gsub('\n.*$', ''):sub(1, 60))
+    if vim.fn.confirm(prompt, '&Yes\n&No', 2) ~= 1 then
+      return
+    end
+    local progress = util.new_progress_report('Deleting comment...', buf)
+    gh.delete_comment(c.id, repo, function(resp)
+      if not resp or resp.errors == nil then
+        progress('success', nil, 'Comment deleted.')
+        require('guh.pr').show_pr_diff(prnum) -- Refresh.
+      else
+        progress('failed', nil, 'Failed to delete comment.')
+      end
+    end)
+  end)
+end
+
+--- Updates the comment near `linenr`, in a `prcomments/…` buffer.
+---
+--- - Opens a prefilled `edit_comment` buffer.
+--- - Posts on write-and-close.
+---
+--- @param linenr integer 1-indexed cursor row in the prcomments buffer.
+function M.update_comment(linenr)
+  with_comment(linenr, 'Which comment?', function(c, prnum, repo, _)
     local content = vim.split(c.body or '', '\n', { plain = true })
     local same = gh.get_user() == c.user
     local msg = same and ('Updating comment %d. ZZ to confirm (ZQ to abort).'):format(c.id)
@@ -629,36 +670,22 @@ function M.update_comment(linenr)
         end
       end)
     end)
-  end
-
-  pick_comment(candidates, 'Which comment?', do_it)
+  end)
 end
 
 --- Acts on a comment thread (Reply or Resolve).
 ---
 --- @param linenr integer 1-indexed line number.
 function M.reply_or_resolve(linenr)
-  local buf = vim.api.nvim_get_current_buf()
-  local prnum, repo, candidates = comments_at_line(linenr)
-  if not prnum then
-    return
+  -- Reply/Resolve is a _thread_ action: dedupe so the user isn't prompted for "Which comment?".
+  local function dedupe_threads(candidates)
+    return vim.iter(candidates):unique(function(c)
+      return c.thread_id
+    end):totable()
   end
-  -- Reply/Resolve is a _thread_ action: dedupe so that user is not prompted for "Which comment?".
-  candidates = vim
-    .iter(candidates)
-    :unique(function(c)
-      return c.comment.thread_id
-    end)
-    :totable()
-  local block = find_block()
-
-  local function do_it(cand)
-    local c = cand.comment
-    local r = block or { cand.range[1] + 1, cand.range[2] + 1 }
-    util.hl_flash(buf, r[1] - 1, r[2] - 1)
-
+  with_comment(linenr, 'Which comment thread?', function(c, prnum, repo, buf)
     vim.ui.select({ 'Reply', 'Resolve' }, {
-      prompt = ('Thread on %s:%d:'):format(c.path or '?', c.line or 0),
+      prompt = ('Thread on %s:%d:'):format(c.path or '?', c.end_line or 0),
     }, function(action)
       if action == 'Reply' then
         M.edit_comment(
@@ -693,9 +720,7 @@ function M.reply_or_resolve(linenr)
         end)
       end
     end)
-  end
-
-  pick_comment(candidates, 'Which comment?', do_it)
+  end, dedupe_threads)
 end
 
 --- Prepare info for commenting on a range in the current diff.
@@ -760,7 +785,7 @@ end
 ---
 --- @param line1 integer 1-indexed line
 --- @param line2 integer 1-indexed line
-function M.do_comment(line1, line2)
+function M.new_comment(line1, line2)
   local info = M.prepare_to_comment(line1, line2)
   if not info then
     return

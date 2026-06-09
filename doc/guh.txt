@@ -240,9 +240,18 @@ Related gh commands: >
 
 :[range]GuhComment                                               *:GuhComment*
 
-With bang "!", comments on PR at top level.
-Without bang, comments on the current diff line or range. >
-    :[range]GuhComment
+Creates, updates, or deletes a comment. >
+
+    :.GuhComment
+    :'<,'>GuhComment
+
+Use range "%" to create a top-level comment on the current PR/issue: >
+
+    :%GuhComment
+
+Use bang "!" with a single-line [range] to delete a comment: >
+
+    :.GuhComment!
 <
 
 ==============================================================================

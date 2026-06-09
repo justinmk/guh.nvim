@@ -455,7 +455,7 @@ function M.show_pr_diff(opts)
       vim.cmd([[syntax match GuhWarning /\<\(outdated\|outside\)\ze-\d\+:/ containedin=ALL]])
     end)
     util.set_default_keymaps(buf)
-    comments.show(
+    comments.show_pr_comments(
       id,
       repo,
       diff_win,
@@ -489,25 +489,8 @@ function M.show_pr_diff(opts)
   end)
 end
 
---- Comment on a diff line/range, or PR/issue overview (bang "!").
----
---- In a `prcomments/…` buffer (instead of `prdiff/…`): updates the existing comment at cursor.
-M.comment = function(args)
-  assert(args and args.line1 and args.line2)
-  if args.bang and (args.range or 0) > 0 then
-    return util.msg('Cannot use bang and range together.', vim.log.levels.ERROR)
-  end
-  if args.bang then
-    return M.comment_overview()
-  end
-  if (vim.b.guh or {}).feat == 'prcomments' then
-    return comments.update_comment(args.line1)
-  end
-  comments.do_comment(args.line1, args.line2)
-end
-
 --- Posts a top-level comment on the current PR or issue.
-function M.comment_overview()
+local function comment_overview()
   local feat, id, repo = resolve_pr()
   local kind = feat == 'issue' and 'issue' or 'pr'
 
@@ -521,6 +504,34 @@ function M.comment_overview()
       end
     end)
   end)
+end
+
+--- Implements `:GuhComment`.
+---
+--- - `:%GuhComment` (range = whole buffer): post a top-level comment on the current PR/issue.
+--- - `:[range]GuhComment`: create or update comment at the given range.
+--- - `:[range]GuhComment!`: delete a comment at the given (single-line) range.
+---
+--- @param args vim.api.keyset.create_user_command.command_args
+M.comment = function(args)
+  assert(args and args.line1 and args.line2)
+  if args.bang then
+    if (args.range or 0) == 0 then
+      return util.msg('GuhComment!: [range] is required', vim.log.levels.ERROR)
+    end
+    if args.line1 ~= args.line2 then
+      return util.msg('GuhComment!: [range] must be a single line', vim.log.levels.ERROR)
+    end
+    return comments.delete_comment(args.line1)
+  end
+  -- `:%GuhComment` (entire buffer): overview comment.
+  if (args.range or 0) > 0 and args.line1 == 1 and args.line2 == vim.fn.line('$') then
+    return comment_overview()
+  end
+  if (vim.b.guh or {}).feat == 'prcomments' then
+    return comments.update_comment(args.line1)
+  end
+  comments.new_comment(args.line1, args.line2)
 end
 
 --- Runs `gh pr edit <id>` (or `gh issue edit <id>`) in a :terminal.

@@ -9,11 +9,13 @@
 --- @class Comment
 --- @field body string
 --- @field diff_hunk string
+--- @field end_line number End of comment range (1-indexed GitHub file-line). Falls back to `originalLine` for LEFT-side / outdated threads (those have no current-HEAD `line`).
+--- @field end_bufline? integer End of _rendered_ comment range (1-indexed "prdiff" buffer-line). See `start_bufline`.
 --- @field id number
---- @field line number GitHub file-line (already remapped to original_line for `outdated`).
 --- @field path string For `outdated`: a synthetic key `outdated-<thread_id>:<real_path>`.
 --- @field side? 'LEFT'|'RIGHT' Diff side the comment anchors to. LEFT = deleted-line/old file, RIGHT = added/context/new file.
---- @field start_line number
+--- @field start_line number Start of comment range (1-indexed GitHub file-line). Falls back to `originalStartLine` for LEFT-side / outdated threads.
+--- @field start_bufline? integer Start of _rendered_ comment range (1-indexed "prdiff" buffer-line). Populated at render time.
 --- @field updated_at string
 --- @field url string
 --- @field user string
@@ -24,8 +26,8 @@
 --- @class CommentThread
 --- @field comments Comment[]
 --- @field id number
---- @field line number
---- @field start_line number
+--- @field end_line number End of thread range (1-indexed GitHub file-line). = head comment's `end_line`.
+--- @field start_line number Start of thread range (1-indexed GitHub file-line).
 --- @field url string
 
 --- @class FileNameAndLinePair
