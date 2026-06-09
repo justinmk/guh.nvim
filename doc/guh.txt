@@ -76,10 +76,12 @@ Default mappings (local to `guh://` buffers):
     <Plug>(guh-diff)
   - `dl` View the most-recent CI logs for all job-names in the CI matrix.
     <Plug>(guh-logs)
-  - `]f` View the next PR commit (from the most-recent push).
-    <Plug>(guh-next-commit)
-  - `[f` View the previous PR commit (from the most-recent push).
-    <Plug>(guh-prev-commit)
+  - `]f` View the next "thing":
+    - in a PR/diff/comments buffer: go to next commit (from the most-recent push).
+    - in a CI logs buffer: go to logs of the next CI job.
+    <Plug>(guh-next)
+  - `[f` View the previous "thing" (see `]f` above).
+    <Plug>(guh-prev)
   - `g?` View this help section.
     <Plug>(guh-help)
 - Buffer-relative UPDATE actions:

@@ -13,8 +13,6 @@ local bufs = {
   ---@type table<string, integer>
   issue = {},
   ---@type table<string, integer>
-  logs = {},
-  ---@type table<string, integer>
   merge = {},
   ---@type table<string, integer>
   pr = {},
@@ -22,6 +20,8 @@ local bufs = {
   prcomments = {},
   ---@type table<string, integer>
   prdiff = {},
+  ---@type table<string, integer>
+  prlogs = {},
   ---@type table<string, integer>
   review = {},
   ---@type table<string, integer>

@@ -116,7 +116,7 @@ function M.select(args, id, repo)
     -- Programmatic caller provided (feat, id, repo) directly. Skip parsing.
     target = {
       id = id,
-      is_pr = ({ pr = true, prdiff = true, prcomments = true, issue = false })[feat],
+      is_pr = ({ pr = true, prdiff = true, prcomments = true, prlogs = true, issue = false })[feat],
     }
     repo = repo or (vim.b.guh or {}).repo or resolve_local_repo()
   elseif #arg > 0 then
@@ -197,12 +197,77 @@ function M.show_commit(sha, repo, focus)
   end)
 end
 
---- Navigates to the next/previous PR commit (from latest push), relative to the current `commit/…`
---- buffer (or start/end otherwise).
+--- Fetches and renders a CI job's logs into a `prlogs/…` buffer.
+local function open_ci_log(job, pr_id, repo)
+  gh.get_pr_ci_logs(job.databaseId, repo, function(logs, err)
+    assert(logs, ('failed to get CI log: %s'):format(err))
+    -- Key the bufname by `job.databaseId` to disambiguate (multiple logs per PR).
+    -- XXX: store pr-id in `b:guh.id` for refresh/actions.
+    local buf = state.init_buf('prlogs', true, repo, job.databaseId, { id = pr_id })
+    vim.cmd.buffer(buf)
+    -- Logs from `gh run view --log` contain termcodes. Open the buffer as a terminal so it renders nicely.
+    local chan = vim.api.nvim_open_term(0, {})
+    vim.api.nvim_chan_send(chan, logs)
+    vim.cmd.norm [[gg0]]
+    util.set_default_keymaps(buf)
+  end)
+end
+
+--- Lists CI jobs for a PR (excluding skipped), invokes `cb(jobs)`.
+local function with_ci_jobs(pr_id, repo, cb)
+  gh.get_pr_data(pr_id, repo, nil, function(pr)
+    if not pr then
+      return util.msg(('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
+    end
+    gh.get_pr_ci_jobs_logs(pr, repo, function(jobs, jobs_err)
+      assert(jobs, ('failed to list CI jobs: %s'):format(jobs_err))
+      jobs = vim.tbl_filter(function(j)
+        return j.conclusion ~= 'skipped'
+      end, jobs)
+      if #jobs == 0 then
+        return util.msg(('No (non-skipped) CI jobs for PR #%s'):format(pr_id), vim.log.levels.WARN)
+      end
+      cb(jobs)
+    end)
+  end)
+end
+
+--- Navigates to the next/previous CI job's logs, relative to the current `prlogs/…` buffer.
+--- @param delta integer # +1 for next, -1 for previous.
+local function show_next_ci_job(delta)
+  local _, id, repo = resolve_pr()
+  local b = vim.b.guh or {}
+  -- Get the databaseId from the `…/prlogs/<databaseId>` bufname.
+  local job_id = tonumber(b.bufkey and b.bufkey:match('/(%d+)$'))
+
+  with_ci_jobs(id, repo, function(jobs)
+    local cur_idx
+    for i, j in ipairs(jobs) do
+      if j.databaseId == job_id then
+        cur_idx = i
+        break
+      end
+    end
+    local idx = (cur_idx or (delta > 0 and 0) or (#jobs + 1)) + delta
+    if idx < 1 or idx > #jobs then
+      return util.msg(('No %s CI job'):format(delta > 0 and 'next' or 'previous'))
+    end
+    open_ci_log(jobs[idx], id, repo)
+  end)
+end
+
+--- Navigates to the next/previous "thing":
+--- - In a `pr/…`, `prdiff/…` `prcomments/…` buf: navigates to first/last commit.
+--- - In a `commit/…` buf: navigates to next/prev commit.
+--- - In a `prlogs/…` buf: navigates next/prev CI job.
 ---
 --- @param delta integer # +1 for next, -1 for previous.
-function M.show_next_commit(delta)
-  local _, id, repo, commit_idx = resolve_pr()
+function M.show_next(delta)
+  local feat, id, repo, commit_idx = resolve_pr()
+  if feat == 'prlogs' then
+    return show_next_ci_job(delta)
+  end
+
   local pr_buf = assert(state.get_buf('pr', repo, id, false))
   local pr_data = vim.fn.getbufvar(pr_buf, 'guh', {}).pr_data
   local commits = pr_data and pr_data.commits
@@ -581,41 +646,16 @@ end
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.show_ci_logs(opts)
   local _, id, repo = resolve_pr(opts)
-  gh.get_pr_data(id, repo, nil, function(pr)
-    if not pr then
-      return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
-    end
-    gh.get_pr_ci_jobs_logs(pr, repo, function(jobs, jobs_err)
-      assert(jobs, ('failed to list CI jobs: %s'):format(jobs_err))
-      jobs = vim.tbl_filter(function(j)
-        return j.conclusion ~= 'skipped'
-      end, jobs)
-      if #jobs == 0 then
-        return util.msg(('No (non-skipped) CI jobs for PR #%s'):format(id), vim.log.levels.WARN)
+  with_ci_jobs(id, repo, function(jobs)
+    vim.ui.select(jobs, {
+      prompt = ('CI jobs for PR #%s'):format(id),
+      format_item = function(j)
+        return ('[%s] %s'):format(j.conclusion or j.status or '?', j.name)
+      end,
+    }, function(picked)
+      if picked then
+        open_ci_log(picked, id, repo)
       end
-
-      vim.ui.select(jobs, {
-        prompt = ('CI jobs for PR #%s'):format(id),
-        format_item = function(j)
-          return ('[%s] %s'):format(j.conclusion or j.status or '?', j.name)
-        end,
-      }, function(picked)
-        if not picked then
-          return
-        end
-        gh.get_pr_ci_logs(picked.databaseId, repo, function(logs, err)
-          assert(logs, ('failed to get CI log: %s'):format(err))
-
-          -- Key the bufname by the `job.databaseId` to disambiguate (so multiple logs can be viewed on the same PR).
-          -- XXX: store pr-id in `b:guh.id` for refresh/actions.
-          local buf = state.init_buf('logs', true, repo, picked.databaseId, { id = id })
-          vim.cmd.buffer(buf)
-          -- Logs from `gh run view --log` contain termcodes. Open the buffer as a terminal so it renders nicely.
-          local chan = vim.api.nvim_open_term(0, {})
-          vim.api.nvim_chan_send(chan, logs)
-          vim.cmd.norm [[gg0]]
-        end)
-      end)
     end)
   end)
 end

@@ -100,7 +100,7 @@ function M.parse_target(arg)
   end
   owner, repo, feat, num = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/(%w+)/(%d+)$')
   if owner then
-    local is_pr = ({ pr = true, prdiff = true, prcomments = true, issue = false })[feat]
+    local is_pr = ({ pr = true, prdiff = true, prcomments = true, prlogs = true, issue = false })[feat]
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = is_pr }
   end
 
@@ -272,8 +272,8 @@ function M.set_default_keymaps(buf)
   M.map_default(buf, 'n', 'R', '<Plug>(guh-refresh)', 'Refresh this guh:// buffer')
   M.map_default(buf, 'n', 'dd', '<Plug>(guh-diff)', 'View the PR diff')
   M.map_default(buf, 'n', 'dl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
-  M.map_default(buf, 'n', ']f', '<Plug>(guh-next-commit)', 'View the next PR commit')
-  M.map_default(buf, 'n', '[f', '<Plug>(guh-prev-commit)', 'View the previous PR commit')
+  M.map_default(buf, 'n', ']f', '<Plug>(guh-next)', 'View the next PR commit / CI job')
+  M.map_default(buf, 'n', '[f', '<Plug>(guh-prev)', 'View the previous PR commit / CI job')
   M.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
 
   -- "Global" (buffer-relative) UPDATE actions:
