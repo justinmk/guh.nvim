@@ -24,7 +24,7 @@ end
 ---
 --- @param sha string
 --- @return integer? pr_id
---- @return integer? commit_idx 1-based index of the matching commit in `pr_data.commits`.
+--- @return integer? commit_idx 1-based index of the matching `pr_data.commits` item.
 local function find_pr_for_commit_sha(sha)
   for _, pr_buf in pairs(state.bufs.pr or {}) do
     local pr_data = vim.fn.getbufvar(pr_buf, 'guh', {}).pr_data
@@ -363,9 +363,9 @@ function M.show_status(focus, repo)
     local tmpl = vim.text.indent(
       0,
       [[
-      {{"\nOpen PRs (recently updated):\n" -}}
+      {{"\nOpen PRs (last-updated):\n" -}}
       {{range .data.repository.pullRequests.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end -}}
-      {{"\nOpen issues (recently updated):\n" -}}
+      {{"\nOpen issues (last-updated):\n" -}}
       {{range .data.repository.issues.nodes}}  #{{.number}}  {{.title}}{{"\n"}}{{end}}
     ]]
     )

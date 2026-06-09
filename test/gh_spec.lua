@@ -261,13 +261,7 @@ describe('comments', function()
       local state = require('guh.state')
 
       local pr_id = 42
-      local buf = state.get_buf('prdiff', nil, pr_id)
-      state.show_buf(buf)
-      state.set_b_guh(buf, {
-        id = pr_id,
-        feat = 'prdiff',
-        repo = 'justinmk/guh.nvim',
-      })
+      local buf = state.init_buf('prdiff', false, 'justinmk/guh.nvim', pr_id)
 
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
         'diff --git a/lua/guh/config.lua b/lua/guh/config.lua',
@@ -300,9 +294,7 @@ describe('comments', function()
 
       local pr_id = 99
       local repo = 'justinmk/guh.nvim'
-      local diff_buf = state.get_buf('prdiff', repo, pr_id)
-      state.show_buf(diff_buf)
-      state.set_b_guh(diff_buf, { id = pr_id, feat = 'prdiff', repo = repo })
+      local diff_buf = state.init_buf('prdiff', false, repo, pr_id)
 
       -- Synthetic unified diff. Row numbers are 1-indexed.
       --   row 6 ` context` → old=10, new=10
@@ -381,9 +373,7 @@ describe('comments', function()
 
       local pr_id = 77
       local repo = 'justinmk/guh.nvim'
-      local diff_buf = state.get_buf('prdiff', repo, pr_id)
-      state.show_buf(diff_buf)
-      state.set_b_guh(diff_buf, { id = pr_id, feat = 'prdiff', repo = repo })
+      local diff_buf = state.init_buf('prdiff', false, repo, pr_id)
 
       vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, {
         'diff --git a/f.lua b/f.lua',

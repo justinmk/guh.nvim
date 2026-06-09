@@ -59,7 +59,7 @@ end
 --- in the current window.
 --- @param buf integer
 --- @param focus boolean Navigate to existing window where the buffer is visible.
-function M.show_buf(buf, focus)
+local function show_buf(buf, focus)
   if not focus then
     vim.api.nvim_set_current_buf(buf)
     return
@@ -114,7 +114,7 @@ function M.init_buf(feat, focus, repo, id, bufstate)
   bufstate = bufstate or {}
   local key = get_key(repo, id)
   local buf = assert(M.get_buf(feat, repo, id))
-  M.show_buf(buf, focus)
+  show_buf(buf, focus)
   if bufstate.id == nil then
     bufstate.id = id == 'all' and 0 or assert(tonumber(id))
   end

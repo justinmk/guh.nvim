@@ -348,8 +348,16 @@ function M.run_term_cmd(buf, cmd, on_done)
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
   vim.schedule(function()
+    assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmd: invalid buf %d'):format(buf))
+    -- terminal buf can be updated only if the job exited.
+    local jobid = vim.bo[buf].channel
+    if vim.fn.jobwait({ jobid }, 0)[1] == -1 then
+      M.log('run_term_cmd skipped:', { buf = buf, cmd = cmd, reason = 'job still running' })
+      progress('cancel')
+      return
+    end
     local isempty = 1 == vim.fn.line('$') and '' == vim.fn.getline(1)
-    assert(isempty or not vim.api.nvim_buf_is_loaded(buf) or (vim.o.buftype == 'terminal' and not not vim.b[buf].guh))
+    assert(isempty or not vim.api.nvim_buf_is_loaded(buf) or vim.bo[buf].buftype == 'terminal')
     vim.o.modifiable = true
     vim.o.modified = false
     vim.fn.jobstart(cmd, {
