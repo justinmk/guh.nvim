@@ -875,6 +875,16 @@ function M.edit_comment(feat, prnum, content, infomsg, on_confirm)
       end)
     end,
   })
+  -- Close-without-write (ZQ) leaves `modified=true`; ZZ-confirm sets `modified=false` above.
+  vim.api.nvim_create_autocmd('BufWipeout', {
+    buffer = buf,
+    once = true,
+    callback = function()
+      if vim.bo[buf].modified then
+        util.msg('aborted')
+      end
+    end,
+  })
 end
 
 return M
