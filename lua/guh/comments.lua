@@ -340,21 +340,21 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   local prdiff_msg = {
     { 'PR diff | ', 'Comment' },
     { ('Files: %d ('):format(n_files, n_viewed), 'Comment' },
-    { 'Viewed', { '@markup.italic', 'Comment' } },
+    { 'Viewed', '@markup.italic' },
     { (': %d) | '):format(n_viewed), 'Comment' },
-    { 'Unresolved', { '@markup.italic', 'Comment' } },
+    { 'Unresolved', '@markup.italic' },
     { (' threads: %d'):format(visible_threads), 'Comment' },
     { ' | g? for help', 'Comment' },
   }
-  util.show_info_overlay(diff_buf, { prdiff_msg })
+  util.show_winbar(diff_win, prdiff_msg)
 
   local prcomments_msg = {
     { ('PR comments | Visible: %d | Unresolved in '):format(visible_threads), 'Comment' },
-    { 'Viewed', { '@markup.italic', 'Comment' } },
+    { 'Viewed', '@markup.italic' },
     { (' files: %d'):format(n_viewed_threads), 'Comment' },
     { ' | g? for help', 'Comment' },
   }
-  util.show_info_overlay(buf, { prcomments_msg })
+  util.show_winbar(win, prcomments_msg)
 
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true
@@ -372,7 +372,6 @@ function M.show(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n
   vim.api.nvim_win_call(win, function()
     vim.cmd [[setlocal scrollbind cursorbind]]
   end)
-  vim.fn.feedkeys(vim.keycode('<c-y>'), 'n') -- XXX: Ensure header is visible.
 end
 
 --- Marshalls an API comment to local `Comment` type.
@@ -809,7 +808,7 @@ function M.edit_comment(feat, prnum, content, infomsg, cb)
   end)
 
   infomsg = infomsg or { 'Edit, then ZZ to post (ZQ to abort).' }
-  util.show_info_overlay(buf, infomsg[1], infomsg[2])
+  util.show_winbar(0, { { infomsg[1], infomsg[2] or 'Comment' } })
 
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].bufhidden = 'wipe' -- Ensure BufWipeout fires on :q.

@@ -473,10 +473,9 @@ describe(':Guh', function()
     t.retry(nil, nil, function()
       n.command('2 wincmd w')
     end)
-    -- XXX: jiggle the comments viewport so the overlay appears. Is this a virt_lines bug?
-    n.feed('<C-y>')
 
     -- Note: "Viewed" state is per-user, so we can't assert (N/M viewed) or (viewed) rows.
+    -- Row 1 is the 'winbar'.
     screen:expect {
       timeout = 10000,
       attr_ids = {}, -- Don't care about colors.

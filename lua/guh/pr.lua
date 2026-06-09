@@ -88,7 +88,7 @@ function M.select(opts)
 
   local arg = (opts or {}).args or ''
 
-  -- Flash the cWORD if it matches the arg (so keymaps can use `:Guh <cWORD>` instead of a wrapper).
+  -- Flash the cWORD if it matches the arg (so `:Guh <cWORD>` works, avoids the need for a wrapper).
   if arg == vim.fn.expand('<cWORD>') then
     local row, col = unpack(vim.api.nvim_win_get_cursor(0))
     local line = vim.api.nvim_get_current_line()

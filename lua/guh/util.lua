@@ -373,26 +373,32 @@ function M.run_term_cmd(buf, cmd, on_done)
   end)
 end
 
---- Shows an info overlay message above line 1 of the given buffer.
---- Renders as a virtual line (extmark), so it scrolls with content and
---- never covers buffer text. Pass `msg=nil` to clear.
+--- Sets the window-local 'winbar' to a list of `{text, hl_group?}` chunks.
 ---
---- @param buf integer
---- @param msg? string|[string,string?][][] Message, or `nil` to clear the overlay.
---- @param hl? string highlight group (default 'Comment').
-function M.show_info_overlay(buf, msg, hl)
-  assert(type(msg) == 'string' or not hl)
-  if not vim.api.nvim_buf_is_valid(buf) then
+--- Pass `chunks=nil` to clear/disable.
+---
+--- @param win integer
+--- @param chunks? [string, string?][] List of `{text, hl_group}` pairs, or nil to disable the winbar.
+function M.show_winbar(win, chunks)
+  if not vim.api.nvim_win_is_valid(win) then
     return
   end
-  vim.api.nvim_buf_clear_namespace(buf, overlay_ns, 0, -1)
-  local virt_lines = type(msg) == 'string' and { { { msg, hl or 'Comment' } } } or msg
-  if msg then
-    vim.api.nvim_buf_set_extmark(buf, overlay_ns, 0, 0, {
-      virt_lines_above = true,
-      virt_lines = virt_lines,
-    })
+  if not chunks then
+    vim.wo[win].winbar = ''
+    return
   end
+  local parts = {}
+  for i, ck in ipairs(chunks) do
+    local text, hl = ck[1]:gsub('%%', '%%%%'), ck[2] -- escape `%` for statusline syntax
+    assert(hl == nil or type(hl) == 'string', 'show_winbar: hl_group must be a string')
+    -- Example: ({'foo', 'Comment'}) -> "%#Comment#foo%*"
+    table.insert(parts, hl and ('%%#%s#%s%%*'):format(hl, text) or text)
+    -- After the first chunk insert `%<` so the title is preserved and truncation (">" marker) cuts from there.
+    if i == 1 then
+      table.insert(parts, '%<')
+    end
+  end
+  vim.wo[win].winbar = table.concat(parts)
 end
 
 return M
