@@ -210,8 +210,8 @@ function M.review_pr()
 
   local function do_action(action)
     local L = labels[action]
-    local msg = ('%s PR #%s. ZZ to submit (ZQ to abort).'):format(L.gerund, id)
-    comments.edit_comment('review', id, { '' }, { msg }, function(input)
+    local msg = ('%s PR #%s | ZZ to submit (ZQ to abort)'):format(L.gerund, id)
+    comments.edit_comment('review', id, { '' }, { { msg, 'Comment' } }, function(input)
       local body = vim.trim(input)
       local done = util.progress(('%s PR #%s…'):format(L.gerund, id))
       gh.review_pr(id, repo, action, body, function(ok, stderr)
@@ -313,8 +313,11 @@ function M.merge_pr()
         end
         local text = ('%s\n\n%s'):format(subject, body):gsub('\r', '')
         local content = vim.split(text, '\n', { plain = true })
-        local msg = ('[%s] First line = subject; rest = body. ZZ to merge (ZQ to abort).'):format(choice)
-        comments.edit_comment('merge', id, content, { msg, admin and 'DiagnosticError' }, function(input)
+        local heading = {
+          { ('[%s]'):format(choice), admin and 'ErrorMsg' or 'Comment' },
+          { ' | First line = subject; rest = body | ZZ to merge (ZQ to abort)', 'Comment' },
+        }
+        comments.edit_comment('merge', id, content, heading, function(input)
           local subject, body = input:match('^([^\n]*)\n?(.*)$')
           do_merge(choice, subject, vim.trim(body or ''))
         end)

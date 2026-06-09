@@ -656,10 +656,13 @@ function M.update_comment(linenr)
   with_comment(linenr, 'Which comment?', function(c, prnum, repo, _)
     local content = vim.split(c.body or '', '\n', { plain = true })
     local same = gh.get_user() == c.user
-    local msg = same and ('Updating comment %d. ZZ to confirm (ZQ to abort).'):format(c.id)
-      or ('Updating comment by %s %d (not you). ZZ to confirm (ZQ to abort).'):format(c.user or '?', c.id)
-    local hl = (not same) and 'ErrorMsg' or nil
-    M.edit_comment('comment', prnum, content, { msg, hl }, function(input)
+    local infomsg = same and { { ('Updating comment %d | ZZ to confirm (ZQ to abort)'):format(c.id), 'Comment' } }
+      or {
+        { 'Updating comment by ', 'Comment' },
+        { ('%s %d (not you)'):format(c.user or '?', c.id), 'ErrorMsg' },
+        { ' | ZZ to confirm (ZQ to abort)', 'Comment' },
+      }
+    M.edit_comment('comment', prnum, content, infomsg, function(input)
       local progress = util.new_progress_report('Updating comment...', vim.api.nvim_get_current_buf())
       gh.update_comment(c.id, input, repo, function(resp)
         if resp['errors'] == nil then
@@ -695,7 +698,7 @@ function M.reply_or_resolve(linenr)
           'comment',
           prnum,
           { '' },
-          { ('Reply to %s. ZZ to send (ZQ to abort).'):format(c.user or '?') },
+          { { ('Reply to %s. ZZ to send (ZQ to abort)'):format(c.user or '?'), 'Comment' } },
           function(input)
             local progress = util.new_progress_report('Sending reply...', vim.api.nvim_get_current_buf())
             gh.reply_to_comment(prnum, input, c.id, repo, function(resp)
@@ -800,8 +803,15 @@ function M.new_comment(line1, line2)
     if not pr then
       return util.msg(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
     end
+    local range = info.start_line == info.end_line and tostring(info.end_line)
+      or ('%d..%d'):format(info.start_line, info.end_line)
+    local infomsg = {
+      { 'Comment on ', 'Comment' },
+      { ('%s:%s'):format(info.file, range), 'Directory' },
+      { ' | ZZ to send (ZQ to abort)', 'Comment' },
+    }
     vim.schedule(function()
-      M.edit_comment('comment', info.pr_id, { '' }, nil, function(input)
+      M.edit_comment('comment', info.pr_id, { '' }, infomsg, function(input)
         local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.side, info.repo, function(resp)
           if resp['errors'] == nil then
@@ -823,7 +833,7 @@ end
 --- @param feat 'comment'|'merge'|'review' kind of edit; each has its own per-PR buffer.
 --- @param prnum integer
 --- @param content string[] lines to prefill the buffer with
---- @param infomsg? { [1]: string, [2]?: string } overlay message + highlight; nil = default.
+--- @param infomsg? [string, string?][] Heading text + highlights; nil = default.
 --- @param cb fun(input: string) called only on save-then-close
 function M.edit_comment(feat, prnum, content, infomsg, cb)
   local repo = assert((vim.b.guh or {}).repo, 'edit_comment: not in a guh:// buffer (no b:guh.repo)')
@@ -835,8 +845,7 @@ function M.edit_comment(feat, prnum, content, infomsg, cb)
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
-  infomsg = infomsg or { 'Edit, then ZZ to post (ZQ to abort).' }
-  util.show_winbar(0, { { infomsg[1], infomsg[2] or 'Comment' } })
+  util.show_winbar(0, infomsg or { { 'Edit comment | ZZ to post (ZQ to abort)', 'Comment' } })
 
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].bufhidden = 'wipe' -- Ensure BufWipeout fires on :q.
