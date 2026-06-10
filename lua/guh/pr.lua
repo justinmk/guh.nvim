@@ -583,9 +583,16 @@ function M.load_pr_diff(opts, on_done)
     end)
     util.set_default_keymaps(buf)
     comments.load_pr_comments(id, repo, buf, pr_data, threads, n_files, n_viewed_threads)
-    -- Stash counts on pr_data (single source of truth) so `show_pr_diff` (dd) can display without re-fetching/re-rendering.
-    pr_data.n_files = n_files
-    pr_data.n_viewed_threads = n_viewed_threads
+    -- Update `b:guh.pr_data` so the display step doesn't attempt to re-fetch.
+    -- Use Vimscript to avoid re-serializing pr_data.
+    -- TODO: https://github.com/neovim/neovim/issues/40159
+    local pr_buf = state.get_buf('pr', repo, id, false)
+    if pr_buf and vim.b[pr_buf].guh and vim.b[pr_buf].guh.pr_data then
+      vim.api.nvim_buf_call(pr_buf, function()
+        vim.cmd(('let b:guh.pr_data.n_files = %d'):format(n_files))
+        vim.cmd(('let b:guh.pr_data.n_viewed_threads = %d'):format(n_viewed_threads))
+      end)
+    end
     progress('success')
     if on_done then
       on_done(buf, pr_data, n_files, n_viewed_threads)
