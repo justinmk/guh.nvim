@@ -204,12 +204,20 @@ local function open_ci_log(job, pr_id, repo)
     -- Key the bufname by `job.databaseId` to disambiguate (multiple logs per PR).
     -- XXX: store pr-id in `b:guh.id` for refresh/actions.
     local buf = state.init_buf('prlogs', true, repo, job.databaseId, { id = pr_id })
-    vim.cmd.buffer(buf)
-    -- Logs from `gh run view --log` contain termcodes. Open the buffer as a terminal so it renders nicely.
-    local chan = vim.api.nvim_open_term(0, {})
+    local chan = (state.get_b_guh(buf) or {}).chan
+    if chan then
+      -- Reuse the existing terminal-buf: clear and re-feed.
+      vim.bo[buf].modifiable = true
+      vim.bo[buf].readonly = false
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
+    else
+      -- Logs from `gh run view --log` contain termcodes. Use a terminal buf so it renders nicely.
+      chan = vim.api.nvim_open_term(buf, {})
+      state.set_b_guh(buf, { chan = chan })
+      util.set_default_keymaps(buf)
+    end
     vim.api.nvim_chan_send(chan, logs)
     vim.cmd.norm [[gg0]]
-    util.set_default_keymaps(buf)
     local status = job.conclusion or job.status or '?'
     util.show_winbar(0, {
       { ('Logs | PR #%s | '):format(pr_id), 'Comment' },

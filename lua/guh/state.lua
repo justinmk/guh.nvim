@@ -94,17 +94,24 @@ function M.try_show(feat, repo, id)
   return false
 end
 
---- Gets the cached `pr_data` from a PR's `pr/…` buffer.
+--- Gets the cached `pr_data` from the relevant `pr/…` buffer.
 ---
 --- @param repo_or_buf string|integer "owner/name", or a `pr/…` buf number.
 --- @param id? string|integer PR number (required when `repo_or_buf` is a repo).
 --- @return PullRequest?
 function M.get_pr_data(repo_or_buf, id)
   local pr_buf = id == nil and repo_or_buf or M.get_buf('pr', repo_or_buf, id, false)
-  if not pr_buf or not vim.api.nvim_buf_is_valid(pr_buf) then
+  return (M.get_b_guh(pr_buf) or {}).pr_data
+end
+
+--- Gets the `b:guh` buffer-local dict (if any), or nil if `buf` is invalid.
+--- @param buf? integer
+--- @return BufState?
+function M.get_b_guh(buf)
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then
     return nil
   end
-  return (vim.b[pr_buf].guh or {}).pr_data
+  return vim.b[buf].guh
 end
 
 --- Sets the `b:guh` buffer-local dict. `bufstate` is merged with existing state, if any.
@@ -137,7 +144,7 @@ function M.init_buf(feat, focus, repo, id, bufstate)
     show_buf(buf, focus)
   end
   if bufstate.id == nil then
-    bufstate.id = id == 'all' and 0 or assert(tonumber(id))
+    bufstate.id = id == 'all' and 0 or assert(vim._tointeger(id))
   end
   if bufstate.feat == nil then
     bufstate.feat = feat

@@ -2,9 +2,11 @@
 
 --- @class BufState
 --- Buffer-local b:guh dict.
---- @field id? integer|string PR or issue number, or commit SHA.
+--- @field chan? integer Terminal channel-id (for `prlogs/…` buffers).
 --- @field feat? Feat Feature name
+--- @field id? integer|string PR or issue number, or commit SHA.
 --- @field pr_data? PullRequest
+--- @field repo? string "owner/name"
 
 --- @class Comment
 --- @field body string
