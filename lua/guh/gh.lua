@@ -438,7 +438,7 @@ function M.get_pr_ci_jobs_logs(pr, repo, cb)
   end
 
   local progress = util.new_progress_report('Loading CI jobs', 0)
-  progress('running', nil, 'fetching check-runs')
+  progress('running', nil)
 
   vim.validate('repo', repo, 'string')
   -- `--paginate` is safe here: `filter=latest` collapses re-runs server-side, so the count is bounded by distinct check
