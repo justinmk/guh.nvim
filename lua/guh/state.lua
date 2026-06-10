@@ -36,7 +36,7 @@ end
 --- Gets the existing buf or creates a new one, for the given PR + feature.
 ---
 --- @param feat Feat
---- @param repo string|nil "owner/name", or nil for non-thing-bound feats (e.g. "guh://status").
+--- @param repo string|nil "owner/name", or nil for non-thing-bound feats ("guh://status").
 --- @param id string|integer PR/issue number, or "all" for "guh://status".
 --- @param create? boolean (default: true) If false, return nil instead of creating a new buf.
 --- @return integer? buf
@@ -80,8 +80,8 @@ end
 --- Tries to resolve the feat+repo+id buffer and navigate to it, else returns false.
 ---
 --- @param feat Feat
---- @param repo string|nil "owner/name", or nil for non-thing-bound feats.
---- @param id string|integer PR/issue number, or "all" for status.
+--- @param repo string "owner/name"
+--- @param id string|integer PR/issue number.
 --- @return boolean true if the buffer exists and was focused, else false.
 function M.try_show(feat, repo, id)
   local buf = M.get_buf(feat, repo, id)
@@ -124,7 +124,7 @@ end
 ---   - true: Navigate to existing window (if any).
 ---   - false: Show buf in current window.
 ---   - nil: Don't show the buf, only load/prepare it.
---- @param repo string|nil "owner/name", or nil for non-thing-bound feats (e.g. status).
+--- @param repo string|nil "owner/name", or nil for non-thing-bound feats ("guh://status").
 --- @param id string|integer PR/issue number, or "all" for status.
 --- @param bufstate? BufState
 --- @return integer buf

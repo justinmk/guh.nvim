@@ -148,13 +148,11 @@ function M.show_pr_comments(id, repo, diff_buf, pr_data, n_files, n_viewed_threa
     { (': %d) | '):format(n_viewed), 'Comment' },
     { 'Unresolved', '@markup.italic' },
     { (' threads: %d'):format(visible_threads), 'Comment' },
-    { ' | g? for help', 'Comment' },
   })
   util.show_winbar(comments_win, {
     { ('PR comments | Visible: %d | Unresolved in '):format(visible_threads), 'Comment' },
     { 'Viewed', '@markup.italic' },
     { (' files: %d'):format(n_viewed_threads), 'Comment' },
-    { ' | g? for help', 'Comment' },
   })
 
   -- Set scrollbind+cursorbind on both windows *after* writing the buffer content.

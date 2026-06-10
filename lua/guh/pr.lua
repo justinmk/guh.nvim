@@ -215,7 +215,6 @@ local function open_ci_log(job, pr_id, repo)
       { ('Logs | PR #%s | '):format(pr_id), 'Comment' },
       { status == 'success' and '✅' or '❌' },
       { (' "%s"'):format(job.name), 'Comment' },
-      { ' | g? for help', 'Comment' },
     })
   end)
 end

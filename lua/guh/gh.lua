@@ -270,7 +270,7 @@ end
 
 --- Note: The REST API takes a comment-id, not a thread-id. Any comment in the thread works.
 ---
---- @param repo? string "owner/name" for non-local repo.
+--- @param repo string "owner/repo"
 function M.reply_to_comment(prnum, body, reply_to, repo, cb)
   vim.validate('repo', repo, 'string')
   gh_api('reply_to_comment', 'POST', f('repos/%s/pulls/%d/comments', repo, prnum), {
@@ -279,7 +279,7 @@ function M.reply_to_comment(prnum, body, reply_to, repo, cb)
   }, cb)
 end
 
---- @param repo? string "owner/name" for non-local repo.
+--- @param repo string "owner/repo"
 function M.new_comment(pr, body, path, start_line, line, side, repo, cb)
   local commit_id = assert(pr.headRefOid)
   vim.validate('repo', repo, 'string')
@@ -312,7 +312,7 @@ function M.new_overview_comment(kind, id, repo, body, cb)
   end)
 end
 
---- @param repo? string "owner/name" for non-local repo.
+--- @param repo string "owner/repo"
 function M.update_comment(comment_id, body, repo, cb)
   vim.validate('repo', repo, 'string')
   gh_api('update_comment', 'PATCH', f('repos/%s/pulls/comments/%s', repo, comment_id), {
@@ -320,7 +320,7 @@ function M.update_comment(comment_id, body, repo, cb)
   }, cb)
 end
 
---- @param repo? string "owner/name" for non-local repo.
+--- @param repo string "owner/repo"
 function M.delete_comment(comment_id, repo, cb)
   vim.validate('repo', repo, 'string')
   gh_api('delete_comment', 'DELETE', f('repos/%s/pulls/comments/%s', repo, comment_id), {}, cb)
@@ -428,7 +428,7 @@ end
 --- Dedupes by job name, keeping the latest `startedAt`.
 ---
 --- @param pr PullRequest
---- @param repo? string "owner/name" for non-local repo.
+--- @param repo string "owner/repo"
 --- @param cb fun(jobs?: { databaseId: integer, name: string, conclusion: string, status: string, startedAt: string, url: string }[], error?: string)
 function M.get_pr_ci_jobs_logs(pr, repo, cb)
   local head_sha = pr.headRefOid
@@ -505,10 +505,10 @@ function M.get_pr_ci_jobs_logs(pr, repo, cb)
   end)
 end
 
---- Fetches the log for a single workflow job.
+--- Fetches the log for a CI workflow job.
 ---
---- @param job_id integer Workflow job ID (e.g. `job.databaseId` from `get_pr_ci_jobs_logs`).
---- @param repo? string "owner/name" for non-local repo.
+--- @param job_id integer Workflow job ID (`job.databaseId` from `get_pr_ci_jobs_logs`).
+--- @param repo string "owner/repo"
 --- @param cb fun(log?: string, error?: string)
 function M.get_pr_ci_logs(job_id, repo, cb)
   local progress = util.new_progress_report('Loading CI log', 0)
