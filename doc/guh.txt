@@ -75,16 +75,16 @@ Default mappings (local to `guh://` buffers):
 
 - Buffer-relative VIEW actions:
   - `R` Refresh the current thing.
-    - If thing is related to a PR: refreshes all PR buffers (except prlogs/
-      buffers).
+    - in a PR-related buffer: refreshes all PR buffers (except prlogs/
+      and commit/ buffers).
     <Plug>(guh-refresh)
   - `dd` View PR diff + comments. |guh-diff|
     <Plug>(guh-diff)
   - `dl` View the most-recent CI logs for all job-names in the CI matrix.
     <Plug>(guh-logs)
   - `]f` View the next "thing":
-    - in a PR/diff/comments buffer: go to next commit (from the most-recent push).
-    - in a CI logs buffer: go to logs of the next CI job.
+    - in a PR-related buffer: go to next commit (from the most-recent push).
+    - in a CI logs buffer: go to the next CI job.
     <Plug>(guh-next)
   - `[f` View the previous "thing" (see `]f` above).
     <Plug>(guh-prev)

@@ -170,10 +170,18 @@ end
 
 --- Gets commit `sha` from GitHub via `gh api` (no checkout required) and displays it as a `gitcommit` buffer.
 ---
+--- No "refresh": commits are immutable, so each `commit/<sha>` buf never needs a "refresh".
+---
 --- @param sha string Commit SHA (7-40 hex chars).
 --- @param repo string "owner/name"
 --- @param focus boolean
 function M.show_commit(sha, repo, focus)
+  -- Optimization: If the `commit/<sha>` buf already exits, just navigate to it.
+  local existing = state.get_buf('commit', repo, sha, false)
+  if existing and vim.api.nvim_buf_line_count(existing) > 1 then
+    state.init_buf('commit', focus, repo, sha, { id = sha }) -- Show the buffer.
+    return
+  end
   local done = util.progress(('Loading commit %s...'):format(sha))
   local cmd = {
     'gh',
@@ -219,8 +227,12 @@ end
 
 --- Shows a `prlogs/…` buffer. Fetches the logs unless `b:guh.chan` is set (= already rendered).
 ---
---- No "refresh": `databaseId` is unique per-run, and we don't (currently) support in-progress
---- (non-completed) logs, so each `prlogs/<databaseId>` buffer never needs a "refresh".
+--- No "refresh": `databaseId` is unique per-run (we don't currently support in-progress logs), so
+--- each `prlogs/<databaseId>` buf never needs a "refresh".
+---
+--- @param job CIJob From `pr_data.ci_jobs`.
+--- @param pr_id integer
+--- @param repo string "owner/name"
 local function show_ci_log(job, pr_id, repo)
   -- Key the bufname by `job.databaseId` to disambiguate (multiple logs per PR).
   -- XXX: store pr-id in `b:guh.id` for refresh/actions.
@@ -257,9 +269,8 @@ local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
       return -- Buf was wiped (e.g. user closed it) while the fetch was in flight.
     end
     if not logs then
-      -- Failure: Wipe the placeholder so we don't leave an empty/orphan prlogs/ around.
+      -- Failure: leave the empty buf (+ unset `b:guh.chan`). Future attempts will reuse the buf.
       util.log('preload_ci_logs failed', { job = job.name, err = err })
-      vim.api.nvim_buf_delete(buf, { force = true })
       return
     end
     render_ci_log(buf, logs)
@@ -619,7 +630,7 @@ function M.load_pr(opts, on_done)
   local _, id, repo = resolve_pr(opts)
   local buf = state.init_buf('prdiff', nil, repo, id) -- focus=nil (no display)
 
-  local progress = util.new_progress_report('Loading PR diff...', buf)
+  local progress = util.new_progress_report('Loading PR...', buf)
   progress('running')
 
   local pr_data --[[@type PullRequest?]]

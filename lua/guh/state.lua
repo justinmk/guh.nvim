@@ -58,6 +58,20 @@ function M.get_buf(feat, repo, id, create)
   return b
 end
 
+--- Wipes the `guh://<repo>/<feat>/<id>` buf, and clears its `state.bufs` entry.
+---
+--- @param feat Feat
+--- @param repo string|nil
+--- @param id string|integer
+function M.del_buf(feat, repo, id)
+  local key = get_key(repo, id)
+  local b = bufs[feat][key]
+  bufs[feat][key] = nil
+  if type(b) == 'number' and vim.api.nvim_buf_is_valid(b) then
+    vim.api.nvim_buf_delete(b, { force = true })
+  end
+end
+
 --- Navigates to the window/tabpage of the specified buffer, or else shows it
 --- in the current window.
 --- @param buf integer
