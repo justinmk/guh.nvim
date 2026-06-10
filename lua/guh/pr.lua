@@ -227,23 +227,27 @@ local function open_ci_log(job, pr_id, repo)
   end)
 end
 
---- Lists CI jobs for a PR (excluding skipped), invokes `cb(jobs)`.
-local function with_ci_jobs(pr_id, repo, cb)
-  gh.get_pr_data(pr_id, repo, nil, function(pr)
+--- Reads `ci_jobs` from cached `pr_data`. Fetches `pr_data` first if missing. Invokes `on_jobs(jobs)`.
+---
+--- @param pr_id integer
+--- @param repo string "owner/name"
+--- @param on_jobs fun(jobs: CIJob[])
+local function with_ci_jobs(pr_id, repo, on_jobs)
+  local function dispatch(pr)
     if not pr then
       return util.msg(('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
     end
-    gh.get_pr_ci_jobs_logs(pr, repo, function(jobs, jobs_err)
-      assert(jobs, ('failed to list CI jobs: %s'):format(jobs_err))
-      jobs = vim.tbl_filter(function(j)
-        return j.conclusion ~= 'skipped'
-      end, jobs)
-      if #jobs == 0 then
-        return util.msg(('No (non-skipped) CI jobs for PR #%s'):format(pr_id), vim.log.levels.WARN)
-      end
-      cb(jobs)
-    end)
-  end)
+    local jobs = pr.ci_jobs or {}
+    if #jobs == 0 then
+      return util.msg(('No (non-skipped) CI jobs for PR #%s'):format(pr_id), vim.log.levels.WARN)
+    end
+    on_jobs(jobs)
+  end
+  local pr = state.get_pr_data(repo, pr_id)
+  if pr then
+    return dispatch(pr)
+  end
+  gh.get_pr_data(pr_id, repo, nil, dispatch)
 end
 
 --- Navigates to the next/previous CI job's logs, relative to the current `prlogs/…` buffer.

@@ -53,12 +53,21 @@
 --- @field messageBody string
 --- @field authors table[]
 
+--- @class CIJob A GitHub Actions check-run summary (one matrix-expanded job at the PR's head commit).
+--- @field databaseId integer Workflow job id (parsed from `detailsUrl`), feeds `gh.get_pr_ci_logs`.
+--- @field name string
+--- @field conclusion? string lowercase: "success", "failure", "cancelled", … (nil if in-progress).
+--- @field status? string lowercase: "completed", "in_progress", "queued", …
+--- @field startedAt? string
+--- @field url? string Web URL of the job (`detailsUrl`).
+
 --- @class PullRequest PR data selected from GraphQL by `gh.get_pr_data`.
 --- @field author table
 --- @field baseRefName string
 --- @field baseRefOid string
 --- @field body string
 --- @field changedFiles number
+--- @field ci_jobs CIJob[] Latest matrix-expanded github-actions jobs at the head commit (sorted by status, name).
 --- @field commits PRCommit[]
 --- @field createdAt string
 --- @field headRefName string

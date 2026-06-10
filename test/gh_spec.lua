@@ -58,44 +58,30 @@ describe('guh.gh', function()
     end)
   end)
 
-  it('get_pr_ci_jobs_logs + get_pr_ci_logs', function()
+  it('get_pr_data populates ci_jobs + get_pr_ci_logs', function()
     n.exec_lua(function()
       local gh = require('guh.gh')
-      local util = require('guh.util')
 
       local done = false
       local logs = nil
       local err = nil
 
-      util.system({ 'gh', 'pr', 'view', '9', '--json', 'number,headRefOid' }, function(stdout, _, code)
-        if code ~= 0 then
+      -- `pr_data.ci_jobs` is batched into the `get_pr_data` GraphQL query.
+      gh.get_pr_data(9, 'justinmk/guh.nvim', { force = true }, function(pr)
+        if not pr then
           err = 'failed to get PR'
           done = true
           return
         end
+        local jobs = pr.ci_jobs or {}
+        assert(#jobs > 0, 'no CI jobs returned')
+        assert(jobs[1].databaseId, 'job missing databaseId')
+        assert(type(jobs[1].name) == 'string', 'job missing name')
 
-        local pr = vim.json.decode(stdout)
-        if not pr then
-          err = 'failed to parse PR'
+        gh.get_pr_ci_logs(jobs[1].databaseId, 'justinmk/guh.nvim', function(job_logs, job_err)
+          logs = job_logs
+          err = job_err
           done = true
-          return
-        end
-
-        gh.get_pr_ci_jobs_logs(pr, 'justinmk/guh.nvim', function(jobs, jobs_err)
-          if not jobs then
-            err = jobs_err
-            done = true
-            return
-          end
-          assert(#jobs > 0, 'no CI jobs returned')
-          assert(jobs[1].databaseId, 'job missing databaseId')
-          assert(type(jobs[1].name) == 'string', 'job missing name')
-
-          gh.get_pr_ci_logs(jobs[1].databaseId, 'justinmk/guh.nvim', function(job_logs, job_err)
-            logs = job_logs
-            err = job_err
-            done = true
-          end)
         end)
       end)
 

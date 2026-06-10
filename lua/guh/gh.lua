@@ -75,6 +75,49 @@ local function flatten_threads_to_comments(threads)
   return out, #(threads or {}), n_resolved
 end
 
+--- Extracts CI jobs (github-actions check-runs) from the HEAD commit `statusCheckRollup`.
+--- Dedupes by name (latest `startedAt`), drops `skipped`, sorts by (status, name).
+---
+--- @return CIJob[]
+local function to_ci_jobs(node)
+  local rollup_commits = vim.tbl_get(node, 'headCommit', 'nodes') or {}
+  local contexts = vim.tbl_get(rollup_commits[1] or {}, 'commit', 'statusCheckRollup', 'contexts', 'nodes') or {}
+  local by_name = {}
+  for _, cr in ipairs(contexts) do
+    -- Only `CheckRun` from the `github-actions` app has a fetchable workflow log.
+    local is_actions = cr.__typename == 'CheckRun' and vim.tbl_get(cr, 'checkSuite', 'app', 'slug') == 'github-actions'
+    -- detailsUrl: https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}
+    local job_id = is_actions and tonumber((cr.detailsUrl or ''):match('/job/(%d+)')) or nil
+    if job_id and cr.conclusion ~= 'SKIPPED' then
+      local existing = by_name[cr.name]
+      if not existing or (cr.startedAt or '') > (existing.startedAt or '') then
+        by_name[cr.name] = {
+          databaseId = job_id,
+          name = cr.name,
+          -- Mimic the REST API which returns lowercase ("success", "failure", …).
+          conclusion = cr.conclusion and cr.conclusion:lower() or nil,
+          status = cr.status and cr.status:lower() or nil,
+          startedAt = cr.startedAt,
+          url = cr.detailsUrl,
+        }
+      end
+    end
+  end
+  local jobs = {}
+  for _, j in pairs(by_name) do
+    table.insert(jobs, j)
+  end
+  table.sort(jobs, function(a, b)
+    local a_s = a.conclusion or a.status or '?'
+    local b_s = b.conclusion or b.status or '?'
+    if a_s ~= b_s then
+      return a_s < b_s
+    end
+    return (a.name or '') < (b.name or '')
+  end)
+  return jobs
+end
+
 --- Builds a PR object from a `get_pr_data` result (GraphQL: `pullRequest`).
 ---
 --- @return PullRequest
@@ -98,6 +141,7 @@ local function to_pr(node)
     baseRefOid = node.baseRefOid,
     body = node.body,
     changedFiles = node.changedFiles,
+    ci_jobs = to_ci_jobs(node),
     commits = commits,
     createdAt = node.createdAt,
     headRefName = node.headRefName,
@@ -195,6 +239,22 @@ function M.get_pr_data(prnum, repo, opts, cb)
           }
           files(first:100){
             nodes{ path viewerViewedState }
+          }
+          headCommit:commits(last:1){
+            nodes{ commit{
+              # CI jobs at the HEAD commit; extracted by `to_ci_jobs`.
+              statusCheckRollup{
+                contexts(first:100){
+                  nodes{
+                    __typename
+                    ... on CheckRun{
+                      databaseId name conclusion status startedAt detailsUrl
+                      checkSuite{ app{ slug } }
+                    }
+                  }
+                }
+              }
+            }}
           }
         }
       }
@@ -424,90 +484,9 @@ function M.get_user()
   return cached_user
 end
 
---- Gets metadata for the most-recent matrix-expanded CI jobs at the PR's head commit.
---- Dedupes by job name, keeping the latest `startedAt`.
----
---- @param pr PullRequest
---- @param repo string "owner/repo"
---- @param cb fun(jobs?: { databaseId: integer, name: string, conclusion: string, status: string, startedAt: string, url: string }[], error?: string)
-function M.get_pr_ci_jobs_logs(pr, repo, cb)
-  local head_sha = pr.headRefOid
-  if util.is_empty(head_sha) then
-    cb(nil, f('PR #%s has no head commit SHA', pr.number))
-    return
-  end
-
-  local progress = util.new_progress_report('Loading CI jobs', 0)
-  progress('running', nil)
-
-  vim.validate('repo', repo, 'string')
-  -- `--paginate` is safe here: `filter=latest` collapses re-runs server-side, so the count is bounded by distinct check
-  -- names for this one commit (matrix-expanded across workflow files): so this usually fetches only 1 page (<100 items).
-  util.system({
-    'gh',
-    'api',
-    '--paginate',
-    '--slurp',
-    f('repos/%s/commits/%s/check-runs?filter=latest&per_page=100', repo, head_sha),
-  }, function(result, stderr, code)
-    if code ~= 0 then
-      progress('failed')
-      cb(nil, ('gh api check-runs failed: %s'):format(vim.trim(stderr or '')))
-      return
-    end
-
-    local pages = parse_or_default(result, {})
-    local by_name = {}
-    for _, page in ipairs(pages) do
-      for _, cr in ipairs(page.check_runs or {}) do
-        if cr.app and cr.app.slug == 'github-actions' then
-          -- details_url: https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}
-          local job_id = tonumber((cr.details_url or ''):match('/job/(%d+)'))
-          if job_id then
-            -- `filter=latest` already returns one per name; the timestamp comparison is just defensive.
-            local existing = by_name[cr.name]
-            if not existing or (cr.started_at or '') > (existing.startedAt or '') then
-              by_name[cr.name] = {
-                databaseId = job_id,
-                name = cr.name,
-                conclusion = cr.conclusion,
-                status = cr.status,
-                startedAt = cr.started_at,
-                url = cr.html_url,
-              }
-            end
-          end
-        end
-      end
-    end
-
-    local jobs = {}
-    for _, job in pairs(by_name) do
-      table.insert(jobs, job)
-    end
-    if #jobs == 0 then
-      progress('failed')
-      cb(nil, f('No GitHub Actions jobs for PR #%s at %s', pr.number, head_sha))
-      return
-    end
-
-    -- Sort by (status, name).
-    table.sort(jobs, function(a, b)
-      local a_status = a.conclusion or a.status or '?'
-      local b_status = b.conclusion or b.status or '?'
-      if a_status ~= b_status then
-        return a_status < b_status
-      end
-      return (a.name or '') < (b.name or '')
-    end)
-    progress('success')
-    cb(jobs)
-  end)
-end
-
 --- Fetches the log for a CI workflow job.
 ---
---- @param job_id integer Workflow job ID (`job.databaseId` from `get_pr_ci_jobs_logs`).
+--- @param job_id integer Workflow job ID (`pr_data.ci_jobs[i].databaseId`).
 --- @param repo string "owner/repo"
 --- @param cb fun(log?: string, error?: string)
 function M.get_pr_ci_logs(job_id, repo, cb)
