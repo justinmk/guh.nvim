@@ -7,7 +7,7 @@ Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI tool and provides
 a very minimalist yet effective workflow.
 
 Tenets:
-- Never lose data.
+- Never lose data. (TODO: use a real file for edit_comment, available on crash / failed post.)
 - Load data eagerly (Kool-Aid man "OH YEAH!"), then don't request it again
   until user explicitly refreshes.
 - Avoid messing with the workspace at all. Try to work with buffers and PR
@@ -74,7 +74,9 @@ can override it by mapping it to <F5>, then Guh will not map "cM": >vim
 Default mappings (local to `guh://` buffers):
 
 - Buffer-relative VIEW actions:
-  - `R` Refresh the current `guh://` buffer.
+  - `R` Refresh the current thing.
+    - If thing is related to a PR: refreshes all PR buffers (except prlogs/
+      buffers).
     <Plug>(guh-refresh)
   - `dd` View PR diff + comments. |guh-diff|
     <Plug>(guh-diff)
@@ -216,18 +218,24 @@ Without [target]: shows a status dashboard.
   buffer or |current-directory|).
 - Hit <Enter> or `CTRL-W<Enter>` to view any PR/issue at cursor. |guh-mappings|
 
-With [target]: views or refreshes the PR, issue, commit, or repo-status given by:
-- PR or issue number (current repo): `:Guh 35951`
-- Commit SHA (current repo): `:Guh a1b2c3d`
-- GitHub URL: `:Guh https://github.com/neovim/neovim/issues/35951`
-- GitHub commit URL: `:Guh https://github.com/neovim/neovim/commit/a1b2c3d`
-- Bare repo URL (status view): `:Guh https://github.com/neovim/neovim`
-- Guh buffer name: `:Guh guh://neovim/neovim/pr/35951`
-- Slug ("owner/repo#123" or repo-only "owner/repo") >
+With [target]: views or refreshes the PR, issue, commit, or repo-status. >vim
+    " PR or issue number (current repo)
+    :Guh 35951
+    " Commit SHA (current repo)
+    :Guh a1b2c3d
+    " GitHub URL
+    :Guh https://github.com/neovim/neovim/pull/35951
+    " GitHub commit URL
+    :Guh https://github.com/neovim/neovim/commit/a1b2c3d
+    " Bare repo URL (status view)
+    :Guh https://github.com/neovim/neovim
+    " Slug ("owner/repo#123" or "owner/repo")
     :Guh neovim/neovim#35951
     :Guh #35951
     :Guh neovim/neovim
-<
+    " guh:// URI
+    :Guh guh://neovim/neovim/pr/35951
+
 For a PR target, `:Guh` loads the pr/ + prdiff/ + prcomments/ views.
 The pr/ view becomes the |alternate-file| of the prdiff/ view (so `CTRL-^`
 returns to it).

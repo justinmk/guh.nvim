@@ -81,7 +81,7 @@
 --- @field url string
 --- @field raw_comments Comment[] Flat per-comment list from `flatten_review_threads`.
 --- @field viewed table<string, boolean> Per-file "Viewed" flag.
---- @field n_files? integer Files in the rendered diff (incl. outdated/outside virtual files). Set by `pr.load_pr_diff`.
+--- @field n_files? integer Files in the rendered diff (incl. outdated/outside virtual files). Set by `pr.load_pr`.
 --- @field n_resolved integer Resolved review-thread count.
 --- @field n_threads integer Total review-thread count (resolved + unresolved).
---- @field n_viewed_threads? integer Unresolved threads hidden in "Viewed" files. Set by `pr.load_pr_diff`.
+--- @field n_viewed_threads? integer Unresolved threads hidden in "Viewed" files. Set by `pr.load_pr`.

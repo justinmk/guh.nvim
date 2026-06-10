@@ -484,12 +484,12 @@ function M.get_user()
   return cached_user
 end
 
---- Fetches the log for a CI workflow job.
+--- Fetches the log for one CI workflow job.
 ---
 --- @param job_id integer Workflow job ID (`pr_data.ci_jobs[i].databaseId`).
 --- @param repo string "owner/repo"
 --- @param cb fun(log?: string, error?: string)
-function M.get_pr_ci_logs(job_id, repo, cb)
+function M.get_pr_ci_log(job_id, repo, cb)
   local progress = util.new_progress_report('Loading CI log', 0)
   progress('running', nil, 'job %s', tostring(job_id))
 
@@ -510,6 +510,24 @@ function M.get_pr_ci_logs(job_id, repo, cb)
     progress('success')
     cb(vim.trim(logs))
   end)
+end
+
+--- Concurrently fetches CI logs for the given `jobs`. Invokes `on_result()` in completion order.
+--- Skips jobs for which `skip(job)` returns true (e.g. already populated buf).
+---
+--- @param jobs CIJob[]
+--- @param repo string "owner/repo"
+--- @param on_result fun(job: CIJob, log?: string, err?: string)
+--- @param skip? fun(job: CIJob): boolean
+function M.get_pr_ci_logs(jobs, repo, on_result, skip)
+  vim.validate('repo', repo, 'string')
+  for _, job in ipairs(jobs) do
+    if not (skip and skip(job)) then
+      M.get_pr_ci_log(job.databaseId, repo, function(log, err)
+        on_result(job, log, err)
+      end)
+    end
+  end
 end
 
 return M

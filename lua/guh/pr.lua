@@ -144,7 +144,7 @@ function M.select(args, id, repo)
       -- Repo target ("owner/repo" or "https://github.com/owner/repo" )
       M.show_status(focus, repo)
     elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
-      M.show_pr(target.id, repo, focus)
+      M.show_pr(target.id, repo, focus, (state.get_pr_data(repo, target.id) or {}).headRefOid)
     else
       M.show_issue(target.id, repo, focus)
     end
@@ -197,34 +197,75 @@ function M.show_commit(sha, repo, focus)
   end)
 end
 
---- Fetches and renders a CI job's logs into a `prlogs/…` buffer.
-local function open_ci_log(job, pr_id, repo)
-  gh.get_pr_ci_logs(job.databaseId, repo, function(logs, err)
-    assert(logs, ('failed to get CI log: %s'):format(err))
-    -- Key the bufname by `job.databaseId` to disambiguate (multiple logs per PR).
-    -- XXX: store pr-id in `b:guh.id` for refresh/actions.
-    local buf = state.init_buf('prlogs', true, repo, job.databaseId, { id = pr_id })
-    local old_chan = (state.get_b_guh(buf) or {}).chan
-    if old_chan then
-      -- Existing terminal-buf: close the old chan, reuse the buffer.
-      pcall(vim.fn.chanclose, old_chan)
-      vim.bo[buf].modifiable = true
-      vim.bo[buf].readonly = false
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
-    else
-      util.set_default_keymaps(buf)
-    end
-    -- Logs from `gh run view --log` contain termcodes. Use a terminal buf so it renders nicely.
-    local chan = vim.api.nvim_open_term(buf, {})
-    state.set_b_guh(buf, { chan = chan })
-    vim.api.nvim_chan_send(chan, logs)
+--- Renders `logs` into a `prlogs/…` terminal-buf, or does nothing if `b:guh.chan` is already set.
+local function render_ci_log(buf, logs)
+  if (state.get_b_guh(buf) or {}).chan then
+    -- To "refresh" a prlogs/ buffer: chanclose() + 'modifiable' + clear.
+    -- But this is only for reference, since we never "refresh" prlogs/ buffers.
+    -- pcall(vim.fn.chanclose, old_chan)
+    -- vim.bo[buf].modifiable = true
+    -- vim.bo[buf].readonly = false
+    -- vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
+    return
+  end
+  local chan = vim.api.nvim_open_term(buf, {})
+  vim.api.nvim_chan_send(chan, logs)
+  state.set_b_guh(buf, { chan = chan })
+  util.set_default_keymaps(buf)
+  if vim.api.nvim_get_current_buf() == buf then
     vim.cmd.norm [[gg0]]
-    local status = job.conclusion or job.status or '?'
-    util.show_winbar(0, {
-      { ('Logs | PR #%s | '):format(pr_id), 'Comment' },
-      { status == 'success' and '✅' or '❌' },
-      { (' "%s"'):format(job.name), 'Comment' },
-    })
+  end
+end
+
+--- Shows a `prlogs/…` buffer. Fetches the logs unless `b:guh.chan` is set (= already rendered).
+---
+--- No "refresh": `databaseId` is unique per-run, and we don't (currently) support in-progress
+--- (non-completed) logs, so each `prlogs/<databaseId>` buffer never needs a "refresh".
+local function show_ci_log(job, pr_id, repo)
+  -- Key the bufname by `job.databaseId` to disambiguate (multiple logs per PR).
+  -- XXX: store pr-id in `b:guh.id` for refresh/actions.
+  local buf = state.init_buf('prlogs', true, repo, job.databaseId, { id = pr_id })
+  local status = job.conclusion or job.status or '?'
+  util.show_winbar(0, {
+    { ('Logs | PR #%s | '):format(pr_id), 'Comment' },
+    { status == 'success' and '✅' or '❌' },
+    { (' "%s"'):format(job.name), 'Comment' },
+  })
+  if (state.get_b_guh(buf) or {}).chan then
+    return -- Cache hit (preload or prior open).
+  end
+  gh.get_pr_ci_log(job.databaseId, repo, function(logs, err)
+    if not logs then
+      return util.msg(('failed to get CI log: %s'):format(err), vim.log.levels.WARN)
+    end
+    render_ci_log(buf, logs)
+  end)
+end
+
+--- Concurrently pre-fetches CI logs up to `limit` jobs into hidden `prlogs/…` buffers.
+local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
+  limit = math.min(limit or 5, #ci_jobs)
+  local top = {}
+  for i = 1, limit do
+    top[i] = ci_jobs[i]
+    -- Touch the prlogs/ buf so its key exists in `state.bufs`.
+    state.init_buf('prlogs', nil, repo, ci_jobs[i].databaseId, { id = pr_id })
+  end
+  gh.get_pr_ci_logs(top, repo, function(job, logs, err)
+    local buf = state.get_buf('prlogs', repo, job.databaseId, false)
+    if not buf then
+      return -- Buf was wiped (e.g. user closed it) while the fetch was in flight.
+    end
+    if not logs then
+      -- Failure: Wipe the placeholder so we don't leave an empty/orphan prlogs/ around.
+      util.log('preload_ci_logs failed', { job = job.name, err = err })
+      vim.api.nvim_buf_delete(buf, { force = true })
+      return
+    end
+    render_ci_log(buf, logs)
+  end, function(job)
+    local buf = state.get_buf('prlogs', repo, job.databaseId, false)
+    return buf ~= nil and (state.get_b_guh(buf) or {}).chan ~= nil
   end)
 end
 
@@ -271,7 +312,7 @@ local function show_next_ci_job(delta)
     if idx < 1 or idx > #jobs then
       return util.msg(('No %s CI job'):format(delta > 0 and 'next' or 'previous'))
     end
-    open_ci_log(jobs[idx], id, repo)
+    show_ci_log(jobs[idx], id, repo)
   end)
 end
 
@@ -363,17 +404,15 @@ function M.refresh(target)
   local id = target.id or b.id
   local repo = target.repo or b.repo
 
-  -- Clear cached `b:guh.pr_data` on the `/pr/…` buf to force `gh.get_pr_data` to reload.
-  if repo and id then
+  if feat == 'pr' or feat == 'prdiff' or feat == 'prcomments' or feat == 'prlogs' then
+    -- Reload all "PR bufs" (pr/ + prdiff/ + prcomments/), without changing win/buf layout.
+    -- But only redo `preload_ci_logs` (expensive) if the HEAD commit changed.
     local pr_buf = state.get_buf('pr', repo, id, false)
+    local old_head = pr_buf and (state.get_pr_data(pr_buf) or {}).headRefOid
     if pr_buf then
       state.set_b_guh(pr_buf, { pr_data = nil })
     end
-  end
-
-  if feat == 'pr' or feat == 'prdiff' or feat == 'prcomments' then
-    -- Eagerly reload all "PR bufs" (pr/ + prdiff/ + prcomments/), without changing win/buf layout.
-    M.show_pr(id, repo, nil)
+    M.show_pr(id, repo, nil, old_head)
   else
     M.select(feat, id, repo)
   end
@@ -514,12 +553,14 @@ end
 
 --- Shows PR details + the most-recent commits (since the last force-push).
 ---
---- Loads the prdiff/ + prcomments/ buffers also.
+--- - Loads the prdiff/ + prcomments/ buffers also.
+--- - Preloads CI logs iff HEAD differs from `old_head`.
 ---
 --- @param id integer
 --- @param repo string "owner/name"
---- @param focus boolean
-function M.show_pr(id, repo, focus)
+--- @param focus? boolean
+--- @param old_head? string Use to decide if HEAD changed, by comparing `pr_data.headRefOid` .
+function M.show_pr(id, repo, focus, old_head)
   local buf = state.init_buf('pr', focus, repo, id)
   -- `oid` is the full SHA; slice the first 7 chars. `committedDate` is ISO-8601.
   local commits_tmpl = vim.text.indent(
@@ -540,7 +581,7 @@ function M.show_pr(id, repo, focus)
 
   util.run_term_cmd(buf, cmd, function()
     util.set_default_keymaps(buf)
-    -- Poll `state.get_pr_data` (populated by `load_pr_diff`) until ready.
+    -- Poll `state.get_pr_data` (populated by `load_pr`) until ready.
     local tries = 0
     local function set_winbar()
       tries = tries + 1
@@ -558,20 +599,23 @@ function M.show_pr(id, repo, focus)
   end)
 
   -- Eagerly load the prdiff/ buf in the background (not displayed).
-  M.load_pr_diff({ id = id, repo = repo })
+  M.load_pr({ id = id, repo = repo }, function(_, pr_data)
+    if pr_data.headRefOid ~= old_head then
+      preload_ci_logs(id, repo, pr_data.ci_jobs or {})
+    end
+  end)
 end
 
---- Loads PR diff + comments data into the prdiff/prcomments buffers WITHOUT displaying them.
+--- Loads (maybe-cached) PR data into prdiff/, prcomments/ buffers WITHOUT displaying them.
 --- - Outdated-unresolved diff + comments are shown at top.
 --- - Current diff + comments are shown after that.
 --- - "Viewed" files collapse to a `(viewed) <path>` line.
 --- - Diff + comments are presented as 2 'scrollbind' windows.
 ---
---- @param opts? { id?: integer|string, repo?: string, args?: string, force?: boolean }
+--- @param opts? { id?: integer|string, repo?: string, args?: string }
 --- @param on_done? fun(buf: integer, pr_data: PullRequest, n_files: integer, n_viewed_threads: integer)
-function M.load_pr_diff(opts, on_done)
+function M.load_pr(opts, on_done)
   opts = opts or {}
-  local force = opts.force == true
   local _, id, repo = resolve_pr(opts)
   local buf = state.init_buf('prdiff', nil, repo, id) -- focus=nil (no display)
 
@@ -611,8 +655,8 @@ function M.load_pr_diff(opts, on_done)
     end
   end
 
-  -- 1. Fetch PR data. Uses the pr/ buf `b:guh.pr_data` cache unless force=true.
-  gh.get_pr_data(id, repo, { force = force }, function(pr)
+  -- 1. Fetch PR data. Prefers cached `b:guh.pr_data`; callers force a refetch by clearing the cache.
+  gh.get_pr_data(id, repo, nil, function(pr)
     if not pr then
       return progress('failed')
     end
@@ -642,7 +686,7 @@ function M.show_pr_diff(opts)
     return comments.show_pr_comments(id, repo, buf, pr_data, pr_data.n_files, pr_data.n_viewed_threads)
   end
 
-  M.load_pr_diff(opts, function(prdiff_buf, pr_data_, n_files, n_viewed_threads)
+  M.load_pr(opts, function(prdiff_buf, pr_data_, n_files, n_viewed_threads)
     comments.show_pr_comments(id, repo, prdiff_buf, pr_data_, n_files, n_viewed_threads)
   end)
 end
@@ -704,7 +748,7 @@ function M.edit_pr()
 end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
-function M.show_ci_logs(opts)
+function M.pick_ci_logs(opts)
   local _, id, repo = resolve_pr(opts)
   with_ci_jobs(id, repo, function(jobs)
     vim.ui.select(jobs, {
@@ -714,7 +758,7 @@ function M.show_ci_logs(opts)
       end,
     }, function(picked)
       if picked then
-        open_ci_log(picked, id, repo)
+        show_ci_log(picked, id, repo)
       end
     end)
   end)

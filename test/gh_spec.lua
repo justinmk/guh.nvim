@@ -58,7 +58,7 @@ describe('guh.gh', function()
     end)
   end)
 
-  it('get_pr_data populates ci_jobs + get_pr_ci_logs', function()
+  it('get_pr_data populates ci_jobs + get_pr_ci_log', function()
     n.exec_lua(function()
       local gh = require('guh.gh')
 
@@ -78,7 +78,7 @@ describe('guh.gh', function()
         assert(jobs[1].databaseId, 'job missing databaseId')
         assert(type(jobs[1].name) == 'string', 'job missing name')
 
-        gh.get_pr_ci_logs(jobs[1].databaseId, 'justinmk/guh.nvim', function(job_logs, job_err)
+        gh.get_pr_ci_log(jobs[1].databaseId, 'justinmk/guh.nvim', function(job_logs, job_err)
           logs = job_logs
           err = job_err
           done = true
@@ -150,7 +150,7 @@ describe('pr + comments view', function()
         end
       end
 
-      -- Tests real PR data from Github. Mirrors the flow in pr.load_pr_diff:
+      -- Tests real PR data from Github. Mirrors the flow in pr.load_pr:
       -- gh.get_pr_data (force) → outdated-path rewrite → comments.to_threads.
       local function test_get_pr_data_full()
         local pr_num = 2

@@ -15,18 +15,25 @@ Run `:Guh` to see status.
 
     :Guh
 
-Run `:Guh 42` to view PR/issue 42. Also accepts a GitHub URL, `owner/repo#123`
-slug, or commit-id (SHA):
+Run `:Guh <target>` to view a PR/issue/commit/repo.
 
-    :Guh 35951
-    :Guh a1b2c3d
-    :Guh https://github.com/neovim/neovim/pull/35951
-    :Guh neovim/neovim#35951
-    :Guh guh://neovim/neovim/pr/35951
-    :Guh https://github.com/neovim/neovim/commit/a1b2c3d
+```vim
+" PR or issue number (current repo)
+:Guh 35951
+" Commit SHA
+:Guh a1b2c3d
+" GitHub URL
+:Guh https://github.com/neovim/neovim/pull/35951
+:Guh https://github.com/neovim/neovim/commit/a1b2c3d
+" Slug ("owner/repo#123" or "owner/repo")
+:Guh neovim/neovim#35951
+:Guh neovim/neovim
+" guh:// URI
+:Guh guh://neovim/neovim/pr/35951
+```
 
-Inside any `guh://` buffer, press `<Enter>` to run `:Guh` on the target at cursor. Hit `g?` to
-review the keymaps.
+Inside any `guh://` buffer, hit `<Enter>` to open the target at cursor. Hit `g?` to review the
+keymaps.
 
 When viewing a PR,
 
