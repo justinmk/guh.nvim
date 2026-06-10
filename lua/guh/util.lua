@@ -356,28 +356,47 @@ function M.run_term_cmd(buf, cmd, on_done)
       progress('cancel')
       return
     end
-    local isempty = 1 == vim.fn.line('$') and '' == vim.fn.getline(1)
-    assert(isempty or not vim.api.nvim_buf_is_loaded(buf) or vim.bo[buf].buftype == 'terminal')
-    vim.o.modifiable = true
-    vim.o.modified = false
-    vim.fn.jobstart(cmd, {
-      term = true,
-      env = {
-        GH_PAGER = 'cat',
-        PAGER = 'cat',
-      },
-      on_exit = function()
-        local ns = vim.api.nvim_get_namespaces()['nvim.terminal.exitmsg']
-        if ns and vim.api.nvim_buf_is_valid(buf) then
-          vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
-        end
-        state.set_buf_name(buf, b_guh.feat, b_guh.bufkey)
-        if on_done then
-          on_done()
-        end
-        progress('success')
-      end,
-    })
+
+    -- UX: Preserve viewport of all windows showing the existing terminal buf.
+    -- This makes "reload" less disorienting.
+    local winviews = {}
+    for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+      winviews[win] = vim.fn.winsaveview()
+    end
+
+    -- Use nvim_buf_call because `jobstart({term=true})` assumes curbuf.
+    vim.api.nvim_buf_call(buf, function()
+      local isempty = 1 == vim.fn.line('$') and '' == vim.fn.getline(1)
+      assert(isempty or not vim.api.nvim_buf_is_loaded(buf) or vim.bo[buf].buftype == 'terminal')
+      vim.o.modifiable = true
+      vim.o.modified = false
+      vim.fn.jobstart(cmd, {
+        term = true,
+        env = {
+          GH_PAGER = 'cat',
+          PAGER = 'cat',
+        },
+        on_exit = function()
+          -- XXX: hide the Nvim default "[Process exited]" message.
+          local ns = vim.api.nvim_get_namespaces()['nvim.terminal.exitmsg']
+          if ns and vim.api.nvim_buf_is_valid(buf) then
+            vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+          end
+          state.set_buf_name(buf, b_guh.feat, b_guh.bufkey)
+          for win, winview in pairs(winviews) do
+            if vim.api.nvim_win_is_valid(win) then
+              vim.api.nvim_win_call(win, function()
+                vim.fn.winrestview(winview)
+              end)
+            end
+          end
+          if on_done then
+            on_done()
+          end
+          progress('success')
+        end,
+      })
+    end)
   end)
 end
 

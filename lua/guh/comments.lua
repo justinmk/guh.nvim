@@ -10,7 +10,7 @@ local severity = vim.diagnostic.severity
 local diag_ns = vim.api.nvim_create_namespace('guh.comments')
 
 --- Filename prefixes for threads that anchor outside the visible HEAD diff. They get
---- rewritten by `pr.show_pr_diff` so each becomes a own quasi-file entry; the mini-diff below
+--- rewritten by `M.render_diff` so each becomes a own quasi-file entry; the mini-diff below
 --- uses the comment's `diff_hunk` as the body.
 ---
 --- - `outdated-<thread_id>:` : Thread is on a stale push (`PullRequestReviewThread.isOutdated`).
@@ -117,35 +117,72 @@ local function to_line_map(diff_lines)
   return line_map
 end
 
---- Renders `comments_list` in a 'scrollbind' split next to `diff_win`, with each
---- comment vertically aligned to the diff line it annotates.
+--- Display path: opens prcomments/ in a 'scrollbind' split next to the prdiff window, and sets
+--- winbar + scrollbind on both. Assumes `load_pr_comments` has already populated the buf.
 ---
 --- @param id integer PR number.
 --- @param repo string "owner/name"
---- @param diff_win integer window of the diff buffer.
---- @param comments_list table<string, CommentThread[]>
---- @param viewed? table<string,boolean> Set of "viewed" files.
---- @param n_files integer Count of all files in the HEAD diff.
---- @param n_threads integer Total review-thread count (resolved + unresolved).
---- @param n_resolved integer Resolved review-thread count.
---- @param n_viewed_threads integer Unresolved threads hidden in "Viewed" files.
-function M.show_pr_comments(id, repo, diff_win, comments_list, viewed, n_files, n_threads, n_resolved, n_viewed_threads)
-  viewed = viewed or {}
-  local n_viewed = vim.tbl_count(viewed)
-  local diff_buf = vim.api.nvim_win_get_buf(diff_win)
-  local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
-
+--- @param diff_buf integer prdiff buffer.
+--- @param pr_data PullRequest
+--- @param n_files integer
+--- @param n_viewed_threads integer
+function M.show_pr_comments(id, repo, diff_buf, pr_data, n_files, n_viewed_threads)
   if not state.try_show('prcomments', repo, id) then
     -- TODO: should state.init_buf() handle this? maybe helpful for <mods> handling on :Guh too?
     vim.cmd [[botright vertical split]]
   end
-  local buf = state.init_buf('prcomments', true, repo, id)
+  local buf = state.init_buf('prcomments', true, repo, id) -- focus=true
   util.set_default_keymaps(buf)
-
-  local win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(win, buf)
-
+  vim.api.nvim_win_set_buf(vim.api.nvim_get_current_win(), buf)
   vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
+
+  local visible_threads = pr_data.n_threads - pr_data.n_resolved - n_viewed_threads
+  local n_viewed = vim.tbl_count(pr_data.viewed or {})
+  vim.cmd [[wincmd p]] -- Return to diff window.
+  local diff_win = vim.fn.win_findbuf(diff_buf)[1]
+  local comments_win = vim.fn.win_findbuf(buf)[1]
+  util.show_winbar(diff_win, {
+    { 'PR diff | ', 'Comment' },
+    { ('Files: %d ('):format(n_files, n_viewed), 'Comment' },
+    { 'Viewed', '@markup.italic' },
+    { (': %d) | '):format(n_viewed), 'Comment' },
+    { 'Unresolved', '@markup.italic' },
+    { (' threads: %d'):format(visible_threads), 'Comment' },
+    { ' | g? for help', 'Comment' },
+  })
+  util.show_winbar(comments_win, {
+    { ('PR comments | Visible: %d | Unresolved in '):format(visible_threads), 'Comment' },
+    { 'Viewed', '@markup.italic' },
+    { (' files: %d'):format(n_viewed_threads), 'Comment' },
+    { ' | g? for help', 'Comment' },
+  })
+
+  -- Set scrollbind+cursorbind on both windows *after* writing the buffer content.
+  vim.api.nvim_win_call(diff_win, function()
+    vim.cmd [[setlocal scrollbind cursorbind]]
+    vim.cmd [[keepjumps syncbind]]
+  end)
+  vim.api.nvim_win_call(comments_win, function()
+    vim.cmd [[setlocal scrollbind cursorbind]]
+  end)
+end
+
+--- Renders `comments_list` into the `prcomments/…` buffer, with each comment vertically aligned to
+--- the diff line it annotates. Sets diagnostics on `diff_buf`. Does NOT display the buffer.
+---
+--- @param id integer PR number.
+--- @param repo string "owner/name"
+--- @param diff_buf integer prdiff buffer (provides the diff text + receives diagnostics).
+--- @param pr_data PullRequest (provides `viewed`, `n_threads`, `n_resolved`).
+--- @param comments_list table<string, CommentThread[]>
+--- @param n_files integer Count of all files in the HEAD diff.
+--- @param n_viewed_threads integer Unresolved threads hidden in "Viewed" files.
+--- @return integer buf the prcomments buffer.
+function M.load_pr_comments(id, repo, diff_buf, pr_data, comments_list, n_files, n_viewed_threads)
+  local viewed = pr_data.viewed or {}
+  local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
+
+  local buf = state.init_buf('prcomments', nil, repo, id)
 
   ---------------------------------------------------------------------------
   -- Step 1: Parse diff → map each *visible line* to its file + new/old line num
@@ -341,27 +378,6 @@ function M.show_pr_comments(id, repo, diff_win, comments_list, viewed, n_files, 
 
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
 
-  vim.cmd [[wincmd p]] -- Return to diff window.
-  local visible_threads = n_threads - n_resolved - n_viewed_threads
-  local prdiff_msg = {
-    { 'PR diff | ', 'Comment' },
-    { ('Files: %d ('):format(n_files, n_viewed), 'Comment' },
-    { 'Viewed', '@markup.italic' },
-    { (': %d) | '):format(n_viewed), 'Comment' },
-    { 'Unresolved', '@markup.italic' },
-    { (' threads: %d'):format(visible_threads), 'Comment' },
-    { ' | g? for help', 'Comment' },
-  }
-  util.show_winbar(diff_win, prdiff_msg)
-
-  local prcomments_msg = {
-    { ('PR comments | Visible: %d | Unresolved in '):format(visible_threads), 'Comment' },
-    { 'Viewed', '@markup.italic' },
-    { (' files: %d'):format(n_viewed_threads), 'Comment' },
-    { ' | g? for help', 'Comment' },
-  }
-  util.show_winbar(win, prcomments_msg)
-
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true
   vim.bo[buf].filetype = 'markdown'
@@ -370,14 +386,7 @@ function M.show_pr_comments(id, repo, diff_win, comments_list, viewed, n_files, 
     vim.cmd([[syntax match GuhWarning /(outdated)\|(outside)\|(truncated)/ containedin=ALL]])
   end)
 
-  -- Set scrollbind+cursorbind on both windows *after* writing the buffer content.
-  vim.api.nvim_win_call(diff_win, function()
-    vim.cmd [[setlocal scrollbind cursorbind]]
-    vim.cmd [[keepjumps syncbind]]
-  end)
-  vim.api.nvim_win_call(win, function()
-    vim.cmd [[setlocal scrollbind cursorbind]]
-  end)
+  return buf
 end
 
 --- Marshalls an API comment to local `Comment` type.
@@ -638,7 +647,7 @@ function M.delete_comment(linenr)
     gh.delete_comment(c.id, repo, function(resp)
       if not resp or resp.errors == nil then
         progress('success', nil, 'Comment deleted.')
-        require('guh.pr').show_pr_diff(prnum) -- Refresh.
+        require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
       else
         progress('failed', nil, 'Failed to delete comment.')
       end
@@ -667,7 +676,7 @@ function M.update_comment(linenr)
       gh.update_comment(c.id, input, repo, function(resp)
         if resp['errors'] == nil then
           progress('success', nil, 'Comment updated.')
-          require('guh.pr').show_pr_diff(prnum) -- Refresh.
+          require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
         else
           progress('failed', nil, 'Failed to update comment.')
         end
@@ -704,7 +713,7 @@ function M.reply_or_resolve(linenr)
             gh.reply_to_comment(prnum, input, c.id, repo, function(resp)
               if resp['errors'] == nil then
                 progress('success', nil, 'Reply sent.')
-                require('guh.pr').show_pr_diff(prnum) -- Refresh.
+                require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
               else
                 progress('failed', nil, 'Failed to send reply.')
               end
@@ -719,7 +728,7 @@ function M.reply_or_resolve(linenr)
         gh.resolve_thread(c.thread_node_id, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Thread resolved.')
-            require('guh.pr').show_pr_diff(prnum) -- Refresh.
+            require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
           else
             progress('failed', nil, 'Failed to resolve thread.')
           end
@@ -816,7 +825,7 @@ function M.new_comment(line1, line2)
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.side, info.repo, function(resp)
           if resp['errors'] == nil then
             progress('success', nil, 'Comment sent.')
-            require('guh.pr').show_pr_diff(info.pr_id) -- Refresh.
+            require('guh.pr').refresh({ feat = 'pr', id = info.pr_id, repo = info.repo })
           else
             progress('failed', nil, 'Failed to send comment.')
           end

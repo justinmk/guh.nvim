@@ -27,7 +27,7 @@ end
 --- @return integer? commit_idx 1-based index of the matching `pr_data.commits` item.
 local function find_pr_for_commit_sha(sha)
   for _, pr_buf in pairs(state.bufs.pr or {}) do
-    local pr_data = vim.fn.getbufvar(pr_buf, 'guh', {}).pr_data
+    local pr_data = state.get_pr_data(pr_buf)
     for i, c in ipairs(pr_data and pr_data.commits or {}) do
       if c.oid == sha then
         return pr_data.number, i
@@ -275,8 +275,7 @@ function M.show_next(delta)
     return show_next_ci_job(delta)
   end
 
-  local pr_buf = assert(state.get_buf('pr', repo, id, false))
-  local pr_data = vim.fn.getbufvar(pr_buf, 'guh', {}).pr_data
+  local pr_data = state.get_pr_data(repo, id)
   local commits = pr_data and pr_data.commits
   if not commits or #commits == 0 then
     error('guh: No commits found; try refresh (R)', 0)
@@ -333,7 +332,10 @@ function M.review_pr()
   end)
 end
 
---- Refreshes the specified `guh://*` buffer, or current buffer if `opts` is nil.
+--- Refreshes the specified `guh://*` buffer, or current buffer if `target` is nil.
+---
+--- For PR bufs (`pr`/`prdiff`/`prcomments`): eagerly reloads data into all 3 bufs without changing
+--- the window/buf layout.
 ---
 --- @param target? { feat?: Feat, id?: integer|string, repo?: string }
 function M.refresh(target)
@@ -349,7 +351,7 @@ function M.refresh(target)
   local id = target.id or b.id
   local repo = target.repo or b.repo
 
-  -- Clear cached pr_data on the `/pr/…` buf so `gh.get_pr_data` doesn't use stale data.
+  -- Clear cached `b:guh.pr_data` on the `/pr/…` buf to force `gh.get_pr_data` to reload.
   if repo and id then
     local pr_buf = state.get_buf('pr', repo, id, false)
     if pr_buf then
@@ -357,7 +359,12 @@ function M.refresh(target)
     end
   end
 
-  M.select(feat, id, repo)
+  if feat == 'pr' or feat == 'prdiff' or feat == 'prcomments' then
+    -- Eagerly reload all "PR bufs" (pr/ + prdiff/ + prcomments/), without changing win/buf layout.
+    M.show_pr(id, repo, nil)
+  else
+    M.select(feat, id, repo)
+  end
 end
 
 --- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
@@ -521,25 +528,40 @@ function M.show_pr(id, repo, focus)
 
   util.run_term_cmd(buf, cmd, function()
     util.set_default_keymaps(buf)
+    -- Poll `state.get_pr_data` (populated by `load_pr_diff`) until ready.
+    local tries = 0
+    local function set_winbar()
+      tries = tries + 1
+      local pr = state.get_pr_data(repo, id)
+      local win = vim.fn.win_findbuf(buf)[1]
+      if pr and pr.title and win then
+        util.show_winbar(win, {
+          { ('PR #%s | "%s"'):format(id, pr.title), 'Comment' },
+        })
+      elseif tries < 40 then
+        vim.defer_fn(set_winbar, 200) -- Retry...
+      end
+    end
+    set_winbar()
   end)
 
-  -- Load prdiff/ + prcomments/. The pr/ buf (init_buf above) becomes the alt-buf of prdiff/.
-  -- Deferred via `vim.schedule` so it runs AFTER `run_term_cmd`'s own scheduled
-  -- `state.show_buf(pr_buf)`, so we can focus prdiff/ as curbuf.
-  vim.schedule(function()
-    M.show_pr_diff({ id = id, repo = repo })
-  end)
+  -- Eagerly load the prdiff/ buf in the background (not displayed).
+  M.load_pr_diff({ id = id, repo = repo })
 end
 
---- Shows PR diff + comments.
+--- Loads PR diff + comments data into the prdiff/prcomments buffers WITHOUT displaying them.
 --- - Outdated-unresolved diff + comments are shown at top.
 --- - Current diff + comments are shown after that.
 --- - "Viewed" files collapse to a `(viewed) <path>` line.
 --- - Diff + comments are presented as 2 'scrollbind' windows.
-function M.show_pr_diff(opts)
+---
+--- @param opts? { id?: integer|string, repo?: string, args?: string, force?: boolean }
+--- @param on_done? fun(buf: integer, pr_data: PullRequest, n_files: integer, n_viewed_threads: integer)
+function M.load_pr_diff(opts, on_done)
+  opts = opts or {}
+  local force = opts.force == true
   local _, id, repo = resolve_pr(opts)
-  local buf = state.init_buf('prdiff', true, repo, id)
-  local diff_win = vim.api.nvim_get_current_win()
+  local buf = state.init_buf('prdiff', nil, repo, id) -- focus=nil (no display)
 
   local progress = util.new_progress_report('Loading PR diff...', buf)
   progress('running')
@@ -560,22 +582,18 @@ function M.show_pr_diff(opts)
       vim.cmd([[syntax match GuhWarning /\<\(outdated\|outside\)\ze-\d\+:/ containedin=ALL]])
     end)
     util.set_default_keymaps(buf)
-    comments.show_pr_comments(
-      id,
-      repo,
-      diff_win,
-      threads,
-      pr_data.viewed,
-      n_files,
-      pr_data.n_threads,
-      pr_data.n_resolved,
-      n_viewed_threads
-    )
+    comments.load_pr_comments(id, repo, buf, pr_data, threads, n_files, n_viewed_threads)
+    -- Stash counts on pr_data (single source of truth) so `show_pr_diff` (dd) can display without re-fetching/re-rendering.
+    pr_data.n_files = n_files
+    pr_data.n_viewed_threads = n_viewed_threads
     progress('success')
+    if on_done then
+      on_done(buf, pr_data, n_files, n_viewed_threads)
+    end
   end
 
-  -- 1. Fetch PR data (force API request, skip cache).
-  gh.get_pr_data(id, repo, { force = true }, function(pr)
+  -- 1. Fetch PR data. Uses the pr/ buf `b:guh.pr_data` cache unless force=true.
+  gh.get_pr_data(id, repo, { force = force }, function(pr)
     if not pr then
       return progress('failed')
     end
@@ -591,6 +609,22 @@ function M.show_pr_diff(opts)
     end
     diff_stdout = stdout
     try_render()
+  end)
+end
+
+--- This is only used by "<Plug>(guh-diff)" now...
+function M.show_pr_diff(opts)
+  local _, id, repo = resolve_pr(opts)
+  local buf = state.init_buf('prdiff', true, repo, id) -- focus=true
+
+  -- Fast path: use the cached `b:guh.pr_data`; display without re-fetching.
+  local pr_data = state.get_pr_data(repo, id)
+  if pr_data and pr_data.n_files and pr_data.n_viewed_threads then
+    return comments.show_pr_comments(id, repo, buf, pr_data, pr_data.n_files, pr_data.n_viewed_threads)
+  end
+
+  M.load_pr_diff(opts, function(prdiff_buf, pr_data_, n_files, n_viewed_threads)
+    comments.show_pr_comments(id, repo, prdiff_buf, pr_data_, n_files, n_viewed_threads)
   end)
 end
 

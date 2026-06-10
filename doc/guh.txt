@@ -8,9 +8,13 @@ a very minimalist yet effective workflow.
 
 Tenets:
 - Never lose data.
+- Load data eagerly (Kool-Aid man "OH YEAH!"), then don't request it again
+  until user explicitly refreshes.
 - Avoid messing with the workspace at all. Try to work with buffers and PR
   data without requiring a checkout.
 - All mappings work in all Guh buffers ("guh://…").
+- Use buffers as the "storage" system. Buffers are created with
+  'bufhidden'=hide, user config must not change that.
 
 ==============================================================================
 INSTALLATION                                                     *guh-install*
@@ -204,7 +208,7 @@ given (or is a repo). Accepts |<mods>|: >
     :tab Guh …
 
 If |<mods>| is not given, the existing window for [target] (if any) is
-focused.
+focused. PR data is eagerly loaded (Kool-Aid man "OH YEAH!").
 
 Without [target]: shows a status dashboard.
 - Top part shows `gh pr status`.

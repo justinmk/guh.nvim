@@ -50,6 +50,9 @@ function M.get_buf(feat, repo, id, create)
     return nil
   end
   b = vim.api.nvim_create_buf(true, true)
+  -- We use buffers as "storage" => we get Vim's "lifecycle" for free.
+  -- Explicitly set this even though nvim_create_buf (scratch) sets it implicitly.
+  vim.bo[b].bufhidden = 'hide'
   bufs[feat][key] = b
   assert(type(b) == 'number')
   return b
@@ -91,6 +94,19 @@ function M.try_show(feat, repo, id)
   return false
 end
 
+--- Gets the cached `pr_data` from a PR's `pr/…` buffer.
+---
+--- @param repo_or_buf string|integer "owner/name", or a `pr/…` buf number.
+--- @param id? string|integer PR number (required when `repo_or_buf` is a repo).
+--- @return PullRequest?
+function M.get_pr_data(repo_or_buf, id)
+  local pr_buf = id == nil and repo_or_buf or M.get_buf('pr', repo_or_buf, id, false)
+  if not pr_buf or not vim.api.nvim_buf_is_valid(pr_buf) then
+    return nil
+  end
+  return (vim.b[pr_buf].guh or {}).pr_data
+end
+
 --- Sets the `b:guh` buffer-local dict. `bufstate` is merged with existing state, if any.
 --- @param buf integer
 --- @param bufstate BufState
@@ -104,7 +120,10 @@ function M.set_b_guh(buf, bufstate)
 end
 
 --- @param feat Feat
---- @param focus boolean Navigate to existing window where the buffer is visible (else use current).
+--- @param focus boolean|nil Tristate:
+---   - true: Navigate to existing window (if any).
+---   - false: Show buf in current window.
+---   - nil: Don't show the buf, only load/prepare it.
 --- @param repo string|nil "owner/name", or nil for non-thing-bound feats (e.g. status).
 --- @param id string|integer PR/issue number, or "all" for status.
 --- @param bufstate? BufState
@@ -114,7 +133,9 @@ function M.init_buf(feat, focus, repo, id, bufstate)
   bufstate = bufstate or {}
   local key = get_key(repo, id)
   local buf = assert(M.get_buf(feat, repo, id))
-  show_buf(buf, focus)
+  if focus ~= nil then
+    show_buf(buf, focus)
+  end
   if bufstate.id == nil then
     bufstate.id = id == 'all' and 0 or assert(tonumber(id))
   end

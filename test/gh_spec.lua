@@ -164,7 +164,7 @@ describe('pr + comments view', function()
         end
       end
 
-      -- Tests real PR data from Github. Mirrors the flow in pr.show_pr_diff:
+      -- Tests real PR data from Github. Mirrors the flow in pr.load_pr_diff:
       -- gh.get_pr_data (force) → outdated-path rewrite → comments.to_threads.
       local function test_get_pr_data_full()
         local pr_num = 2
@@ -311,8 +311,6 @@ describe('comments', function()
         ' tail',
       })
 
-      local diff_win = vim.api.nvim_get_current_win()
-
       --- @type table<string, CommentThread[]>
       local threads = {
         ['f.lua'] = {
@@ -355,7 +353,7 @@ describe('comments', function()
         },
       }
 
-      comments.show_pr_comments(pr_id, repo, diff_win, threads, nil, 0, 0, 0, 0)
+      comments.load_pr_comments(pr_id, repo, diff_buf, { viewed = {}, n_threads = 0, n_resolved = 0 }, threads, 0, 0)
 
       local prc = state.get_buf('prcomments', repo, pr_id)
       local rows = vim.api.nvim_buf_get_lines(prc, 0, -1, false)
@@ -384,7 +382,6 @@ describe('comments', function()
         ' context', -- row 6: new=10
         '+added', -- row 7: new=11
       })
-      local diff_win = vim.api.nvim_get_current_win()
 
       --- @type table<string, CommentThread[]>
       local threads = {
@@ -409,12 +406,10 @@ describe('comments', function()
         },
       }
 
-      comments.show_pr_comments(pr_id, repo, diff_win, threads, nil, 0, 0, 0, 0)
-
-      -- comments.show ends with `wincmd p` (focus back on diff window). Move focus to the prcomments
-      -- window so `update_comment` reads its `b:guh`.
+      comments.load_pr_comments(pr_id, repo, diff_buf, { viewed = {}, n_threads = 0, n_resolved = 0 }, threads, 0, 0)
+      -- `load_pr_comments` doesn't show the buf; focus it so `update_comment` reads its `b:guh`.
       local prc_buf = assert(state.get_buf('prcomments', repo, pr_id, false))
-      vim.api.nvim_set_current_win(vim.fn.win_findbuf(prc_buf)[1])
+      vim.api.nvim_set_current_buf(prc_buf)
 
       -- Row 6 is the heading of alice's comment (anchored to ' context', new=10).
       comments.update_comment(6)
@@ -483,25 +478,26 @@ describe(':Guh', function()
     }
   end)
 
-  it('":Guh 1" loads pr/, shows prdiff/ + prcomments/', function()
+  it('":Guh 1" shows pr/, eagerly loads prdiff/ in background', function()
     n.command('Guh 1')
 
-    -- Auto-load opens prdiff/ + prcomments/ as a split; pr/ becomes the alternate file.
+    -- curwin shows the pr/ buf; prdiff/ is loaded but not displayed.
     screen:expect {
       timeout = 15000,
       attr_ids = {}, -- Don't care about colors.
       grid = [[
         {MATCH:.*}|*8
-        {MATCH:guh://.*/prdiff/1 .* guh://.*/prcomments/1 +}|
+        {MATCH:.*guh://.*/pr/1.*}|
         {MATCH:.*}|
       ]],
     }
-    -- pr/ buf still exists and is the alt-buf of the prdiff window. (Its name is briefly `term://…`
-    -- until the `gh pr view` on_exit renames it, so check `b:guh.feat` directly.)
-    local alt_feat = n.exec_lua(function()
-      return (vim.b[vim.fn.bufnr('#')].guh or {}).feat
+    -- prdiff/ buf exists in state.bufs even though it's not displayed.
+    local has_prdiff = n.exec_lua(function()
+      local state = require('guh.state')
+      local buf = state.get_buf('prdiff', vim.b.guh.repo, vim.b.guh.id, false)
+      return buf ~= nil and vim.api.nvim_buf_is_valid(buf)
     end)
-    assert(alt_feat == 'pr', ('alt-buf feat: %s'):format(tostring(alt_feat)))
+    assert(has_prdiff, 'prdiff/ buf should be eagerly loaded')
   end)
 end)
 
