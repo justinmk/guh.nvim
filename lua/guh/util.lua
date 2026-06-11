@@ -27,29 +27,6 @@ end
 --- into one row.
 local progress_echo_id = nil ---@type integer?
 
---- Builds an argv that runs `string.format(cmdstring, ...)` through a shell.
----
---- The purpose of this is to linearize a bunch of `cmd1 && cmd2 && …` shell commands into one terminal invocation.
----
---- TODO: this would not be needed if Nvim allowed appending-to a buftype=terminal buffer.
----
---- @param cmdstring string `string.format`-style script: "cmd1 && cmd2 && …"
---- @param ... string|number values to quote and substitute into `cmdstring`.
---- @return string[] argv
-function M.shell_cmd(cmdstring, ...)
-  local shell, flag, q
-  if vim.fn.has('win32') == 1 then
-    shell, flag, q = 'cmd.exe', '/c', '"'
-  else
-    shell, flag, q = 'sh', '-c', "'"
-  end
-  local args = { ... }
-  for i, v in ipairs(args) do
-    args[i] = q .. tostring(v) .. q
-  end
-  return { shell, flag, cmdstring:format(unpack(args)) }
-end
-
 --- Runs a command asynchronously via `vim.system`. The callback is deferred (`vim.schedule_wrap`).
 ---
 --- @param cmd string[] argv list.
@@ -333,70 +310,141 @@ function M.buf_set_readonly_lines(buf, lines, ft)
   vim.bo[buf].filetype = ft
 end
 
---- Overwrites the current :terminal buffer with the given cmd.
+--- Concurrently runs N commands and streams their stdout into a terminal buf in-order.
 ---
---- The buffer must have been initialized via `state.init_buf()` (`b:guh` is used to re-apply
---- the `guh://…` name on term exit, since Nvim stomps it).
+--- - Output of `cmds[1]` streams into the terminal as it arrives.
+--- - Output of `cmds[i>1]` is buffered while a lower-index command is still streaming, then flushed
+---   to the terminal in-order once the lower-index commands exit.
 ---
 --- @param buf integer (must have `b:guh` set by `state.init_buf()`)
---- @param cmd string[]
+--- @param opts? { pty?: boolean }
+--- @param cmds string[][] List of commands.
 --- @param on_done? fun()
-function M.run_term_cmd(buf, cmd, on_done)
+function M.run_term_cmds(buf, opts, cmds, on_done)
+  vim.validate('buf', buf, 'number')
+  vim.validate('cmds', cmds, function(v)
+    return type(v) == 'table' and #v > 0
+  end, 'non-empty list')
   -- Fail fast if b:guh is invalid (init_buf() wasn't called?).
   local b_guh = vim.b[buf].guh
-  assert(b_guh and b_guh.feat and b_guh.bufkey, ('run_term_cmd: invalid b:guh on buf %d'):format(buf))
+  assert(b_guh and b_guh.feat and b_guh.bufkey, ('run_term_cmds: invalid b:guh on buf %d'):format(buf))
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
   vim.schedule(function()
-    assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmd: invalid buf %d'):format(buf))
-    -- terminal buf can be updated only if the job exited.
-    local jobid = vim.bo[buf].channel
-    if vim.fn.jobwait({ jobid }, 0)[1] == -1 then
-      M.log('run_term_cmd skipped:', { buf = buf, cmd = cmd, reason = 'job still running' })
-      progress('cancel')
-      return
-    end
+    assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmds: invalid buf %d'):format(buf))
 
-    -- UX: Preserve viewport of all windows showing the existing terminal buf.
-    -- This makes "reload" less disorienting.
+    -- UX: Preserve viewport of windows showing the buf. This makes "reload" less disorienting.
     local winviews = {}
     for _, win in ipairs(vim.fn.win_findbuf(buf)) do
-      winviews[win] = vim.fn.winsaveview()
+      winviews[win] = vim.api.nvim_win_call(win, function()
+        return vim.fn.winsaveview()
+      end)
     end
 
-    -- Use nvim_buf_call because `jobstart({term=true})` assumes curbuf.
-    vim.api.nvim_buf_call(buf, function()
-      local isempty = 1 == vim.fn.line('$') and '' == vim.fn.getline(1)
-      assert(isempty or not vim.api.nvim_buf_is_loaded(buf) or vim.bo[buf].buftype == 'terminal')
-      vim.o.modifiable = true
-      vim.o.modified = false
+    -- Create or reuse the terminal-buf channel.
+    local chan = (state.get_b_guh(buf) or {}).chan
+    if not chan then
+      chan = vim.api.nvim_open_term(buf, {})
+      -- XXX: store `b:guh.chan` because `nvim_open_term` doesn't set `vim.bo.channel` (Nvim bug).
+      state.set_b_guh(buf, { chan = chan })
+    else
+      -- `nvim_open_term` can't reattach to buftype=terminal buf, even
+      -- after chanclose(), so on re-entry we use the existing chan and send RIS (`\27c` = Reset).
+      vim.api.nvim_chan_send(chan, '\27c')
+    end
+
+    local debug = vim.g.guh_debug == true
+    -- Per-cmd result.
+    local r = {} ---@type { out?: string, err?: string, exited?: number }[]
+    local start_ms = vim.uv.now()
+
+    local function on_all_done()
+      -- Append a timing report.
+      local report = { '', '--- timing ---' }
+      for i, cmd in ipairs(cmds) do
+        local cmd_str = table.concat(cmd, ' '):gsub('%s+', ' ')
+        if #cmd_str > 60 then
+          cmd_str = cmd_str:sub(1, 57) .. '…'
+        end
+        table.insert(report, ('%s: %dms'):format(cmd_str, r[i].exited - start_ms))
+      end
+      vim.api.nvim_chan_send(chan, table.concat(report, '\r\n') .. '\r\n')
+
+      for win, winview in pairs(winviews) do
+        if vim.api.nvim_win_is_valid(win) then
+          vim.api.nvim_win_call(win, function()
+            vim.fn.winrestview(winview)
+          end)
+        end
+      end
+      if on_done then
+        on_done()
+      end
+      progress('success')
+    end
+
+    -- Advance through cmds that have exited, displayed their output in-order.
+    local curr = 1
+    local function try_advance()
+      while curr <= #cmds and r[curr] and r[curr].exited do
+        local out = r[curr].out
+        if out and vim.trim(out) ~= '' then
+          vim.api.nvim_chan_send(chan, out)
+        end
+        local err = r[curr].err
+        if debug and err and vim.trim(err) ~= '' then
+          vim.api.nvim_chan_send(chan, '\r\n--- stderr ---\r\n' .. err)
+        end
+        curr = curr + 1
+      end
+      if curr > #cmds then
+        on_all_done()
+      end
+    end
+
+    local pty = opts and opts.pty == true
+    local wins = vim.fn.win_findbuf(buf)
+    local width = (wins[1] and vim.api.nvim_win_get_width(wins[1])) or 200
+    local env = { GH_PAGER = 'cat', PAGER = 'cat' }
+    if debug then
+      -- `GH_DEBUG=api` logs each HTTP request to stderr with method, URL, status, and round-trip ms.
+      env.GH_DEBUG = 'api'
+    end
+    for i, cmd in ipairs(cmds) do
       vim.fn.jobstart(cmd, {
-        term = true,
-        env = {
-          GH_PAGER = 'cat',
-          PAGER = 'cat',
-        },
+        pty = pty,
+        width = pty and width or nil,
+        -- Since the cost is server-side (gh API latency), we don't need to "stream" per-command output.
+        stdout_buffered = true,
+        stderr_buffered = debug or nil,
+        env = env,
+        --- @param data string[]
+        on_stdout = function(_, data)
+          r[i] = r[i] or {}
+          r[i].out = table.concat(data, '\n')
+        end,
+        --- @param data string[]
+        on_stderr = debug and function(_, data)
+          r[i] = r[i] or {}
+          r[i].err = table.concat(data, '\n')
+        end or nil,
         on_exit = function()
-          -- XXX: hide the Nvim default "[Process exited]" message.
-          local ns = vim.api.nvim_get_namespaces()['nvim.terminal.exitmsg']
-          if ns and vim.api.nvim_buf_is_valid(buf) then
-            vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
-          end
-          state.set_buf_name(buf, b_guh.feat, b_guh.bufkey)
-          for win, winview in pairs(winviews) do
-            if vim.api.nvim_win_is_valid(win) then
-              vim.api.nvim_win_call(win, function()
-                vim.fn.winrestview(winview)
-              end)
+          r[i] = r[i] or {}
+          r[i].exited = vim.uv.now()
+          local n_done = 0
+          for j = 1, #cmds do
+            if r[j] and r[j].exited then
+              n_done = n_done + 1
             end
           end
-          if on_done then
-            on_done()
+          if n_done < #cmds then
+            -- Report progress as cmds complete.
+            progress('running', math.floor(100 * n_done / #cmds), '%d/%d', n_done, #cmds)
           end
-          progress('success')
+          try_advance()
         end,
       })
-    end)
+    end
   end)
 end
 
