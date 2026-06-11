@@ -856,7 +856,7 @@ function M.edit_comment(feat, prnum, content, infomsg, on_confirm)
 
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].bufhidden = 'wipe' -- Ensure BufWipeout fires on :q.
-  vim.bo[buf].filetype = 'markdown'
+  vim.bo[buf].filetype = feat == 'merge' and 'gitcommit' or 'markdown'
   vim.bo[buf].modifiable = true
   vim.bo[buf].textwidth = 0
 
