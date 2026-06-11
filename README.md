@@ -32,8 +32,10 @@ Run `:Guh <target>` to view a PR/issue/commit/repo.
 :Guh guh://neovim/neovim/pr/35951
 ```
 
-Inside any `guh://` buffer, hit `<Enter>` to open the target at cursor. Hit `g?` to review the
-keymaps.
+Inside any `guh://` buffer,
+
+- Hit `g?` to see the keymaps.
+- Hit `<Enter>` to open the target at cursor.
 
 When viewing a PR,
 

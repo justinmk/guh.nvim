@@ -479,6 +479,10 @@ function M.merge_pr()
             end
             body = table.concat(parts, '\n\n')
           end
+          -- Fall back to the PR description if the commit-derived body is blank/whitespace.
+          if vim.trim(body or '') == '' then
+            body = pr.body or ''
+          end
         else
           error(('unknown method: %s'):format(method))
         end

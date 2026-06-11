@@ -182,7 +182,10 @@ Merging PRs                                                        *guh-merge*
 `[count]cM` skips the picker (e.g. `1cM` = squash, `5cM` = merge --admin).
 
 For "squash" and "merge", Guh presents a `guh://…/merge/<id>` buffer,
-prefilled with the PR title and body (first line = `--subject`, rest = `--body`).
+prefilled with a title and body.
+- for "merge": body = PR description
+- for "squash": body = commit-body, or PR description if commit-body is empty
+
 Write-and-close to confirm the "merge" action. |guh-confirm|
 
 ------------------------------------------------------------------------------
