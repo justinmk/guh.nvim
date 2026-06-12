@@ -99,6 +99,101 @@ describe('guh.gh', function()
     end)
   end)
 
+  it('to_ci_jobs: extracts databaseId+runId, dedupes by name, drops non-actions/skipped, sorts', function()
+    n.exec_lua(function()
+      local to_ci_jobs = require('guh.gh')._to_ci_jobs
+
+      -- Shape: a `node` with `headCommit.nodes[1].commit.statusCheckRollup.contexts.nodes[]`.
+      local function ctx(name, conclusion, started_at, job_id, opts)
+        opts = opts or {}
+        return {
+          __typename = opts.typename or 'CheckRun',
+          name = name,
+          conclusion = conclusion,
+          status = opts.status or 'COMPLETED',
+          startedAt = started_at,
+          detailsUrl = job_id and ('https://github.com/o/r/actions/runs/777/job/%d'):format(job_id) or nil,
+          checkSuite = { app = { slug = opts.slug or 'github-actions' } },
+        }
+      end
+
+      local node = {
+        headCommit = {
+          nodes = {
+            {
+              commit = {
+                statusCheckRollup = {
+                  contexts = {
+                    nodes = {
+                      -- Two runs of "lint" — keep the latest startedAt.
+                      ctx('lint', 'FAILURE', '2026-06-12T10:00:00Z', 100),
+                      ctx('lint', 'SUCCESS', '2026-06-12T12:00:00Z', 101),
+                      -- Skipped: drop entirely.
+                      ctx('skipped-job', 'SKIPPED', '2026-06-12T11:00:00Z', 102),
+                      -- Non-actions app: drop.
+                      ctx('codecov', 'SUCCESS', '2026-06-12T11:00:00Z', 103, { slug = 'codecov' }),
+                      -- Non-CheckRun typename: drop.
+                      ctx('status-context', 'SUCCESS', '2026-06-12T11:00:00Z', 104, { typename = 'StatusContext' }),
+                      -- Malformed detailsUrl (no /actions/runs/.../job/...): drop.
+                      {
+                        __typename = 'CheckRun',
+                        name = 'orphan',
+                        conclusion = 'SUCCESS',
+                        status = 'COMPLETED',
+                        startedAt = '2026-06-12T11:00:00Z',
+                        detailsUrl = 'https://github.com/o/r/something-else',
+                        checkSuite = { app = { slug = 'github-actions' } },
+                      },
+                      -- In-progress (no conclusion). Should still show up.
+                      ctx('build', nil, '2026-06-12T13:00:00Z', 200, { status = 'IN_PROGRESS' }),
+                      -- Plain success — used to verify sort.
+                      ctx('test', 'SUCCESS', '2026-06-12T13:30:00Z', 201),
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }
+
+      local jobs = to_ci_jobs(node)
+
+      -- Exactly 3 jobs survive: lint, build, test. (skipped/codecov/StatusContext/orphan dropped.)
+      assert(#jobs == 3, ('expected 3 jobs, got %d'):format(#jobs))
+
+      local by_name = {}
+      for _, j in ipairs(jobs) do
+        by_name[j.name] = j
+      end
+
+      -- lint deduped to the latest startedAt (databaseId=101, conclusion=success).
+      assert(by_name.lint, 'lint missing')
+      assert(by_name.lint.databaseId == 101, ('lint databaseId=%s'):format(by_name.lint.databaseId))
+      assert(by_name.lint.runId == 777, ('lint runId=%s'):format(by_name.lint.runId))
+      assert(by_name.lint.conclusion == 'success', ('lint conclusion=%s'):format(by_name.lint.conclusion))
+      assert(by_name.lint.status == 'completed', ('lint status=%s'):format(by_name.lint.status))
+
+      -- build is in-progress (no conclusion, lowercase status).
+      assert(by_name.build.conclusion == nil, 'build should have nil conclusion')
+      assert(by_name.build.status == 'in_progress', ('build status=%s'):format(by_name.build.status))
+      assert(by_name.build.databaseId == 200)
+      assert(by_name.build.runId == 777)
+
+      -- test: plain success.
+      assert(by_name.test.databaseId == 201)
+      assert(by_name.test.runId == 777)
+
+      -- Sort: by (conclusion or status), then name. So:
+      --   "completed" (no — `status` only used when conclusion is nil) — actually sort key is `conclusion or status`.
+      --   lint: "success", test: "success", build: "in_progress". Alphabetic on key:
+      --   "in_progress" < "success", so build first; then lint, test alphabetic.
+      assert(jobs[1].name == 'build', ('jobs[1]=%s'):format(jobs[1].name))
+      assert(jobs[2].name == 'lint', ('jobs[2]=%s'):format(jobs[2].name))
+      assert(jobs[3].name == 'test', ('jobs[3]=%s'):format(jobs[3].name))
+    end)
+  end)
+
   it('get_user returns nil when not logged in', function()
     n.exec_lua(function(tmpdir)
       -- Point `gh` at an empty config dir and unset any auth tokens so it has no active account.

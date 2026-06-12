@@ -556,4 +556,6 @@ function M.get_pr_ci_logs(jobs, repo, on_result, skip)
   end
 end
 
+M._to_ci_jobs = to_ci_jobs -- testing
+
 return M
