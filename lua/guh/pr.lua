@@ -107,8 +107,10 @@ function M.select(args, id, repo)
   local feat = type(args) == 'string' and args or nil
   local arg = cmdargs.args or ''
 
-  -- Flash the cWORD if it matches the arg (so `:Guh <cWORD>` works, avoids the need for a wrapper).
-  if arg == vim.fn.expand('<cWORD>') then
+  -- `:Guh .` reads cWORD.
+  -- Flash the cWORD (bonus: also for `:Guh <cWORD>`).
+  if arg == '.' or arg == vim.fn.expand('<cWORD>') then
+    arg = vim.fn.expand('<cWORD>')
     local row, col = unpack(vim.api.nvim_win_get_cursor(0))
     local on_blank = vim.api.nvim_get_current_line():sub(col + 1, col + 1):match('%S') == nil
     local _, c = unpack(vim.fn.searchpos([[\v(^|\s)@<=\S]], on_blank and 'cnW' or 'bcnW'))
@@ -792,15 +794,16 @@ function M.comment(args)
     end
     return comments.delete_comment(args.line1)
   end
+  local feat, id, repo = require_pr()
+
   -- `:%GuhComment` (entire buffer): overview comment.
   if (args.range or 0) > 0 and args.line1 == 1 and args.line2 == vim.fn.line('$') then
     return comment_overview()
   end
-  if (vim.b.guh or {}).feat == 'prcomments' then
+  if feat == 'prcomments' then
     return comments.update_comment(args.line1)
   end
 
-  local _, id, repo = require_pr()
   new_comment(id, repo, args.line1, args.line2)
 end
 

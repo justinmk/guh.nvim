@@ -30,6 +30,8 @@ Run `:Guh <target>` to view a PR/issue/commit/repo.
 :Guh neovim/neovim
 " guh:// URI
 :Guh guh://neovim/neovim/pr/35951
+" Cursor target
+:Guh .
 ```
 
 Inside any `guh://` buffer,
