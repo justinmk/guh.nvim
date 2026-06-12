@@ -254,6 +254,7 @@ function M.set_default_keymaps(buf)
 
   -- "Global" (buffer-relative) UPDATE actions:
   M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-top)', 'Comment on PR/issue overview')
+  M.map_default(buf, 'n', 'cI', '<Plug>(guh-ci)', 'Rerun CI jobs')
   M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge)', 'Merge PR')
   M.map_default(buf, 'n', 'cR', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
   M.map_default(buf, 'n', 'c:', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`, `gh issue edit`)')

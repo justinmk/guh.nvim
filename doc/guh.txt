@@ -83,8 +83,8 @@ Default mappings (local to `guh://` buffers):
   - `dl` View the most-recent CI logs for all job-names in the CI matrix.
     <Plug>(guh-logs)
   - `]f` View the next "thing":
-    - in a PR-related buffer: go to next commit (from the most-recent push).
-    - in a CI logs buffer: go to the next CI job.
+    - in a CI logs buffer: next CI job.
+    - in other PR-related buffers: next commit (from the most-recent push).
     <Plug>(guh-next)
   - `[f` View the previous "thing" (see `]f` above).
     <Plug>(guh-prev)
@@ -94,6 +94,10 @@ Default mappings (local to `guh://` buffers):
 - Buffer-relative UPDATE actions:
   - `cC` Comment on the PR/issue (top-level). |guh-comment|
     <Plug>(guh-comment-top)
+  - `cI` Rerun CI jobs. Opens a picker (or use `[count]cI` to skip):
+    1. current job (from a CI logs buffer)
+    2. failed jobs
+    <Plug>(guh-ci)
   - `cM` Merge PR. |guh-merge|
     <Plug>(guh-merge)
   - `cR` Review PR (approve / comment / request-changes).
@@ -174,12 +178,13 @@ See |:GuhComment|.
 Merging PRs                                                        *guh-merge*
 
 `cM` on a PR view opens a picker:
-- 1. squash
-- 2. merge
-- 3. rebase
-- 4. squash --admin (bypass branch protections)
-- 5. merge --admin (bypass branch protections)
-- 6. rebase --admin (bypass branch protections)
+
+1. squash
+2. merge
+3. rebase
+4. squash --admin (bypass branch protections)
+5. merge --admin (bypass branch protections)
+6. rebase --admin (bypass branch protections)
 
 `[count]cM` skips the picker (e.g. `1cM` = squash, `5cM` = merge --admin).
 
@@ -193,11 +198,13 @@ Write-and-close to confirm the "merge" action. |guh-confirm|
 ------------------------------------------------------------------------------
 Review PRs: approve, request changes, or reject                   *guh-review*
 
-`cR` on a PR view opens a picker ("approve"/"request-changes"/"comment").
-`[count]cR` skips the picker:
-- `1cR` = approve
-- `2cR` = comment
-- `3cR` = request-changes
+`cR` on a PR view opens a picker:
+
+1. approve
+2. comment
+3. request-changes
+
+`[count]cR` skips the picker (e.g. `1cR` = approve, `2cR` = comment, …).
 
 To confirm the "review" action, Guh presents a `guh://…/review/<id>` buffer.
 Write-and-close to confirm the "review" action. |guh-confirm|

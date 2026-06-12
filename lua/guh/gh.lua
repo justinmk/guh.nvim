@@ -87,12 +87,16 @@ local function to_ci_jobs(node)
     -- Only `CheckRun` from the `github-actions` app has a fetchable workflow log.
     local is_actions = cr.__typename == 'CheckRun' and vim.tbl_get(cr, 'checkSuite', 'app', 'slug') == 'github-actions'
     -- detailsUrl: https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}
-    local job_id = is_actions and tonumber((cr.detailsUrl or ''):match('/job/(%d+)')) or nil
+    local url = (is_actions and cr.detailsUrl) or ''
+    local run_id, job_id = url:match('/actions/runs/(%d+)/job/(%d+)')
+    run_id = tonumber(run_id)
+    job_id = tonumber(job_id)
     if job_id and cr.conclusion ~= 'SKIPPED' then
       local existing = by_name[cr.name]
       if not existing or (cr.startedAt or '') > (existing.startedAt or '') then
         by_name[cr.name] = {
           databaseId = job_id,
+          runId = run_id,
           name = cr.name,
           -- Mimic the REST API which returns lowercase ("success", "failure", …).
           conclusion = cr.conclusion and cr.conclusion:lower() or nil,
@@ -465,7 +469,7 @@ function M.review_pr(id, repo, action, body, cb)
   end)
 end
 
-local cached_user
+local cached_user --[[@type string?]]
 --- Gets the active `gh` username from local config. Synchronous; cached for the session.
 ---
 --- (Works without network, but cached because `gh` may try the network anyway.)
@@ -482,6 +486,28 @@ function M.get_user()
     cached_user = vim.trim(r.stdout)
   end
   return cached_user
+end
+
+--- Reruns failed CI jobs for a run, or one specific CI job.
+---
+--- @param run_id integer GitHub Actions run id.
+--- @param repo string "owner/name"
+--- @param job_id? integer Workflow job ID (`pr_data.ci_jobs[i].databaseId`).
+--- @param on_response fun(ok: boolean, stderr: string)
+function M.rerun_ci(run_id, repo, job_id, on_response)
+  vim.validate('run_id', run_id, 'number')
+  vim.validate('repo', repo, 'string')
+  vim.validate('job_id', job_id, 'number', true)
+  local cmd = M.cmd(repo, 'run', 'rerun', tostring(run_id))
+  if job_id then
+    table.insert(cmd, '--job')
+    table.insert(cmd, tostring(job_id))
+  else
+    table.insert(cmd, '--failed')
+  end
+  util.system(cmd, function(_, stderr, code)
+    on_response(code == 0, stderr or '')
+  end)
 end
 
 --- Fetches the log for one CI workflow job.

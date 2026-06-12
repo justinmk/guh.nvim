@@ -355,7 +355,7 @@ function M.show_next(delta)
   local pr_data = state.get_pr_data(repo, id)
   local commits = pr_data and pr_data.commits
   if not commits or #commits == 0 then
-    error('guh: No commits found; try refresh (R)', 0)
+    error('guh: No commits found ("R" to refresh)', 0)
   end
   local idx = commit_idx or (delta > 0 and 0) or (#commits + 1)
   local next_idx = idx + delta
@@ -396,13 +396,13 @@ function M.review_pr()
     end)
   end
 
-  local actions = { 'approve', 'request-changes', 'comment' }
+  local actions = { 'approve', 'comment', 'request-changes' }
   local count = vim.v.count
   if count >= 1 and count <= #actions then
     return do_action(actions[count])
   end
 
-  vim.ui.select(actions, { prompt = ('Review PR #%s by:'):format(id) }, function(action)
+  vim.ui.select(actions, { prompt = ('Review PR #%s:'):format(id) }, function(action)
     if action then
       do_action(action)
     end
@@ -519,7 +519,7 @@ function M.merge_pr()
     return with_choice(choices[count])
   end
 
-  vim.ui.select(choices, { prompt = ('Merge PR #%s by:'):format(id) }, function(choice)
+  vim.ui.select(choices, { prompt = ('Merge PR #%s:'):format(id) }, function(choice)
     if choice then
       with_choice(choice)
     end
@@ -815,6 +815,103 @@ function M.edit_pr()
   local buf = state.init_buf('edit', true, repo, id)
   util.run_term_cmds(buf, { pty = true }, { gh.cmd(repo, kind, 'edit', tostring(id)) }, function()
     util.set_default_keymaps(buf)
+  end)
+end
+
+--- Reruns CI for the current PR. Shows a vim.ui.select picker unless `[count]` was given.
+---
+--- @param opts? { id?: integer|string, repo?: string, args?: string }
+function M.ci_rerun(opts)
+  local feat, id, repo = require_pr(opts)
+  local b = vim.b.guh or {}
+  local cur_log_job_id = feat == 'prlogs' and tonumber((b.bufkey or ''):match('/(%d+)$')) or nil
+
+  local function do_rerun(run_id, job_id, label, on_done)
+    if not run_id then
+      util.msg(('Cannot rerun %s: missing GitHub Actions run id ("R" to refresh)'):format(label), vim.log.levels.ERROR)
+      if on_done then
+        on_done(false)
+      end
+      return
+    end
+    gh.rerun_ci(run_id, repo, job_id, function(ok, stderr)
+      if not ok then
+        util.msg(('CI rerun failed for %s: %s'):format(label, vim.trim(stderr or '')), vim.log.levels.ERROR)
+      end
+      if on_done then
+        on_done(ok)
+      end
+    end)
+  end
+
+  local function rerun_current_job()
+    if not cur_log_job_id then
+      return util.msg('No current CI log job; use `dl` to open a CI log first', vim.log.levels.ERROR)
+    end
+    with_ci_jobs(id, repo, function(jobs)
+      local job = vim.iter(jobs):find(function(j)
+        return j.databaseId == cur_log_job_id
+      end)
+      if not job then
+        return util.msg('Unknown CI job for this log buffer', vim.log.levels.ERROR)
+      end
+      local done = util.progress(('Rerunning CI job "%s"…'):format(job.name))
+      return do_rerun(job.runId, job.databaseId, job.name, function(ok)
+        done(ok and 'success' or 'failed')
+        if ok then
+          util.msg(('Rerunning CI job "%s"'):format(job.name))
+        end
+      end)
+    end)
+  end
+
+  local function rerun_all_failed()
+    local function dispatch(pr)
+      if not pr then
+        return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+      end
+      local failed_job = vim.iter(pr.ci_jobs or {}):find(function(j)
+        return j.runId and j.conclusion and j.conclusion ~= 'success'
+      end)
+      if not failed_job then
+        return util.msg(('No failed CI jobs for PR #%s ("R" to refresh)'):format(id), vim.log.levels.WARN)
+      end
+
+      local run_id = failed_job.runId
+      local done = util.progress(('Rerunning failed CI for PR #%s…'):format(id))
+      do_rerun(run_id, nil, ('run %s'):format(run_id), function(ok)
+        done(ok and 'success' or 'failed')
+        if ok then
+          util.msg(('Rerunning failed CI for run %s on PR #%s'):format(run_id, id))
+        end
+      end)
+    end
+
+    local pr = state.get_pr_data(repo, id)
+    if pr then
+      return dispatch(pr)
+    end
+    gh.get_pr_data(id, repo, nil, dispatch)
+  end
+
+  local actions = {
+    { label = 'current job', run = rerun_current_job },
+    { label = 'failed jobs', run = rerun_all_failed },
+  }
+  local count = vim.v.count
+  if count >= 1 and count <= #actions then
+    return actions[count].run()
+  end
+
+  vim.ui.select(actions, {
+    prompt = ('Rerun CI for PR #%s:'):format(id),
+    format_item = function(action)
+      return action.label
+    end,
+  }, function(action)
+    if action then
+      action.run()
+    end
   end)
 end
 
