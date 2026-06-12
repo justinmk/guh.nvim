@@ -2,7 +2,6 @@ local state = require('guh.state')
 
 local M = {}
 
-local overlay_ns = vim.api.nvim_create_namespace('guh.info_overlay')
 local flash_ns = vim.api.nvim_create_namespace('guh.flash')
 
 --- Flashes the given region so the user can see the target of an action.
@@ -408,27 +407,45 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     local env = { GH_PAGER = 'cat', PAGER = 'cat' }
     if pty then
       env.TERM = 'xterm-256color'
-      -- XXX: Disable gh terminal-capability queries (SLOW!): jobstart(pty=true) has no consumer to
-      -- respond, so each query waits its full 5s timeout.
-      -- TODO: make jobstart(pty=true) work (may require Nvim upstream changes)!
-      env.NO_COLOR = '1'
     end
     if debug then
       -- `GH_DEBUG=api` logs each HTTP request to stderr with method, URL, status, and round-trip ms.
       env.GH_DEBUG = 'api'
     end
     for i, cmd in ipairs(cmds) do
-      vim.fn.jobstart(cmd, {
-        pty = pty, -- TODO: use `term` instead; "gh" queries the tty and stupidly waits up to 5s!
+      -- Per-job scratchbuf + nvim_open_term channel for handling terminal queries (from commands
+      -- like "gh", which would otherwise hang/timeout). The job's raw stdout is streamed here via
+      -- `nvim_chan_send` so libvterm can parse queries (DA1/OSC/…), which then invokes `on_input`.
+      -- TODO: revisit this after: https://github.com/neovim/neovim/issues/40194
+      local qbuf, qchan, jobid
+      if pty then
+        qbuf = vim.api.nvim_create_buf(false, true)
+        qchan = vim.api.nvim_open_term(qbuf, {
+          on_input = function(_, _, _, data)
+            if jobid then
+              -- Forward the query response (from libvterm) to the job's stdin so the child ("gh").
+              vim.fn.chansend(jobid, data)
+            end
+          end,
+        })
+      end
+      jobid = vim.fn.jobstart(cmd, {
+        pty = pty,
         width = pty and width or nil,
         -- Since the cost is server-side (gh API latency), we don't need to "stream" per-command output.
-        stdout_buffered = true,
+        -- (Except for pty=true, until https://github.com/neovim/neovim/issues/40194 is fixed.)
+        stdout_buffered = not pty,
         stderr_buffered = debug or nil,
         env = env,
         --- @param data string[]
         on_stdout = function(_, data)
           r[i] = r[i] or {}
-          r[i].out = table.concat(data, '\n')
+          local chunk = table.concat(data, '\n')
+          r[i].out = (r[i].out or '') .. chunk
+          if qchan then
+            -- For pty: send query bytes to the nvim_open_term (libvterm) channel.
+            vim.api.nvim_chan_send(qchan, chunk)
+          end
         end,
         --- @param data string[]
         on_stderr = debug and function(_, data)
@@ -438,6 +455,13 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         on_exit = function()
           r[i] = r[i] or {}
           r[i].exited = vim.uv.now()
+          if qchan then
+            -- cleanup
+            pcall(vim.fn.chanclose, qchan)
+            if qbuf and vim.api.nvim_buf_is_valid(qbuf) then
+              vim.api.nvim_buf_delete(qbuf, { force = true })
+            end
+          end
           local n_done = 0
           for j = 1, #cmds do
             if r[j] and r[j].exited then

@@ -556,22 +556,19 @@ function M.show_status(focus, repo)
     ]]
     )
     table.insert(cmds, { 'gh', 'pr', 'status', '--repo', repo })
-    table.insert(
-      cmds,
-      {
-        'gh',
-        'api',
-        'graphql',
-        '-f',
-        'owner=' .. owner,
-        '-f',
-        'name=' .. name,
-        '-f',
-        'query=' .. query,
-        '--template',
-        tmpl,
-      }
-    )
+    table.insert(cmds, {
+      'gh',
+      'api',
+      'graphql',
+      '-f',
+      'owner=' .. owner,
+      '-f',
+      'name=' .. name,
+      '-f',
+      'query=' .. query,
+      '--template',
+      tmpl,
+    })
   end
   util.run_term_cmds(buf, { pty = true }, cmds, function()
     util.set_default_keymaps(buf)
