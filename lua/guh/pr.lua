@@ -531,7 +531,7 @@ end
 function M.show_status(focus, repo)
   repo = repo or (vim.b.guh or {}).repo or resolve_local_repo()
   local buf = state.init_buf('status', focus, nil, 'all', { repo = repo })
-  local cmd = { 'gh', 'status' }
+  local cmds = { { 'gh', 'status' } }
   if repo then
     local owner, name = repo:match('^([^/]+)/(.+)$')
     local query = vim.text.indent(
@@ -555,16 +555,22 @@ function M.show_status(focus, repo)
       {{range .data.repository.issues.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end}}
     ]]
     )
-    cmd = util.shell_cmd(
-      'gh status && gh pr status --repo %s && gh api graphql -f owner=%s -f name=%s -f query=%s --template %s',
-      repo,
-      owner,
-      name,
-      query,
-      tmpl
-    )
+    table.insert(cmds, { 'gh', 'pr', 'status', '--repo', repo })
+    table.insert(cmds, {
+      'gh',
+      'api',
+      'graphql',
+      '-f',
+      'owner=' .. owner,
+      '-f',
+      'name=' .. name,
+      '-f',
+      'query=' .. query,
+      '--template',
+      tmpl,
+    })
   end
-  util.run_term_cmd(buf, cmd, function()
+  util.run_term_cmds(buf, { pty = true }, cmds, function()
     util.set_default_keymaps(buf)
   end)
 end
@@ -574,7 +580,7 @@ end
 --- @param focus boolean
 function M.show_issue(id, repo, focus)
   local buf = state.init_buf('issue', focus, repo, id)
-  util.run_term_cmd(buf, gh.cmd(repo, 'issue', 'view', tostring(id), '--comments'), function()
+  util.run_term_cmds(buf, { pty = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') }, function()
     util.set_default_keymaps(buf)
   end)
 end
@@ -598,16 +604,10 @@ function M.show_pr(id, repo, focus, old_head)
     {{range .commits}}  {{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
   ]]
   )
-  local cmd = util.shell_cmd(
-    'gh pr view --comments %s --repo %s && gh pr view %s --repo %s --json commits --template %s',
-    id,
-    repo,
-    id,
-    repo,
-    commits_tmpl
-  )
-
-  util.run_term_cmd(buf, cmd, function()
+  util.run_term_cmds(buf, { pty = true }, {
+    gh.cmd(repo, 'pr', 'view', '--comments', tostring(id)),
+    gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'commits', '--template', commits_tmpl),
+  }, function()
     util.set_default_keymaps(buf)
     -- Poll `state.get_pr_data` (populated by `load_pr`) until ready.
     local tries = 0
@@ -812,7 +812,7 @@ function M.edit_pr()
   local feat, id, repo = resolve_pr()
   local kind = feat == 'issue' and 'issue' or 'pr'
   local buf = state.init_buf('edit', true, repo, id)
-  util.run_term_cmd(buf, gh.cmd(repo, kind, 'edit', tostring(id)), function()
+  util.run_term_cmds(buf, { pty = true }, { gh.cmd(repo, kind, 'edit', tostring(id)) }, function()
     util.set_default_keymaps(buf)
   end)
 end

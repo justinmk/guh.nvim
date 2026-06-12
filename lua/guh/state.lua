@@ -166,7 +166,7 @@ function M.init_buf(feat, focus, repo, id, bufstate)
   if bufstate.repo == nil and repo then
     bufstate.repo = repo
   end
-  -- XXX: Stash the key so anything (e.g. `util.run_term_cmd()`) can rebuild the `guh://…` URL,
+  -- XXX: Stash the key so anything (e.g. `util.run_term_cmds()`) can rebuild the `guh://…` URL,
   -- even for "global" (non-repo-specific) buffers like `guh://status`.
   bufstate.bufkey = key
   M.set_b_guh(buf, bufstate)
