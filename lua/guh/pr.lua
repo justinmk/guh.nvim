@@ -794,12 +794,13 @@ function M.comment(args)
     end
     return comments.delete_comment(args.line1)
   end
-  local feat, id, repo = require_pr()
 
   -- `:%GuhComment` (entire buffer): top-level/overview comment.
   if (args.range or 0) > 0 and args.line1 == 1 and args.line2 == vim.fn.line('$') then
     return comment_top()
   end
+
+  local feat, id, repo = require_pr()
   if feat == 'prcomments' then
     return comments.update_comment(args.line1)
   end
