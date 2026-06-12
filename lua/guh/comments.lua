@@ -736,17 +736,13 @@ function M.reply_or_resolve(linenr)
   end, dedupe_threads)
 end
 
---- Prepare info for commenting on a range in the current diff.
---- This does not make a network request; it just returns metadata.
+--- Gets info for commenting on a range in a prdiff. Does not make a network request.
 ---
+--- @param buf integer prdiff buffer
 --- @param line1 integer 1-indexed start line
 --- @param line2 integer 1-indexed end line (inclusive)
---- @return table|nil info { buf, pr_id, repo, file, side, start_line, end_line }
-function M.prepare_to_comment(line1, line2)
-  local buf = vim.api.nvim_get_current_buf()
-  local prnum = assert(vim.b.guh.id)
-  local repo = assert(vim.b.guh.repo)
-
+--- @return table|nil info { file, side, start_line, end_line }
+function M.prepare_to_comment(buf, line1, line2)
   line1 = math.max(1, line1)
   line2 = math.max(line1, line2 or line1)
 
@@ -784,53 +780,11 @@ function M.prepare_to_comment(line1, line2)
 
   local axis = side == 'LEFT' and 'old_line' or 'new_line'
   return {
-    buf = buf,
-    pr_id = tonumber(prnum),
-    repo = repo,
     file = start_entry.file,
     side = side,
     start_line = start_entry[axis],
     end_line = end_entry[axis],
   }
-end
-
---- Posts a file comment on the diff-line at cursor.
----
---- @param line1 integer 1-indexed line
---- @param line2 integer 1-indexed line
-function M.new_comment(line1, line2)
-  local info = M.prepare_to_comment(line1, line2)
-  if not info then
-    return
-  end
-
-  util.hl_flash(info.buf, line1 - 1, line2 - 1)
-
-  gh.get_pr_data(info.pr_id, info.repo, nil, function(pr)
-    if not pr then
-      return util.msg(('PR #%s not found'):format(info.pr_id), vim.log.levels.ERROR)
-    end
-    local range = info.start_line == info.end_line and tostring(info.end_line)
-      or ('%d..%d'):format(info.start_line, info.end_line)
-    local infomsg = {
-      { 'Comment on ', 'Comment' },
-      { ('%s:%s'):format(info.file, range), 'Directory' },
-      { ' | ZZ to send (ZQ to abort)', 'Comment' },
-    }
-    vim.schedule(function()
-      M.edit_comment('comment', info.pr_id, { '' }, infomsg, function(input)
-        local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
-        gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.side, info.repo, function(resp)
-          if resp['errors'] == nil then
-            progress('success', nil, 'Comment sent.')
-            require('guh.pr').refresh({ feat = 'pr', id = info.pr_id, repo = info.repo })
-          else
-            progress('failed', nil, 'Failed to send comment.')
-          end
-        end)
-      end)
-    end)
-  end)
 end
 
 --- Opens a markdown buffer prefilled with `content`.

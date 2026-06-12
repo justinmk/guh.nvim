@@ -263,13 +263,11 @@ describe('comments', function()
       })
       vim.api.nvim_win_set_cursor(0, { 9, 0 }) -- on "+      comment = 'cc',"
 
-      local info = comments.prepare_to_comment(9, 9)
+      local info = comments.prepare_to_comment(buf, 9, 9)
       assert(info)
       assert('lua/guh/config.lua' == info.file)
       assert(16 == info.start_line, info.start_line)
       assert(16 == info.end_line, info.end_line)
-      assert(pr_id == info.pr_id, info.pr_id)
-      assert(buf == info.buf, info.buf)
     end)
   end)
 

@@ -41,17 +41,23 @@ end
 --- If curbuf is "commit/…", searches for the related `pr/…` buf which has that commit.
 ---
 --- @param opts integer|string|table|nil Table form may be cmdline "args", or explicit `{id=…,repo=…}`.
+--- @param optional? boolean (default: true) return nil instead of raising "Not a PR" error.
 --- @return Feat? feat `b:guh.feat`, or nil if `opts` provided an explicit id.
 --- @return integer id
 --- @return string repo
 --- @return integer? commit_idx Index of the `pr_data.commits` item matching this `commit/…` buf (if applicable).
-local function resolve_pr(opts)
+local function resolve_pr(opts, optional)
+  optional = optional or optional == nil
   local b_guh = vim.b.guh
   local opts_t = type(opts) == 'table' and opts or {}
   local id = opts_t.id or (opts_t.args and tonumber(opts_t.args)) or tonumber(opts)
   if not id and not b_guh then
     -- UX: `error(…, 0)` skips the "file:line:" prefix.
     error('guh: Not in a guh:// buffer', 0)
+  end
+  -- Reject non-PR bufs early. Note: guh://status has `id=0`.
+  if not optional and not id and b_guh and (b_guh.feat == 'issue' or b_guh.feat == 'status') then
+    error('guh: Not a PR', 0)
   end
 
   local commit_idx
@@ -72,6 +78,11 @@ local function resolve_pr(opts)
     error('guh: Failed to resolve repo', 0)
   end
   return b_guh and b_guh.feat or nil, id, repo, commit_idx
+end
+
+--- @param opts? integer|string|table
+local function require_pr(opts)
+  return resolve_pr(opts, false)
 end
 
 --- Implements `:Guh`. Also provides an overload for programmatic callers.
@@ -306,7 +317,7 @@ end
 --- Navigates to the next/previous CI job's logs, relative to the current `prlogs/…` buffer.
 --- @param delta integer # +1 for next, -1 for previous.
 local function show_next_ci_job(delta)
-  local _, id, repo = resolve_pr()
+  local _, id, repo = require_pr()
   local b = vim.b.guh or {}
   -- Get the databaseId from the `…/prlogs/<databaseId>` bufname.
   local job_id = tonumber(b.bufkey and b.bufkey:match('/(%d+)$'))
@@ -334,7 +345,7 @@ end
 ---
 --- @param delta integer # +1 for next, -1 for previous.
 function M.show_next(delta)
-  local feat, id, repo, commit_idx = resolve_pr()
+  local feat, id, repo, commit_idx = require_pr()
   if feat == 'prlogs' then
     return show_next_ci_job(delta)
   end
@@ -356,7 +367,7 @@ end
 ---
 --- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
 function M.review_pr()
-  local _, id, repo = resolve_pr()
+  local _, id, repo = require_pr()
 
   local labels = {
     ['approve'] = { gerund = 'Approving', past = 'Approved' },
@@ -431,7 +442,7 @@ end
 
 --- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
 function M.merge_pr()
-  local _, id, repo = resolve_pr()
+  local _, id, repo = require_pr()
 
   local function do_merge(choice, subject, body)
     local method = choice:match('^(%S+)')
@@ -630,8 +641,7 @@ end
 --- @param opts? { id?: integer|string, repo?: string, args?: string }
 --- @param on_done? fun(buf: integer, pr_data: PullRequest, n_files: integer, n_viewed_threads: integer)
 function M.load_pr(opts, on_done)
-  opts = opts or {}
-  local _, id, repo = resolve_pr(opts)
+  local _, id, repo = require_pr(opts)
   local buf = state.init_buf('prdiff', nil, repo, id) -- focus=nil (no display)
 
   local progress = util.new_progress_report('Loading PR...', buf)
@@ -692,7 +702,7 @@ end
 
 --- This is only used by "<Plug>(guh-diff)" now...
 function M.show_pr_diff(opts)
-  local _, id, repo = resolve_pr(opts)
+  local _, id, repo = require_pr(opts)
   local buf = state.init_buf('prdiff', true, repo, id) -- focus=true
 
   -- Fast path: use the cached `b:guh.pr_data`; display without re-fetching.
@@ -703,6 +713,46 @@ function M.show_pr_diff(opts)
 
   M.load_pr(opts, function(prdiff_buf, pr_data_, n_files, n_viewed_threads)
     comments.show_pr_comments(id, repo, prdiff_buf, pr_data_, n_files, n_viewed_threads)
+  end)
+end
+
+--- Posts a file comment on the diff-line at cursor.
+---
+--- @param pr_id integer PR id
+--- @param repo string "owner/name"
+--- @param line1 integer 1-indexed line
+--- @param line2 integer 1-indexed line
+local function new_comment(pr_id, repo, line1, line2)
+  local buf = vim.api.nvim_get_current_buf()
+  local info = comments.prepare_to_comment(buf, line1, line2)
+  if not info then
+    return
+  end
+  util.hl_flash(buf, line1 - 1, line2 - 1)
+  gh.get_pr_data(pr_id, repo, nil, function(pr)
+    if not pr then
+      return util.msg(('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
+    end
+    local range = info.start_line == info.end_line and tostring(info.end_line)
+      or ('%d..%d'):format(info.start_line, info.end_line)
+    local infomsg = {
+      { 'Comment on ', 'Comment' },
+      { ('%s:%s'):format(info.file, range), 'Directory' },
+      { ' | ZZ to send (ZQ to abort)', 'Comment' },
+    }
+    vim.schedule(function()
+      comments.edit_comment('comment', pr_id, { '' }, infomsg, function(input)
+        local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
+        gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.side, repo, function(resp)
+          if resp['errors'] == nil then
+            progress('success', nil, 'Comment sent.')
+            M.refresh({ feat = 'pr', id = pr_id, repo = repo })
+          else
+            progress('failed', nil, 'Failed to send comment.')
+          end
+        end)
+      end)
+    end)
   end)
 end
 
@@ -731,7 +781,7 @@ end
 --- - `:[range]GuhComment!`: delete a comment at the given (single-line) range.
 ---
 --- @param args vim.api.keyset.create_user_command.command_args
-M.comment = function(args)
+function M.comment(args)
   assert(args and args.line1 and args.line2)
   if args.bang then
     if (args.range or 0) == 0 then
@@ -749,7 +799,9 @@ M.comment = function(args)
   if (vim.b.guh or {}).feat == 'prcomments' then
     return comments.update_comment(args.line1)
   end
-  comments.new_comment(args.line1, args.line2)
+
+  local _, id, repo = require_pr()
+  new_comment(id, repo, args.line1, args.line2)
 end
 
 --- Runs `gh pr edit <id>` (or `gh issue edit <id>`) in a :terminal.
@@ -764,7 +816,7 @@ end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
 function M.pick_ci_logs(opts)
-  local _, id, repo = resolve_pr(opts)
+  local _, id, repo = require_pr(opts)
   with_ci_jobs(id, repo, function(jobs)
     vim.ui.select(jobs, {
       prompt = ('CI jobs for PR #%s'):format(id),
