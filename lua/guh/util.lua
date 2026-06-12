@@ -354,7 +354,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     end
 
     local debug = vim.g.guh_debug == true
-    -- Per-cmd result.
+    -- Per-cmd result. `exited` is `on_exit` timestamp.
     local r = {} ---@type { out?: string, err?: string, exited?: number }[]
     local start_ms = vim.uv.now()
 
@@ -364,9 +364,9 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
       for i, cmd in ipairs(cmds) do
         local cmd_str = table.concat(cmd, ' '):gsub('%s+', ' ')
         if #cmd_str > 60 then
-          cmd_str = cmd_str:sub(1, 57) .. '…'
+          cmd_str = cmd_str:sub(1, 57) .. '...'
         end
-        table.insert(report, ('%s: %dms'):format(cmd_str, r[i].exited - start_ms))
+        table.insert(report, ('%-61s %d ms'):format(cmd_str .. ':', r[i].exited - start_ms))
       end
       vim.api.nvim_chan_send(chan, table.concat(report, '\r\n') .. '\r\n')
 
@@ -406,13 +406,20 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     local wins = vim.fn.win_findbuf(buf)
     local width = (wins[1] and vim.api.nvim_win_get_width(wins[1])) or 200
     local env = { GH_PAGER = 'cat', PAGER = 'cat' }
+    if pty then
+      env.TERM = 'xterm-256color'
+      -- XXX: Disable gh terminal-capability queries (SLOW!): jobstart(pty=true) has no consumer to
+      -- respond, so each query waits its full 5s timeout.
+      -- TODO: make jobstart(pty=true) work (may require Nvim upstream changes)!
+      env.NO_COLOR = '1'
+    end
     if debug then
       -- `GH_DEBUG=api` logs each HTTP request to stderr with method, URL, status, and round-trip ms.
       env.GH_DEBUG = 'api'
     end
     for i, cmd in ipairs(cmds) do
       vim.fn.jobstart(cmd, {
-        pty = pty,
+        pty = pty, -- TODO: use `term` instead; "gh" queries the tty and stupidly waits up to 5s!
         width = pty and width or nil,
         -- Since the cost is server-side (gh API latency), we don't need to "stream" per-command output.
         stdout_buffered = true,
