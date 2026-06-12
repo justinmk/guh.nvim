@@ -759,13 +759,13 @@ local function new_comment(pr_id, repo, line1, line2)
 end
 
 --- Posts a top-level comment on the current PR or issue.
-local function comment_overview()
+local function comment_top()
   local feat, id, repo = resolve_pr()
   local kind = feat == 'issue' and 'issue' or 'pr'
 
   comments.edit_comment('comment', id, { '' }, nil, function(input)
     local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
-    gh.new_overview_comment(kind, id, repo, input, function(ok, stderr)
+    gh.new_top_comment(kind, id, repo, input, function(ok, stderr)
       if ok then
         progress('success', nil, 'Comment sent.')
         M.refresh({ feat = (kind == 'issue' and 'issue' or 'pr'), id = id, repo = repo })
@@ -796,9 +796,9 @@ function M.comment(args)
   end
   local feat, id, repo = require_pr()
 
-  -- `:%GuhComment` (entire buffer): overview comment.
+  -- `:%GuhComment` (entire buffer): top-level/overview comment.
   if (args.range or 0) > 0 and args.line1 == 1 and args.line2 == vim.fn.line('$') then
-    return comment_overview()
+    return comment_top()
   end
   if feat == 'prcomments' then
     return comments.update_comment(args.line1)
@@ -818,7 +818,7 @@ function M.edit_pr()
 end
 
 --- Shows a menu of most-recent CI logs for each (matrix-expanded) job type.
-function M.pick_ci_logs(opts)
+function M.ci_logs_pick(opts)
   local _, id, repo = require_pr(opts)
   with_ci_jobs(id, repo, function(jobs)
     vim.ui.select(jobs, {

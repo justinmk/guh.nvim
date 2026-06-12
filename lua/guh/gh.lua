@@ -363,11 +363,11 @@ end
 --- @param repo string "owner/name"
 --- @param body string
 --- @param cb fun(ok: boolean, stderr?: string)
-function M.new_overview_comment(kind, id, repo, body, cb)
+function M.new_top_comment(kind, id, repo, body, cb)
   local request = M.cmd(repo, kind, 'comment', tostring(id), '--body', body)
-  util.log('new_overview_comment request', request)
+  util.log('new_top_comment request', request)
   util.system(request, function(stdout, stderr, code)
-    util.log('new_overview_comment resp', { stdout = stdout, stderr = stderr, code = code })
+    util.log('new_top_comment resp', { stdout = stdout, stderr = stderr, code = code })
     cb(code == 0, stderr)
   end)
 end

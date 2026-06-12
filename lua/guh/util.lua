@@ -253,7 +253,7 @@ function M.set_default_keymaps(buf)
   M.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
 
   -- "Global" (buffer-relative) UPDATE actions:
-  M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-overview)', 'Comment on PR/issue overview')
+  M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-top)', 'Comment on PR/issue overview')
   M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge)', 'Merge PR')
   M.map_default(buf, 'n', 'cR', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
   M.map_default(buf, 'n', 'c:', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`, `gh issue edit`)')

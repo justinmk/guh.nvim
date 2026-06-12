@@ -90,15 +90,17 @@ Default mappings (local to `guh://` buffers):
     <Plug>(guh-prev)
   - `g?` View this help section.
     <Plug>(guh-help)
+
 - Buffer-relative UPDATE actions:
   - `cC` Comment on the PR/issue (top-level). |guh-comment|
-    <Plug>(guh-comment-overview)
+    <Plug>(guh-comment-top)
   - `cM` Merge PR. |guh-merge|
     <Plug>(guh-merge)
   - `cR` Review PR (approve / comment / request-changes).
     <Plug>(guh-review)
   - `c:` Edit title/body/labels/milestone/… via `gh` in a :terminal.
     <Plug>(guh-edit)
+
 - Cursor-relative actions:
   - `<Enter>` invokes |:Guh| on the |WORD| at cursor.
     <Plug>(guh-open)
