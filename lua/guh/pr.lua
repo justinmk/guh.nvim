@@ -813,7 +813,7 @@ function M.edit_pr()
   local feat, id, repo = resolve_pr()
   local kind = feat == 'issue' and 'issue' or 'pr'
   local buf = state.init_buf('edit', true, repo, id)
-  util.run_term_cmds(buf, { pty = true }, { gh.cmd(repo, kind, 'edit', tostring(id)) }, function()
+  util.run_term_cmds(buf, { term = true }, { gh.cmd(repo, kind, 'edit', tostring(id)) }, function()
     util.set_default_keymaps(buf)
   end)
 end
