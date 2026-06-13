@@ -922,7 +922,12 @@ function M.ci_logs_pick(opts)
     vim.ui.select(jobs, {
       prompt = ('CI jobs for PR #%s'):format(id),
       format_item = function(j)
-        return ('[%s] %s'):format(j.conclusion or j.status or '?', j.name)
+        local status = j.conclusion or j.status or '?'
+        local label = status == 'success' and '✅'
+          or status == 'in_progress' and '⏳'
+          or status == 'failure' and '❌'
+          or '?'
+        return ('%s %s'):format(label, j.name)
       end,
     }, function(picked)
       if picked then
