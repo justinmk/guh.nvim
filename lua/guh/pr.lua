@@ -813,9 +813,16 @@ function M.edit_pr()
   local feat, id, repo = resolve_pr()
   local kind = feat == 'issue' and 'issue' or 'pr'
   local buf = state.init_buf('edit', true, repo, id)
-  util.run_term_cmds(buf, { term = true }, { gh.cmd(repo, kind, 'edit', tostring(id)) }, function()
-    util.set_default_keymaps(buf)
-  end)
+  local cmd = gh.cmd(repo, kind, 'edit', tostring(id))
+  vim.api.nvim_open_tabpage(buf, true, {})
+  util.set_default_keymaps(buf)
+  vim.fn.jobstart(cmd, {
+    term = true,
+    on_exit = function(_, _exitcode)
+      vim.cmd.stopinsert()
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end,
+  })
 end
 
 --- Reruns CI for the current PR. Shows a vim.ui.select picker unless `[count]` was given.
