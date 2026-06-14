@@ -370,17 +370,15 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
       end)
     end
 
-    -- Create or reuse the terminal-buf channel.
-    local chan = (state.get_b_guh(buf) or {}).chan
-    if not chan then
-      chan = vim.api.nvim_open_term(buf, {})
-      -- XXX: store `b:guh.chan` because `nvim_open_term` doesn't set `vim.bo.channel` (Nvim bug).
-      state.set_b_guh(buf, { chan = chan })
-    else
-      -- `nvim_open_term` can't reattach to buftype=terminal buf, even
-      -- after chanclose(), so on re-entry we use the existing chan and send RIS (`\27c` = Reset).
-      vim.api.nvim_chan_send(chan, '\27c')
+    -- (Re)create the terminal-buf channel. `nvim_open_term` can attach to an existing
+    -- buftype=terminal if the previous channel is closed.
+    local old_chan = (state.get_b_guh(buf) or {}).chan
+    if old_chan then
+      pcall(vim.fn.chanclose, old_chan)
     end
+    local chan = vim.api.nvim_open_term(buf, {})
+    -- XXX: store `b:guh.chan` because `nvim_open_term` doesn't set `vim.bo.channel` (Nvim bug).
+    state.set_b_guh(buf, { chan = chan })
 
     local debug = vim.g.guh_debug == true
     -- Per-cmd result. `exited` is `on_exit` timestamp.
