@@ -524,8 +524,8 @@ end
 ---
 --- @param job_id integer Workflow job ID (`pr_data.ci_jobs[i].databaseId`).
 --- @param repo string "owner/repo"
---- @param cb fun(log?: string, error?: string)
-function M.get_pr_ci_log(job_id, repo, cb)
+--- @param on_result fun(log?: string, error?: string)
+function M.get_pr_ci_log(job_id, repo, on_result)
   local progress = util.new_progress_report('Loading CI log', 0)
   progress('running', nil, 'job %s', tostring(job_id))
 
@@ -538,13 +538,13 @@ function M.get_pr_ci_log(job_id, repo, cb)
   }, function(logs, stderr, code)
     if code ~= 0 or util.is_empty(vim.trim(logs or '')) then
       progress('failed')
-      cb(nil, ('Log unavailable: %s'):format(vim.trim(stderr or '')))
+      on_result(nil, ('Log unavailable: %s'):format(vim.trim(stderr or '')))
       return
     end
     -- Strip the leading UTF-8 BOM that the REST API prepends to log payloads.
     logs = logs:gsub('^\xef\xbb\xbf', '')
     progress('success')
-    cb(vim.trim(logs))
+    on_result(vim.trim(logs))
   end)
 end
 
@@ -553,9 +553,9 @@ end
 ---
 --- @param jobs CIJob[]
 --- @param repo string "owner/repo"
---- @param on_result fun(job: CIJob, log?: string, err?: string)
 --- @param skip? fun(job: CIJob): boolean
-function M.get_pr_ci_logs(jobs, repo, on_result, skip)
+--- @param on_result fun(job: CIJob, log?: string, err?: string)
+function M.get_pr_ci_logs(jobs, repo, skip, on_result)
   vim.validate('repo', repo, 'string')
   for _, job in ipairs(jobs) do
     if not (skip and skip(job)) then
