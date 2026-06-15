@@ -54,15 +54,15 @@ function M.parse_target(arg)
   arg = arg:gsub([[^[%(%)%[%]<>{}'"`,;%.!?]+]], ''):gsub([[[%(%)%[%]<>{}'"`,;%.!?]+$]], '')
   local owner, repo, num, sha, feat
 
-  owner, repo, num = arg:match('^https?://github%.com/([^/]+)/([^/]+)/pull/(%d+)')
+  owner, repo, num = arg:match('https?://github%.com/([^/]+)/([^/]+)/pull/(%d+)')
   if owner then
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = true }
   end
-  owner, repo, num = arg:match('^https?://github%.com/([^/]+)/([^/]+)/issues/(%d+)')
+  owner, repo, num = arg:match('https?://github%.com/([^/]+)/([^/]+)/issues/(%d+)')
   if owner then
     return { owner = owner, repo = repo, id = tonumber(num), is_pr = false }
   end
-  owner, repo, sha = arg:match('^https?://github%.com/([^/]+)/([^/]+)/commit/(%x+)')
+  owner, repo, sha = arg:match('https?://github%.com/([^/]+)/([^/]+)/commit/(%x+)')
   if owner then
     return { owner = owner, repo = repo, sha = sha }
   end

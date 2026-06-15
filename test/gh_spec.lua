@@ -600,6 +600,11 @@ describe('util', function()
       { owner = 'justinmk', repo = 'guh.nvim', id = 13, is_pr = true },
       parse_target('<https://github.com/justinmk/guh.nvim/pull/13>')
     )
+    -- Markdown link `[text](url)`:
+    t.eq(
+      { owner = 'neovim', repo = 'neovim', id = 918, is_pr = false },
+      parse_target('([#918](https://github.com/neovim/neovim/issues/918)):')
+    )
 
     t.eq(
       { owner = 'justinmk', repo = 'guh.nvim', id = 13, is_pr = true },
