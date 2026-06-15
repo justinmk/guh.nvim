@@ -50,6 +50,8 @@ end
 --- @return { owner?: string, repo?: string, id?: integer, sha?: string, is_pr?: boolean }?
 function M.parse_target(arg)
   arg = vim.trim(arg or '')
+  -- Strip surrounding punctuation ("(#123).", "[owner/repo],"). Excludes `#`, `/`, `:`.
+  arg = arg:gsub([[^[%(%)%[%]<>{}'"`,;%.!?]+]], ''):gsub([[[%(%)%[%]<>{}'"`,;%.!?]+$]], '')
   local owner, repo, num, sha, feat
 
   owner, repo, num = arg:match('^https?://github%.com/([^/]+)/([^/]+)/pull/(%d+)')

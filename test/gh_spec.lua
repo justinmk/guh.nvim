@@ -590,6 +590,17 @@ describe('util', function()
 
     t.eq({ id = 13 }, parse_target('13'))
     t.eq({ id = 13 }, parse_target('  13  '))
+
+    -- cWORD garbage: surrounding punctuation gets stripped.
+    t.eq({ id = 123 }, parse_target('(#123).'))
+    t.eq({ id = 123 }, parse_target('#123,'))
+    t.eq({ id = 123 }, parse_target('"#123"'))
+    t.eq({ owner = 'owner', repo = 'repo' }, parse_target('[owner/repo]'))
+    t.eq(
+      { owner = 'justinmk', repo = 'guh.nvim', id = 13, is_pr = true },
+      parse_target('<https://github.com/justinmk/guh.nvim/pull/13>')
+    )
+
     t.eq(
       { owner = 'justinmk', repo = 'guh.nvim', id = 13, is_pr = true },
       parse_target('https://github.com/justinmk/guh.nvim/pull/13')
