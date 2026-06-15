@@ -433,47 +433,22 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     local wins = vim.fn.win_findbuf(buf)
     local width = (wins[1] and vim.api.nvim_win_get_width(wins[1])) or 200
     local env = { GH_PAGER = 'cat', PAGER = 'cat' }
-    if pty then
-      env.TERM = 'xterm-256color'
-    end
     if debug then
       -- `GH_DEBUG=api` logs each HTTP request to stderr with method, URL, status, and round-trip ms.
       env.GH_DEBUG = 'api'
     end
     for i, cmd in ipairs(cmds) do
-      -- Per-job scratchbuf + nvim_open_term channel for handling terminal queries (from commands
-      -- like "gh", which would otherwise hang/timeout). The job's raw stdout is streamed here via
-      -- `nvim_chan_send` so libvterm can parse queries (DA1/OSC/…), which then invokes `on_input`.
-      -- TODO: revisit this after: https://github.com/neovim/neovim/issues/40194
-      local qbuf, qchan, jobid
-      if pty then
-        qbuf = vim.api.nvim_create_buf(false, true)
-        qchan = vim.api.nvim_open_term(qbuf, {
-          on_input = function(_, _, _, data)
-            if jobid then
-              -- Forward the query response (from libvterm) to the job's stdin so the child ("gh").
-              vim.fn.chansend(jobid, data)
-            end
-          end,
-        })
-      end
-      jobid = vim.fn.jobstart(cmd, {
-        pty = pty,
-        width = pty and width or nil,
+      local qbuf
+      local job_opts = {
         -- Since the cost is server-side (gh API latency), we don't need to "stream" per-command output.
         -- (Except for pty=true, until https://github.com/neovim/neovim/issues/40194 is fixed.)
-        stdout_buffered = not pty,
+        stdout_buffered = true,
         stderr_buffered = debug or nil,
         env = env,
         --- @param data string[]
         on_stdout = function(_, data)
           r[i] = r[i] or {}
-          local chunk = table.concat(data, '\n')
-          r[i].out = (r[i].out or '') .. chunk
-          if qchan then
-            -- For pty: send query bytes to the nvim_open_term (libvterm) channel.
-            vim.api.nvim_chan_send(qchan, chunk)
-          end
+          r[i].out = (r[i].out or '') .. table.concat(data, '\n')
         end,
         --- @param data string[]
         on_stderr = debug and function(_, data)
@@ -483,12 +458,8 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         on_exit = function()
           r[i] = r[i] or {}
           r[i].exited = vim.uv.now()
-          if qchan then
-            -- cleanup
-            pcall(vim.fn.chanclose, qchan)
-            if qbuf and vim.api.nvim_buf_is_valid(qbuf) then
-              vim.api.nvim_buf_delete(qbuf, { force = true })
-            end
+          if qbuf and vim.api.nvim_buf_is_valid(qbuf) then
+            vim.api.nvim_buf_delete(qbuf, { force = true })
           end
           local n_done = 0
           for j = 1, #cmds do
@@ -502,7 +473,22 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
           end
           try_advance()
         end,
-      })
+      }
+
+      if pty then
+        -- Per-job term=true scratchbuf for handling terminal queries (DA1/OSC/…) from commands like
+        -- "gh", which would otherwise hang/timeout waiting for a response. Needed because pty=true
+        -- does not handle queries. We also capture raw output via `on_stdout` so we can present the
+        -- combined (in-order) results of all jobs in the user-facing buffer.
+        qbuf = vim.api.nvim_create_buf(false, true)
+        job_opts.term = true
+        job_opts.width = width
+        vim.api.nvim_buf_call(qbuf, function()
+          vim.fn.jobstart(cmd, job_opts)
+        end)
+      else
+        vim.fn.jobstart(cmd, job_opts)
+      end
     end
   end)
 end
