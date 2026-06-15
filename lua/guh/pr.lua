@@ -7,10 +7,17 @@ local util = require('guh.util')
 
 local M = {}
 
---- Resolves the current local repo "owner/name", blocking up to 5s.
---- Locates .git/ relative to curbuf, or falls back to getcwd() for non-file buffers.
+--- Resolves the repo "owner/name" for the current buffer, may block up to 5s.
+--- 1. checks `b:guh.repo`.
+--- 2. else, locates .git/ relative to curbuf.
+--- 3. else, locates .git/ relative to getcwd().
+---
 --- @return string?
-local function resolve_local_repo()
+local function resolve_repo()
+  local b_guh = vim.b.guh
+  if b_guh and b_guh.repo then
+    return b_guh.repo
+  end
   local bufname = vim.api.nvim_buf_get_name(0)
   local is_uri = bufname:match('^%w+://')
   local dir = (bufname ~= '' and not is_uri) and vim.fs.dirname(bufname) or vim.fn.getcwd()
@@ -41,7 +48,7 @@ local function find_pr_for_commit_sha(sha)
   end
 end
 
---- Resolves `(pr_id, repo, commit_idx)` from a `:Guh` arg, falling back to `b:guh` and `resolve_local_repo()`.
+--- Resolves `(pr_id, repo, commit_idx)` from a `:Guh` arg, falling back to `b:guh` and `resolve_repo()`.
 ---
 --- If curbuf is "commit/…", searches for the related `pr/…` buf which has that commit.
 ---
@@ -78,7 +85,7 @@ local function resolve_pr(opts, optional)
     error('guh: Failed to resolve PR id', 0)
   end
 
-  local repo = opts_t.repo or (b_guh or {}).repo or resolve_local_repo()
+  local repo = opts_t.repo or resolve_repo()
   if not repo then
     error('guh: Failed to resolve repo', 0)
   end
@@ -136,14 +143,14 @@ function M.select(args, id, repo)
       id = id,
       is_pr = ({ pr = true, prdiff = true, prcomments = true, prlogs = true, issue = false })[feat],
     }
-    repo = repo or (vim.b.guh or {}).repo or resolve_local_repo()
+    repo = repo or resolve_repo()
   elseif #arg > 0 then
     target = util.parse_target(arg)
     if not target then
       util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
       return
     end
-    repo = target.owner and (target.owner .. '/' .. target.repo) or (vim.b.guh or {}).repo or resolve_local_repo()
+    repo = target.owner and (target.owner .. '/' .. target.repo) or resolve_repo()
     if not repo then
       util.msg('Failed to get repo info', vim.log.levels.ERROR)
       return
@@ -538,7 +545,7 @@ end
 --- @param focus boolean
 --- @param repo? string Optional "owner/name" repo.
 function M.show_status(focus, repo)
-  repo = repo or (vim.b.guh or {}).repo or resolve_local_repo()
+  repo = repo or resolve_repo()
   local buf = state.init_buf('status', focus, nil, 'all', { repo = repo })
   local cmds = { { 'gh', 'status' } }
   if repo then
