@@ -410,7 +410,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
       progress('success')
     end
 
-    -- Advance through cmds that have exited, displayed their output in-order.
+    -- Advance through exited cmds, display their output in-order.
     local curr = 1
     local function try_advance()
       while curr <= #cmds and r[curr] and r[curr].exited do

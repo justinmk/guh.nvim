@@ -231,7 +231,8 @@ local function render_ci_log(buf, logs)
   end
   local chan = vim.api.nvim_open_term(buf, {})
   vim.api.nvim_chan_send(chan, logs)
-  state.set_b_guh(buf, { chan = chan })
+  -- state.set_b_guh(buf, { chan = chan })
+  vim.fn.chanclose(chan)
   util.set_default_keymaps(buf)
   if vim.api.nvim_get_current_buf() == buf then
     vim.cmd.norm [[gg0]]
