@@ -169,7 +169,7 @@ function M.select(args, id, repo)
       -- Repo target ("owner/repo" or "https://github.com/owner/repo" )
       M.show_status(focus, repo)
     elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
-      M.show_pr(target.id, repo, focus, (state.get_pr_data(repo, target.id) or {}).headRefOid)
+      M.show_pr(target.id, repo, focus)
     else
       M.show_issue(target.id, repo, focus)
     end
@@ -280,8 +280,9 @@ local function show_ci_log(job, pr_id, repo)
   end)
 end
 
---- Concurrently pre-fetches CI logs up to `limit` jobs into hidden `prlogs/…` buffers. In-progress
---- jobs count toward `limit` but are not fetched.
+--- Concurrently pre-fetches CI logs up to `limit` jobs into hidden `prlogs/…` buffers.
+--- - Skips already-rendered logs.
+--- - In-progress jobs count toward `limit` but are not fetched.
 local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
   limit = math.min(limit or 5, #ci_jobs)
   local top = {}
@@ -292,7 +293,14 @@ local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
       table.insert(top, ci_jobs[i])
     end
   end
-  gh.get_pr_ci_logs(top, repo, function(job, logs, err)
+  --- @param job CIJob
+  local function should_skip(job)
+    local buf = state.get_buf('prlogs', repo, job.databaseId, false)
+    return buf ~= nil
+      and (state.get_b_guh(buf) or {}).chan ~= nil
+      and vim.api.nvim_buf_line_count(buf) > 1 -- buffer is non-empty
+  end
+  gh.get_pr_ci_logs(top, repo, should_skip, function(job, logs, err)
     local buf = state.get_buf('prlogs', repo, job.databaseId, false)
     if not buf then
       return -- Buf was wiped (e.g. user closed it) while the fetch was in flight.
@@ -303,9 +311,6 @@ local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
       return
     end
     render_ci_log(buf, logs)
-  end, function(job)
-    local buf = state.get_buf('prlogs', repo, job.databaseId, false)
-    return buf ~= nil and (state.get_b_guh(buf) or {}).chan ~= nil
   end)
 end
 
@@ -446,13 +451,13 @@ function M.refresh(target)
 
   if feat == 'pr' or feat == 'prdiff' or feat == 'prcomments' or feat == 'prlogs' then
     -- Reload all "PR bufs" (pr/ + prdiff/ + prcomments/), without changing win/buf layout.
-    -- But only redo `preload_ci_logs` (expensive) if the HEAD commit changed.
+    -- Note: `preload_ci_logs` only refetches per-job if the job's `prlogs/` buf is not yet
+    -- rendered AND the job has a `conclusion` (not "in_progress").
     local pr_buf = state.get_buf('pr', repo, id, false)
-    local old_head = pr_buf and (state.get_pr_data(pr_buf) or {}).headRefOid
     if pr_buf then
       state.set_b_guh(pr_buf, { pr_data = vim.NIL })
     end
-    M.show_pr(id, repo, nil, old_head)
+    M.show_pr(id, repo, nil)
   else
     M.select(feat, id, repo)
   end
@@ -604,13 +609,12 @@ end
 --- Shows PR details + the most-recent commits (since the last force-push).
 ---
 --- - Loads the prdiff/ + prcomments/ buffers also.
---- - Preloads CI logs iff HEAD differs from `old_head`.
+--- - Preloads CI logs (idempotent: `preload_ci_logs` skips per-job if already rendered).
 ---
 --- @param id integer
 --- @param repo string "owner/name"
 --- @param focus? boolean
---- @param old_head? string Use to decide if HEAD changed, by comparing `pr_data.headRefOid` .
-function M.show_pr(id, repo, focus, old_head)
+function M.show_pr(id, repo, focus)
   local buf = state.init_buf('pr', focus, repo, id)
   -- `oid` is the full SHA; slice the first 7 chars. `committedDate` is ISO-8601.
   local commits_tmpl = vim.text.indent(
@@ -644,9 +648,9 @@ function M.show_pr(id, repo, focus, old_head)
 
   -- Eagerly load the prdiff/ buf in the background (not displayed).
   M.load_pr({ id = id, repo = repo }, function(_, pr_data)
-    if pr_data.headRefOid ~= old_head then
-      preload_ci_logs(id, repo, pr_data.ci_jobs or {})
-    end
+    -- `preload_ci_logs` is idempotent: skips per-job if already rendered, and skips "in_progress" jobs.
+    -- Calling on every refresh picks up newly-completed jobs without needing a HEAD-changed gate.
+    preload_ci_logs(id, repo, pr_data.ci_jobs or {})
   end)
 end
 
