@@ -268,14 +268,17 @@ local function show_ci_log(job, pr_id, repo)
   end)
 end
 
---- Concurrently pre-fetches CI logs up to `limit` jobs into hidden `prlogs/…` buffers.
+--- Concurrently pre-fetches CI logs up to `limit` jobs into hidden `prlogs/…` buffers. In-progress
+--- jobs count toward `limit` but are not fetched.
 local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
   limit = math.min(limit or 5, #ci_jobs)
   local top = {}
   for i = 1, limit do
-    top[i] = ci_jobs[i]
     -- Touch the prlogs/ buf so its key exists in `state.bufs`.
     state.init_buf('prlogs', nil, repo, ci_jobs[i].databaseId, { id = pr_id })
+    if ci_jobs[i].conclusion then
+      table.insert(top, ci_jobs[i])
+    end
   end
   gh.get_pr_ci_logs(top, repo, function(job, logs, err)
     local buf = state.get_buf('prlogs', repo, job.databaseId, false)
