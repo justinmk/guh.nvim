@@ -129,15 +129,22 @@ function M.get_b_guh(buf)
 end
 
 --- Sets the `b:guh` buffer-local dict. `bufstate` is merged with existing state, if any.
+---
+--- Note: To delete a field, set its value to `vim.NIL`:
+--- ```lua
+--- state.set_b_guh(pr_buf, { pr_data = vim.NIL })
+--- ```
+---
 --- @param buf integer
 --- @param bufstate BufState
 function M.set_b_guh(buf, bufstate)
-  local b_guh = vim.b[buf].guh
-  if not b_guh then
-    vim.b[buf].guh = bufstate
-  else
-    vim.b[buf].guh = vim.tbl_extend('force', b_guh, bufstate)
+  local merged = vim.tbl_extend('force', vim.b[buf].guh or {}, bufstate)
+  for k, v in pairs(bufstate) do
+    if v == vim.NIL then
+      merged[k] = nil
+    end
   end
+  vim.b[buf].guh = merged
 end
 
 --- @param feat Feat

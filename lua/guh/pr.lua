@@ -435,7 +435,7 @@ function M.refresh(target)
     local pr_buf = state.get_buf('pr', repo, id, false)
     local old_head = pr_buf and (state.get_pr_data(pr_buf) or {}).headRefOid
     if pr_buf then
-      state.set_b_guh(pr_buf, { pr_data = nil })
+      state.set_b_guh(pr_buf, { pr_data = vim.NIL })
     end
     M.show_pr(id, repo, nil, old_head)
   else
