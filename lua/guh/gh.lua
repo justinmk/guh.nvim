@@ -296,17 +296,27 @@ function M.get_pr_data(prnum, repo, opts, cb)
   end)
 end
 
-function M.get_repo(cb)
+--- @param cwd? string Directory to resolve the repo from (default: nvim CWD).
+--- @param on_done fun(repo?: string)
+function M.get_repo(cwd, on_done)
   local progress = util.new_progress_report('Loading...', 0)
   progress('running')
-  util.system({ 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' }, function(stdout, _, code)
-    if code ~= 0 then
-      progress('failed')
-    else
-      cb(vim.split(stdout, '\n')[1])
-      progress('success')
+  vim.system(
+    { 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' },
+    { text = true, cwd = cwd },
+    function(result)
+      vim.schedule(function()
+        local repo = result.code == 0 and vim.trim(result.stdout or '') or ''
+        if repo == '' then
+          progress('failed')
+          on_done(nil)
+        else
+          progress('success')
+          on_done(repo)
+        end
+      end)
     end
-  end)
+  )
 end
 
 --- Runs `gh api --method <method> <endpoint>` with `fields` of the form `{ {'-f','key=val'}, {'-F','key=val'}, … }`.

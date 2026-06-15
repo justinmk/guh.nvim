@@ -250,6 +250,9 @@ With [target]: views or refreshes the PR, issue, commit, or repo-status. >vim
     " WORD at cursor
     :Guh .
 
+When [target] is a number, "#N", or ".", the repo is resolved relative to the
+current buffer, falling back to the window-local |current-directory|.
+
 For a PR target, `:Guh` loads the pr/ + prdiff/ + prcomments/ views.
 The pr/ view becomes the |alternate-file| of the prdiff/ view (so `CTRL-^`
 returns to it).

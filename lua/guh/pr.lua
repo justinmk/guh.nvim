@@ -8,10 +8,15 @@ local util = require('guh.util')
 local M = {}
 
 --- Resolves the current local repo "owner/name", blocking up to 5s.
+--- Locates .git/ relative to curbuf, or falls back to getcwd() for non-file buffers.
 --- @return string?
 local function resolve_local_repo()
+  local bufname = vim.api.nvim_buf_get_name(0)
+  local is_uri = bufname:match('^%w+://')
+  local dir = (bufname ~= '' and not is_uri) and vim.fs.dirname(bufname) or vim.fn.getcwd()
+
   local repo
-  gh.get_repo(function(r)
+  gh.get_repo(dir, function(r)
     repo = r
   end)
   vim.wait(5000, function()
