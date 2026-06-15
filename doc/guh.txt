@@ -303,7 +303,8 @@ DEVELOPMENT                                                          *guh-dev*
 
 Enable debug logging: >lua
 
-    vim.g.guh_debug = true
+    vim.g.guh_debug = 'debug'   -- Plugin-side logs + stderr capture
+    vim.g.guh_debug = 'trace'   -- + GH_DEBUG=api request/response tracing
 
 View the logs: >
 

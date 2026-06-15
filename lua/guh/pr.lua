@@ -296,9 +296,7 @@ local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
   --- @param job CIJob
   local function should_skip(job)
     local buf = state.get_buf('prlogs', repo, job.databaseId, false)
-    return buf ~= nil
-      and (state.get_b_guh(buf) or {}).chan ~= nil
-      and vim.api.nvim_buf_line_count(buf) > 1 -- buffer is non-empty
+    return buf ~= nil and (state.get_b_guh(buf) or {}).chan ~= nil and vim.api.nvim_buf_line_count(buf) > 1 -- buffer is non-empty
   end
   gh.get_pr_ci_logs(top, repo, should_skip, function(job, logs, err)
     local buf = state.get_buf('prlogs', repo, job.databaseId, false)

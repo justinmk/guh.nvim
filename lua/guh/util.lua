@@ -114,8 +114,7 @@ function M.is_empty(value)
   return value == nil or value == '' or value == 0 or #value == 0
 end
 
---- Appends a debug log entry to `stdpath('log')/guh.log` when
---- `vim.g.guh_debug` is true. No-op otherwise.
+--- Appends a log entry to `stdpath('log')/guh.log` when `vim.g.guh_debug` is set. No-op otherwise.
 ---
 --- @param key string
 --- @param message any
@@ -337,9 +336,8 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
 
   if opts and opts.term then
     assert(#cmds == 1, 'run_term_cmds: term=true allows only 1 cmd')
-    local debug = vim.g.guh_debug == true
     local env = { GH_PAGER = 'cat', PAGER = 'cat' }
-    if debug then
+    if vim.g.guh_debug == 'trace' then
       env.GH_DEBUG = 'api'
     end
     vim.schedule(function()
@@ -382,7 +380,8 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     -- XXX: store `b:guh.chan` because `nvim_open_term` doesn't set `vim.bo.channel` (Nvim bug).
     state.set_b_guh(buf, { chan = chan })
 
-    local debug = vim.g.guh_debug == true
+    local debug = vim.g.guh_debug == 'debug' or vim.g.guh_debug == 'trace'
+    local trace = vim.g.guh_debug == 'trace'
     -- Per-cmd result. `exited` is `on_exit` timestamp.
     local r = {} ---@type { out?: string, err?: string, exited?: number }[]
     local start_ms = vim.uv.now()
@@ -435,7 +434,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     local wins = vim.fn.win_findbuf(buf)
     local width = (wins[1] and vim.api.nvim_win_get_width(wins[1])) or 200
     local env = { GH_PAGER = 'cat', PAGER = 'cat' }
-    if debug then
+    if trace then
       -- `GH_DEBUG=api` logs each HTTP request to stderr with method, URL, status, and round-trip ms.
       env.GH_DEBUG = 'api'
     end
