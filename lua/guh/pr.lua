@@ -843,6 +843,43 @@ function M.edit_pr()
   })
 end
 
+--- Toggles the "Viewed" state of the file at cursor in a prdiff/ buffer.
+function M.toggle_viewed()
+  local _, id, repo = require_pr()
+  local buf = vim.api.nvim_get_current_buf()
+  local path, lnum, quasi = comments.find_nearby_diff_file(buf)
+  if not path then
+    return util.msg('No file at cursor', vim.log.levels.WARN)
+  end
+  util.hl_flash(buf, lnum - 1, lnum - 1)
+
+  local pr_data = state.get_pr_data(repo, id)
+  if not pr_data or not pr_data.node_id then
+    return util.msg(('PR #%s not loaded? ("R" to refresh)'):format(id), vim.log.levels.ERROR)
+  end
+  -- `markFileAsViewed` cannot work with renamed/removed files.
+  if not (pr_data.file_paths or {})[path] then
+    if quasi then
+      return util.msg(
+        ('File "%s" is not in the PR (%s thread). Use "cr" to resolve the thread instead.'):format(path, quasi),
+        vim.log.levels.WARN
+      )
+    end
+    return util.msg(('"%s" is not a current file in PR #%s'):format(path, id), vim.log.levels.WARN)
+  end
+  local viewed = not (pr_data.viewed and pr_data.viewed[path])
+  local done = util.progress((viewed and 'Marking' or 'Unmarking') .. ' as viewed: ' .. path)
+  gh.set_file_viewed(pr_data.node_id, path, viewed, function(resp)
+    if resp['errors'] ~= nil then
+      done('failed')
+      util.msg(('Failed to %s viewed: %s'):format(viewed and 'mark' or 'unmark', path), vim.log.levels.ERROR)
+      return
+    end
+    done('success')
+    M.refresh({ feat = 'pr', id = id, repo = repo })
+  end)
+end
+
 --- Reruns CI for the current PR. Shows a vim.ui.select picker unless `[count]` was given.
 ---
 --- @param opts? { id?: integer|string, repo?: string, args?: string }

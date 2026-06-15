@@ -422,6 +422,28 @@ function M.resolve_thread(thread_node_id, cb)
   }, cb)
 end
 
+--- Marks a file as Viewed (or Unviewed) for the current user on a PR.
+---
+--- @param pr_node_id string PR's GraphQL node ID (`pr_data.node_id`).
+--- @param path string File path.
+--- @param viewed boolean Mark as "Viewed"
+--- @param on_done fun(resp: table)
+function M.set_file_viewed(pr_node_id, path, viewed, on_done)
+  vim.validate('pr_node_id', pr_node_id, 'string')
+  vim.validate('path', path, 'string')
+  local op = viewed and 'markFileAsViewed' or 'unmarkFileAsViewed'
+  local query = ([[
+    mutation($pr:ID!, $path:String!){
+      %s(input:{pullRequestId:$pr, path:$path}){ pullRequest{ id } }
+    }
+  ]]):format(op)
+  gh_api('set_file_viewed', 'POST', 'graphql', {
+    { '-F', 'pr=' .. pr_node_id },
+    { '-F', 'path=' .. path },
+    { '-f', 'query=' .. query },
+  }, on_done)
+end
+
 --- Merges a PR via `gh pr merge`.
 ---
 --- @param id integer
