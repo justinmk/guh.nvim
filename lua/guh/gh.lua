@@ -131,7 +131,9 @@ local function to_pr(node)
     table.insert(commits, n.commit)
   end
   local viewed = {}
+  local file_paths = {} ---@type table<string,true>   -- All current paths in this PR.
   for _, n in ipairs(vim.tbl_get(node, 'files', 'nodes') or {}) do
+    file_paths[n.path] = true
     if n.viewerViewedState == 'VIEWED' then
       viewed[n.path] = true
     end
@@ -140,6 +142,7 @@ local function to_pr(node)
     flatten_threads_to_comments(vim.tbl_get(node, 'reviewThreads', 'nodes') or {})
 
   return {
+    node_id = node.id,
     author = node.author,
     baseRefName = node.baseRefName,
     baseRefOid = node.baseRefOid,
@@ -159,6 +162,7 @@ local function to_pr(node)
     url = node.url,
     raw_comments = flattened_comments,
     viewed = viewed,
+    file_paths = file_paths,
     n_threads = n_threads,
     n_resolved = n_resolved,
   }
@@ -192,25 +196,26 @@ end
 --- @param prnum string|integer PR number.
 --- @param repo string "owner/name".
 --- @param opts? { force?: boolean }
---- @param cb fun(pr?: PullRequest)
-function M.get_pr_data(prnum, repo, opts, cb)
+--- @param on_result fun(pr?: PullRequest, err?: string) `err` = error message when `pr` is nil.
+function M.get_pr_data(prnum, repo, opts, on_result)
   vim.validate('repo', repo, 'string')
   opts = opts or {}
   if not opts.force then
     local pr_data = state.get_pr_data(repo, prnum)
     if pr_data then
-      return cb(pr_data)
+      return on_result(pr_data)
     end
   end
   local owner, name = repo:match('^([^/]+)/(.+)$')
   if not owner then
     util.log('get_pr_data invalid repo', repo)
-    return cb(nil)
+    return on_result(nil)
   end
   local query = [[
     query($owner:String!,$name:String!,$number:Int!){
       repository(owner:$owner,name:$name){
         pullRequest(number:$number){
+          id
           author{login}
           baseRefName baseRefOid
           body
@@ -280,19 +285,28 @@ function M.get_pr_data(prnum, repo, opts, cb)
   util.system(cmd, function(stdout, stderr, code)
     if code ~= 0 then
       util.log('get_pr_data error', stderr)
-      return cb(nil)
+      return on_result(nil, ('Failed to fetch PR #%s: %s'):format(prnum, vim.trim(stderr or '')))
     end
     local resp = parse_or_default(stdout, {})
+    -- GraphQL can return HTTP 200 with an `errors` array (e.g. invalid field) and no `data`.
+    if resp.errors then
+      util.log('get_pr_data graphql errors', resp.errors)
+      local msgs = {}
+      for _, e in ipairs(resp.errors) do
+        table.insert(msgs, e.message or vim.inspect(e))
+      end
+      return on_result(nil, ('Failed to fetch PR #%s: %s'):format(prnum, table.concat(msgs, '; ')))
+    end
     local node = vim.tbl_get(resp, 'data', 'repository', 'pullRequest')
     if not node then
       util.log('get_pr_data empty', resp)
-      return cb(nil)
+      return on_result(nil, ('PR #%s not found in repo "%s"'):format(prnum, repo))
     end
     local pr = to_pr(node)
     -- Cache on the `pr/…` buffer only (single-source-of-truth). Create it if needed.
     state.set_b_guh(assert(state.get_buf('pr', repo, prnum)), { pr_data = pr })
     util.log('get_pr_data resp', { comments = #pr.raw_comments, viewed = vim.tbl_count(pr.viewed) })
-    cb(pr)
+    on_result(pr)
   end)
 end
 
@@ -422,6 +436,28 @@ function M.resolve_thread(thread_node_id, cb)
   }, cb)
 end
 
+--- Marks a file as Viewed (or Unviewed) for the current user on a PR.
+---
+--- @param pr_node_id string PR's GraphQL node ID (`pr_data.node_id`).
+--- @param path string File path.
+--- @param viewed boolean Mark as "Viewed"
+--- @param on_done fun(resp: table)
+function M.set_file_viewed(pr_node_id, path, viewed, on_done)
+  vim.validate('pr_node_id', pr_node_id, 'string')
+  vim.validate('path', path, 'string')
+  local op = viewed and 'markFileAsViewed' or 'unmarkFileAsViewed'
+  local query = ([[
+    mutation($pr:ID!, $path:String!){
+      %s(input:{pullRequestId:$pr, path:$path}){ pullRequest{ id } }
+    }
+  ]]):format(op)
+  gh_api('set_file_viewed', 'POST', 'graphql', {
+    { '-F', 'pr=' .. pr_node_id },
+    { '-F', 'path=' .. path },
+    { '-f', 'query=' .. query },
+  }, on_done)
+end
+
 --- Merges a PR via `gh pr merge`.
 ---
 --- @param id integer
@@ -483,7 +519,7 @@ local cached_user --[[@type string?]]
 --- Gets the active `gh` username from local config. Synchronous; cached for the session.
 ---
 --- (Works without network, but cached because `gh` may try the network anyway.)
-
+---
 --- @return string? user
 function M.get_user()
   if cached_user then

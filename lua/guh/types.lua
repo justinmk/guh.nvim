@@ -2,7 +2,8 @@
 
 --- @class BufState
 --- Buffer-local b:guh dict.
---- @field chan? integer Terminal channel-id (for `prlogs/…` buffers).
+--- @field chan? integer Channel-id for `run_term_cmds` or other terminal-buffers.
+--- @field jobs? integer[] In-flight jobs for the current `run_term_cmds` run.
 --- @field feat? Feat Feature name
 --- @field id? integer|string PR or issue number, or commit SHA.
 --- @field pr_data? PullRequest
@@ -63,6 +64,7 @@
 --- @field url? string Web URL of the job (`detailsUrl`).
 
 --- @class PullRequest PR data selected from GraphQL by `gh.get_pr_data`.
+--- @field node_id string GraphQL global node id (e.g. `PR_kw…`). Needed by mutations like `markFileAsViewed`.
 --- @field author table
 --- @field baseRefName string
 --- @field baseRefOid string
@@ -82,6 +84,7 @@
 --- @field url string
 --- @field raw_comments Comment[] Flat per-comment list from `flatten_review_threads`.
 --- @field viewed table<string, boolean> Per-file "Viewed" flag.
+--- @field file_paths table<string, true> Set of all current paths in this PR's diff. Used to validate `markFileAsViewed` targets locally.
 --- @field n_files? integer Files in the rendered diff (incl. outdated/outside virtual files). Set by `pr.load_pr`.
 --- @field n_resolved integer Resolved review-thread count.
 --- @field n_threads integer Total review-thread count (resolved + unresolved).

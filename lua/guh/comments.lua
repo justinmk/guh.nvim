@@ -17,6 +17,11 @@ local diag_ns = vim.api.nvim_create_namespace('guh.comments')
 --- - `outside-<thread_id>:` : Thread is on HEAD, but outside the PR diff.
 local outdated_prefix_pat = '^outdated%-%d+:'
 local outside_prefix_pat = '^outside%-%d+:'
+--- Matches the `+++ b/<path>` header of a file-section in a diff.
+local plus_b_pat = '^%+%+%+ b/(.+)$'
+--- Matches the `diff --git a/<a> b/<b>` header that starts each file-section. Captures `<b>`.
+local diff_git_pat = '^diff %-%-git a/.- b/(.+)$'
+local diff_git_regex = [[\v^diff --git a/]]
 
 -- Returns the 1-indexed inclusive [line1, line2] of the rendered comment block at cursor.
 local function find_block()
@@ -89,7 +94,7 @@ local function to_line_map(diff_lines)
   local old_line = 0
   local line_map = {}
   for i, l in ipairs(diff_lines) do
-    local plusfile = l:match('^%+%+%+ b/(.+)$')
+    local plusfile = l:match(plus_b_pat)
     if plusfile then
       file = plusfile
       new_line = 0
@@ -115,6 +120,35 @@ local function to_line_map(diff_lines)
     end
   end
   return line_map
+end
+
+--- Finds the file at the current cursor position of `buf` (a prdiff/ buffer). Cursor may be on
+--- a `(viewed) <path>` collapsed line, or any line within a file's diff (walks up to the most
+--- recent `diff --git a/<a> b/<b>` header).
+---
+--- Strips quasi-filename prefixes (`outdated-<id>:`, `outside-<id>:`) and returns a hint if so.
+---
+--- @param buf integer prdiff buffer.
+--- @return string? path Filepath (minus quasi-filename prefix), or nil if none found.
+--- @return integer? lnum 1-indexed buffer-line where the filepath was found.
+--- @return 'outdated'|'outside'|nil quasi nil if the path is a current-HEAD file.
+function M.find_nearby_diff_file(buf)
+  local path, lnum = vim.api.nvim_buf_call(buf, function()
+    local p = vim.api.nvim_get_current_line():match('^%(viewed%) (.+)$')
+    if p then
+      return p, vim.fn.line('.')
+    end
+    local lnum_ = vim.fn.search(diff_git_regex, 'bcnW')
+    if lnum_ ~= 0 then
+      return vim.fn.getline(lnum_):match(diff_git_pat), lnum_
+    end
+  end)
+  if not path then
+    return nil, nil, nil
+  end
+  local quasi = path:match(outdated_prefix_pat) and 'outdated' or path:match(outside_prefix_pat) and 'outside' or nil
+  path = path:gsub(outdated_prefix_pat, ''):gsub(outside_prefix_pat, '')
+  return path, lnum, quasi
 end
 
 --- Display path: opens prcomments/ in a 'scrollbind' split next to the prdiff window, and sets

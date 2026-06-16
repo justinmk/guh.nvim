@@ -138,7 +138,8 @@ end
 --- @param level? integer one of `vim.log.levels.*`
 function M.msg(message, level)
   vim.schedule(function()
-    vim.notify(('guh: %s'):format(message), level)
+    local hl = level == vim.log.levels.WARN and 'WarningMsg' or nil
+    vim.api.nvim_echo({ { ('guh: %s'):format(message), hl } }, true, { err = level == vim.log.levels.ERROR })
   end)
 end
 
@@ -264,6 +265,7 @@ function M.set_default_keymaps(buf)
   M.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
   M.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
   M.map_default(buf, 'n', 'cr', '<Plug>(guh-thread)', 'Reply-to or Resolve a comment thread')
+  M.map_default(buf, 'n', 'cv', '<Plug>(guh-viewed)', 'Toggle "Viewed" state of the diff file at cursor')
   M.map_default(buf, 'n', '<Enter>', '<Plug>(guh-open)', 'Open :Guh target at cursor')
   M.map_default(buf, 'n', '<C-W><Enter>', '<Plug>(guh-open-split)', 'Open :Guh target at cursor in a split')
 end
@@ -317,10 +319,8 @@ end
 --- - Output of `cmds[i>1]` is buffered while a lower-index command is still streaming, then flushed
 ---   to the terminal in-order once the lower-index commands exit.
 ---
---- HACK: special-case `opts.term=true` for use with a single (interactive) cmd, until upstream fix: https://github.com/neovim/neovim/issues/40194
----
 --- @param buf integer (must have `b:guh` set by `state.init_buf()`)
---- @param opts? { pty?: boolean, term?: boolean }
+--- @param opts? { pty?: boolean }
 --- @param cmds string[][] List of commands.
 --- @param on_done? fun()
 function M.run_term_cmds(buf, opts, cmds, on_done)
@@ -331,33 +331,14 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
   -- Fail fast if b:guh is invalid (init_buf() wasn't called?).
   local b_guh = vim.b[buf].guh
   assert(b_guh and b_guh.feat and b_guh.bufkey, ('run_term_cmds: invalid b:guh on buf %d'):format(buf))
-  local progress = M.new_progress_report('Loading...', buf)
-  progress('running')
-
-  if opts and opts.term then
-    assert(#cmds == 1, 'run_term_cmds: term=true allows only 1 cmd')
-    local env = { GH_PAGER = 'cat', PAGER = 'cat' }
-    if vim.g.guh_debug == 'trace' then
-      env.GH_DEBUG = 'api'
-    end
-    vim.schedule(function()
-      assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmds: invalid buf %d'):format(buf))
-      -- `jobstart({term=true})` requires the target buf to be curbuf — nvim_buf_call sets that.
-      vim.api.nvim_buf_call(buf, function()
-        vim.fn.jobstart(cmds[1], {
-          term = true,
-          env = env,
-          on_exit = function()
-            if on_done then
-              on_done()
-            end
-            progress('success')
-          end,
-        })
-      end)
-    end)
+  -- Skip duplicate requests. To force a reload, call `state.invalidate(buf)`.
+  if b_guh.chan then
+    M.log(('run_term_cmds: buf already loaded, skipping: %s'):format(vim.api.nvim_buf_get_name(buf)))
     return
   end
+
+  local progress = M.new_progress_report('Loading...', buf)
+  progress('running')
 
   vim.schedule(function()
     assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmds: invalid buf %d'):format(buf))
@@ -372,31 +353,39 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
 
     -- (Re)create the terminal-buf channel. `nvim_open_term` can attach to an existing
     -- buftype=terminal if the previous channel is closed.
-    local old_chan = (state.get_b_guh(buf) or {}).chan
-    if old_chan then
-      pcall(vim.fn.chanclose, old_chan)
-    end
     local chan = vim.api.nvim_open_term(buf, {})
     -- XXX: store `b:guh.chan` because `nvim_open_term` doesn't set `vim.bo.channel` (Nvim bug).
     state.set_b_guh(buf, { chan = chan })
+    local jobs = {} ---@type integer[]
 
     local debug = vim.g.guh_debug == 'debug' or vim.g.guh_debug == 'trace'
     local trace = vim.g.guh_debug == 'trace'
-    -- Per-cmd result. `exited` is `on_exit` timestamp.
+    -- Per-cmd result. `exited` is the `on_exit` timestamp.
     local r = {} ---@type { out?: string, err?: string, exited?: number }[]
     local start_ms = vim.uv.now()
 
+    -- True if `run_term_cmds{force=true}` superseded the in-flight work.
+    local function is_cancelled()
+      return (state.get_b_guh(buf) or {}).chan ~= chan
+    end
+
     local function on_all_done()
-      -- Append a timing report.
-      local report = { '', '--- timing ---' }
-      for i, cmd in ipairs(cmds) do
-        local cmd_str = table.concat(cmd, ' '):gsub('%s+', ' ')
-        if #cmd_str > 60 then
-          cmd_str = cmd_str:sub(1, 57) .. '...'
-        end
-        table.insert(report, ('%-61s %d ms'):format(cmd_str .. ':', r[i].exited - start_ms))
+      if is_cancelled() then
+        return
       end
-      vim.api.nvim_chan_send(chan, table.concat(report, '\r\n') .. '\r\n')
+
+      if debug then
+        -- Append a timing report.
+        local report = { '', '--- timing ---' }
+        for i, cmd in ipairs(cmds) do
+          local cmd_str = table.concat(cmd, ' '):gsub('%s+', ' ')
+          if #cmd_str > 60 then
+            cmd_str = cmd_str:sub(1, 57) .. '...'
+          end
+          table.insert(report, ('%-61s %d ms'):format(cmd_str .. ':', r[i].exited - start_ms))
+        end
+        vim.api.nvim_chan_send(chan, table.concat(report, '\r\n') .. '\r\n')
+      end
 
       for win, winview in pairs(winviews) do
         if vim.api.nvim_win_is_valid(win) then
@@ -414,6 +403,9 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     -- Advance through exited cmds, display their output in-order.
     local curr = 1
     local function try_advance()
+      if is_cancelled() then
+        return
+      end
       while curr <= #cmds and r[curr] and r[curr].exited do
         local out = r[curr].out
         if out and vim.trim(out) ~= '' then
@@ -485,12 +477,14 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         job_opts.term = true
         job_opts.width = width
         vim.api.nvim_buf_call(qbuf, function()
-          vim.fn.jobstart(cmd, job_opts)
+          table.insert(jobs, vim.fn.jobstart(cmd, job_opts))
         end)
       else
-        vim.fn.jobstart(cmd, job_opts)
+        table.insert(jobs, vim.fn.jobstart(cmd, job_opts))
       end
     end
+    -- Store job-ids in case a later `run_term_cmds{force=true}` invocation forces a re-request.
+    state.set_b_guh(buf, { jobs = jobs })
   end)
 end
 

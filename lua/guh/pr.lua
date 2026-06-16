@@ -318,9 +318,9 @@ end
 --- @param repo string "owner/name"
 --- @param on_jobs fun(jobs: CIJob[])
 local function with_ci_jobs(pr_id, repo, on_jobs)
-  local function dispatch(pr)
+  local function dispatch(pr, err)
     if not pr then
-      return util.msg(('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
+      return util.msg(err or ('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
     end
     local jobs = pr.ci_jobs or {}
     if #jobs == 0 then
@@ -441,6 +441,10 @@ function M.refresh(target)
     return
   end
   if feat == 'status' then
+    local status_buf = state.get_buf('status', nil, 'all', false)
+    if status_buf then
+      state.invalidate(status_buf)
+    end
     return M.show_status(true)
   end
   local b = vim.b.guh or {}
@@ -453,9 +457,15 @@ function M.refresh(target)
     -- rendered AND the job has a `conclusion` (not "in_progress").
     local pr_buf = state.get_buf('pr', repo, id, false)
     if pr_buf then
-      state.set_b_guh(pr_buf, { pr_data = vim.NIL })
+      state.invalidate(pr_buf)
     end
     M.show_pr(id, repo, nil)
+  elseif feat == 'issue' then
+    local issue_buf = state.get_buf('issue', repo, id, false)
+    if issue_buf then
+      state.invalidate(issue_buf)
+    end
+    M.show_issue(id, repo, true)
   else
     M.select(feat, id, repo)
   end
@@ -485,9 +495,9 @@ function M.merge_pr()
     if method == 'rebase' then
       return do_merge(choice)
     end
-    gh.get_pr_data(id, repo, nil, function(pr)
+    gh.get_pr_data(id, repo, nil, function(pr, err)
       if not pr then
-        return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+        return util.msg(err or ('PR #%s not found'):format(id), vim.log.levels.ERROR)
       end
       vim.schedule(function()
         local subject, body
@@ -644,12 +654,15 @@ function M.show_pr(id, repo, focus)
     set_winbar()
   end)
 
-  -- Eagerly load the prdiff/ buf in the background (not displayed).
-  M.load_pr({ id = id, repo = repo }, function(_, pr_data)
-    -- `preload_ci_logs` is idempotent: skips per-job if already rendered, and skips "in_progress" jobs.
-    -- Calling on every refresh picks up newly-completed jobs without needing a HEAD-changed gate.
-    preload_ci_logs(id, repo, pr_data.ci_jobs or {})
-  end)
+  -- Eagerly load the prdiff/ buf in the background (not displayed), but only if its guh:// buffer
+  -- is not already loaded. "Refresh" (R) forces reload by calling `state.invalidate(pr_buf)`.
+  if not state.get_pr_data(repo, id) then
+    M.load_pr({ id = id, repo = repo }, function(_, pr_data)
+      -- `preload_ci_logs` is idempotent: skips per-job if already rendered, and skips "in_progress" jobs.
+      -- Calling on every refresh picks up newly-completed jobs without needing a HEAD-changed gate.
+      preload_ci_logs(id, repo, pr_data.ci_jobs or {})
+    end)
+  end
 end
 
 --- Loads (maybe-cached) PR data into prdiff/, prcomments/ buffers WITHOUT displaying them.
@@ -701,9 +714,9 @@ function M.load_pr(opts, on_done)
   end
 
   -- 1. Fetch PR data. Prefers cached `b:guh.pr_data`; callers force a refetch by clearing the cache.
-  gh.get_pr_data(id, repo, nil, function(pr)
+  gh.get_pr_data(id, repo, nil, function(pr, err)
     if not pr then
-      return progress('failed')
+      return progress('failed', nil, '%s', err or ('PR #%s not found'):format(id))
     end
     pr_data = pr
     try_render()
@@ -749,9 +762,9 @@ local function new_comment(pr_id, repo, line1, line2)
     return
   end
   util.hl_flash(buf, line1 - 1, line2 - 1)
-  gh.get_pr_data(pr_id, repo, nil, function(pr)
+  gh.get_pr_data(pr_id, repo, nil, function(pr, err)
     if not pr then
-      return util.msg(('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
+      return util.msg(err or ('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
     end
     local range = info.start_line == info.end_line and tostring(info.end_line)
       or ('%d..%d'):format(info.start_line, info.end_line)
@@ -843,6 +856,43 @@ function M.edit_pr()
   })
 end
 
+--- Toggles the "Viewed" state of the file at cursor in a prdiff/ buffer.
+function M.toggle_viewed()
+  local _, id, repo = require_pr()
+  local buf = vim.api.nvim_get_current_buf()
+  local path, lnum, quasi = comments.find_nearby_diff_file(buf)
+  if not path then
+    return util.msg('No file at cursor', vim.log.levels.WARN)
+  end
+  util.hl_flash(buf, lnum - 1, lnum - 1)
+
+  local pr_data = state.get_pr_data(repo, id)
+  if not pr_data or not pr_data.node_id then
+    return util.msg(('PR #%s not loaded? ("R" to refresh)'):format(id), vim.log.levels.ERROR)
+  end
+  -- `markFileAsViewed` cannot work with renamed/removed files.
+  if not (pr_data.file_paths or {})[path] then
+    if quasi then
+      return util.msg(
+        ('File "%s" is not in the PR (%s thread). Use "cr" to resolve the thread instead.'):format(path, quasi),
+        vim.log.levels.WARN
+      )
+    end
+    return util.msg(('"%s" is not a current file in PR #%s'):format(path, id), vim.log.levels.WARN)
+  end
+  local viewed = not (pr_data.viewed and pr_data.viewed[path])
+  local done = util.progress((viewed and 'Marking' or 'Unmarking') .. ' as viewed: ' .. path)
+  gh.set_file_viewed(pr_data.node_id, path, viewed, function(resp)
+    if resp['errors'] ~= nil then
+      done('failed')
+      util.msg(('Failed to %s viewed: %s'):format(viewed and 'mark' or 'unmark', path), vim.log.levels.ERROR)
+      return
+    end
+    done('success')
+    M.refresh({ feat = 'pr', id = id, repo = repo })
+  end)
+end
+
 --- Reruns CI for the current PR. Shows a vim.ui.select picker unless `[count]` was given.
 ---
 --- @param opts? { id?: integer|string, repo?: string, args?: string }
@@ -891,9 +941,9 @@ function M.ci_rerun(opts)
   end
 
   local function rerun_all_failed()
-    local function dispatch(pr)
+    local function dispatch(pr, err)
       if not pr then
-        return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+        return util.msg(err or ('PR #%s not found'):format(id), vim.log.levels.ERROR)
       end
       local failed_job = vim.iter(pr.ci_jobs or {}):find(function(j)
         return j.runId and j.conclusion and j.conclusion ~= 'success'
