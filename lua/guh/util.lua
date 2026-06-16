@@ -373,16 +373,19 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
       if is_cancelled() then
         return
       end
-      -- Append a timing report.
-      local report = { '', '--- timing ---' }
-      for i, cmd in ipairs(cmds) do
-        local cmd_str = table.concat(cmd, ' '):gsub('%s+', ' ')
-        if #cmd_str > 60 then
-          cmd_str = cmd_str:sub(1, 57) .. '...'
+
+      if debug then
+        -- Append a timing report.
+        local report = { '', '--- timing ---' }
+        for i, cmd in ipairs(cmds) do
+          local cmd_str = table.concat(cmd, ' '):gsub('%s+', ' ')
+          if #cmd_str > 60 then
+            cmd_str = cmd_str:sub(1, 57) .. '...'
+          end
+          table.insert(report, ('%-61s %d ms'):format(cmd_str .. ':', r[i].exited - start_ms))
         end
-        table.insert(report, ('%-61s %d ms'):format(cmd_str .. ':', r[i].exited - start_ms))
+        vim.api.nvim_chan_send(chan, table.concat(report, '\r\n') .. '\r\n')
       end
-      vim.api.nvim_chan_send(chan, table.concat(report, '\r\n') .. '\r\n')
 
       for win, winview in pairs(winviews) do
         if vim.api.nvim_win_is_valid(win) then
