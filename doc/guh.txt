@@ -73,51 +73,73 @@ can override it by mapping it to <F5>, then Guh will not map "cM": >vim
 <
 Default mappings (local to `guh://` buffers):
 
-- Buffer-relative VIEW actions:
-  - `R` Refresh the current thing.
-    - in a PR-related buffer: refreshes all PR buffers (except immutable
-      objects such as prlogs/ and commit/ buffers).
-    <Plug>(guh-refresh)
-  - `dd` View PR diff + comments. |guh-diff|
-    <Plug>(guh-diff)
-  - `dl` View the most-recent CI logs for all job-names in the CI matrix.
-    <Plug>(guh-logs)
-  - `]f` View the next "thing":
-    - in a CI logs buffer: next CI job.
-    - in other PR-related buffers: next commit (from the most-recent push).
-    <Plug>(guh-next)
-  - `[f` View the previous "thing" (see `]f` above).
-    <Plug>(guh-prev)
-  - `g?` View this help section.
-    <Plug>(guh-help)
+BUFFER-RELATIVE VIEW ACTIONS
 
-- Buffer-relative UPDATE actions:
-  - `cC` Comment on the PR/issue (top-level). |guh-comment|
-    <Plug>(guh-comment-top)
-  - `cI` Rerun CI jobs. Opens a picker (or use `[count]cI` to skip):
-    1. current job (from a CI logs buffer)
-    2. failed jobs
-    <Plug>(guh-ci)
-  - `cM` Merge PR. |guh-merge|
-    <Plug>(guh-merge)
-  - `cR` Review PR (approve / comment / request-changes).
-    <Plug>(guh-review)
-  - `c:` Edit title/body/labels/milestone/… via `gh` in a :terminal.
-    <Plug>(guh-edit)
+R       Refresh the current thing. In a PR-related buffer, refreshes all
+        objects related to that PR (except immutable objects such as prlogs/
+        and commit/).
+        <Plug>(guh-refresh)
 
-- Cursor-relative actions:
-  - `<Enter>` invokes |:Guh| on the |WORD| at cursor.
-    <Plug>(guh-open)
-  - `CTRL-W<Enter>` invokes |:Guh| on the |WORD| at cursor, in a split window.
-    <Plug>(guh-open-split)
-  - `cc` (or `c` in Visual mode): Comment on a diff-line. |guh-comment|
-    In a `guh://…/prcomments/` buffer, edits the comment at cursor.
-    <Plug>(guh-comment)
-  - `cr` (or `c` in Visual mode): Reply-to/Resolve a thread. |guh-comment|
-    In a `guh://…/prcomments/` buffer, acts upon thread at cursor.
-    <Plug>(guh-comment)
-  - `cv` : Toggle "Viewed" state of the diff file at cursor.
-    <Plug>(guh-viewed)
+dd      View PR diff + comments. |guh-diff|
+        <Plug>(guh-diff)
+
+dl      View the most-recent CI logs for all job-names in the CI matrix.
+        <Plug>(guh-logs)
+
+]f      View the next "thing".
+        - In a CI logs buffer: next CI job.
+        - In other PR-related buffers: next commit (from the most-recent push).
+        <Plug>(guh-next)
+
+[f      View the previous "thing" (see `]f` above).
+        <Plug>(guh-prev)
+
+g?      View this help section.
+        <Plug>(guh-help)
+
+BUFFER-RELATIVE UPDATE ACTIONS
+
+cC      Comment on the PR/issue (top-level). |guh-comment|
+        <Plug>(guh-comment-top)
+
+cI      Rerun CI jobs. Opens a picker (or use `[count]cI` to skip):
+        1. current job (from a CI logs buffer)
+        2. failed jobs
+
+        <Plug>(guh-ci)
+
+cM      Merge PR. |guh-merge|
+        <Plug>(guh-merge)
+
+cR      Review PR (approve / comment / request-changes).
+        <Plug>(guh-review)
+
+c:      Edit title/body/labels/milestone/… via `gh` in a :terminal.
+        <Plug>(guh-edit)
+
+CURSOR-RELATIVE ACTIONS
+
+<Enter>
+        Invoke |:Guh| on the |WORD| at cursor.
+        <Plug>(guh-open)
+
+CTRL-W<Enter>
+        Invoke |:Guh| on the |WORD| at cursor, in a split window.
+        <Plug>(guh-open-split)
+
+cc
+{Visual}c
+        Comment on a diff-line. In a `guh://…/prcomments/` buffer, edits the
+        comment at cursor. |guh-comment|
+        <Plug>(guh-comment)
+
+cr
+        Reply-to/Resolve the thread at cursor, in a `guh://…/prdiff/` or
+        `guh://…/prcomments/` buffer. |guh-comment|
+        <Plug>(guh-thread)
+
+cv      Toggle "Viewed" state of the diff file at cursor.
+        <Plug>(guh-viewed)
 
 
 ------------------------------------------------------------------------------
