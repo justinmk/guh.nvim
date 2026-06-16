@@ -487,7 +487,7 @@ function M.resolve_thread(thread_node_id, cb)
   }, cb)
 end
 
---- Marks a file as Viewed/Unviewed for the current user on a PR.
+--- Marks a file as "Viewed"/"Unviewed" for the current user on a PR.
 ---
 --- @param pr_node_id string PR's GraphQL node ID (`pr_data.node_id`).
 --- @param path string File path.
@@ -507,6 +507,22 @@ function M.set_file_viewed(pr_node_id, path, viewed, on_done)
     { '-F', 'path=' .. path },
     { '-f', 'query=' .. query },
   }, on_done)
+end
+
+--- Sets the PR "Draft"/"Ready" state.
+---
+--- @param id integer
+--- @param repo string "owner/name"
+--- @param draft boolean true: convert to draft; false: mark ready for review.
+--- @param cb fun(ok: boolean, stderr: string)
+function M.set_pr_draft(id, repo, draft, cb)
+  local cmd = M.cmd(repo, 'pr', 'ready', tostring(id))
+  if draft then
+    table.insert(cmd, '--undo')
+  end
+  util.system(cmd, nil, function(r)
+    cb(r.code == 0, r.stderr or '')
+  end)
 end
 
 --- Merges a PR via `gh pr merge`.

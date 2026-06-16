@@ -380,6 +380,26 @@ function M.show_next(delta)
   M.show_commit(commits[next_idx].oid, repo, true)
 end
 
+--- Toggles a PR's "Draft" / "Ready for review" state.
+---
+--- @param id integer
+--- @param repo string "owner/name"
+--- @param is_draft boolean current state (true = currently draft).
+local function toggle_draft(id, repo, is_draft)
+  local gerund = is_draft and 'Marking as "Ready"' or 'Marking as "Draft"'
+  local past = is_draft and 'Marked as "Ready"' or 'Marked as "Draft"'
+  local done = util.progress(('%s PR #%s…'):format(gerund, id))
+  gh.set_pr_draft(id, repo, not is_draft, function(ok, stderr)
+    done(ok and 'success' or 'failed')
+    if ok then
+      util.msg(('%s PR #%s'):format(past, id))
+      M.refresh({ feat = 'pr', id = id, repo = repo })
+    else
+      util.msg(('Failed: %s'):format(vim.trim(stderr)), vim.log.levels.ERROR)
+    end
+  end)
+end
+
 --- Performs the "review PR" action. Shows a vim.ui.select picker unless `[count]` was given.
 ---
 --- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
@@ -411,14 +431,26 @@ function M.review_pr()
     end)
   end
 
-  local actions = { 'approve', 'comment', 'request-changes' }
+  -- Menu item 4 toggles "Draft"/"Ready".
+  local pr_data = state.get_pr_data(repo, id) or {}
+  local is_draft = pr_data.isDraft == true
+  local draft_label = is_draft and 'Set as Ready' or 'Set as Draft'
+
+  local actions = { 'approve', 'comment', 'request-changes', draft_label }
   local count = vim.v.count
   if count >= 1 and count <= #actions then
+    if actions[count] == draft_label then
+      return toggle_draft(id, repo, is_draft)
+    end
     return do_action(actions[count])
   end
 
   vim.ui.select(actions, { prompt = ('Review PR #%s:'):format(id) }, function(action)
-    if action then
+    if not action then
+      return
+    elseif action == draft_label then
+      toggle_draft(id, repo, is_draft)
+    else
       do_action(action)
     end
   end)
