@@ -654,12 +654,15 @@ function M.show_pr(id, repo, focus)
     set_winbar()
   end)
 
-  -- Eagerly load the prdiff/ buf in the background (not displayed).
-  M.load_pr({ id = id, repo = repo }, function(_, pr_data)
-    -- `preload_ci_logs` is idempotent: skips per-job if already rendered, and skips "in_progress" jobs.
-    -- Calling on every refresh picks up newly-completed jobs without needing a HEAD-changed gate.
-    preload_ci_logs(id, repo, pr_data.ci_jobs or {})
-  end)
+  -- Eagerly load the prdiff/ buf in the background (not displayed), but only if its guh:// buffer
+  -- is not already loaded. "Refresh" (R) forces reload by calling `state.invalidate(pr_buf)`.
+  if not state.get_pr_data(repo, id) then
+    M.load_pr({ id = id, repo = repo }, function(_, pr_data)
+      -- `preload_ci_logs` is idempotent: skips per-job if already rendered, and skips "in_progress" jobs.
+      -- Calling on every refresh picks up newly-completed jobs without needing a HEAD-changed gate.
+      preload_ci_logs(id, repo, pr_data.ci_jobs or {})
+    end)
+  end
 end
 
 --- Loads (maybe-cached) PR data into prdiff/, prcomments/ buffers WITHOUT displaying them.
