@@ -37,13 +37,13 @@ describe('guh.gh', function()
       local async = require('async')
       local gh = require('guh.gh')
       local util = require('guh.util')
-      local system_async = async.wrap(2, util.system)
+      local system_async = async.wrap(3, util.system)
       local get_pr_data_async = async.wrap(4, gh.get_pr_data)
 
       local function test_get_pr_data()
         return async.run(function()
-          local result = assert(system_async({ 'gh', 'pr', 'list', '--json', 'number' }))
-          local pr_num = assert(vim.json.decode(result)[1].number, 'failed to get a repo issue')
+          local r = assert(system_async({ 'gh', 'pr', 'list', '--json', 'number' }, nil))
+          local pr_num = assert(vim.json.decode(r.stdout)[1].number, 'failed to get a repo issue')
 
           async.await(vim.schedule)
           local pr = get_pr_data_async(pr_num, 'justinmk/guh.nvim', nil)
@@ -201,12 +201,12 @@ describe('guh.gh', function()
 
       -- Mock `util.system`: invoke the callback synchronously with a GraphQL errors body
       -- (no `data` field), the shape returned for e.g. "Field 'previousFilename' doesn't exist".
-      util.system = function(_, cb)
-        cb(
-          [[{"data":null,"errors":[{"path":["query"],"message":"Field 'previousFilename' doesn't exist on type 'PullRequestChangedFile'"}]}]],
-          '',
-          0
-        )
+      util.system = function(_, _, cb)
+        cb({
+          stdout = [[{"data":null,"errors":[{"path":["query"],"message":"Field 'previousFilename' doesn't exist on type 'PullRequestChangedFile'"}]}]],
+          stderr = '',
+          code = 0,
+        })
       end
 
       local cb_called = false

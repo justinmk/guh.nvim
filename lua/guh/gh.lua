@@ -7,6 +7,13 @@ local f = string.format
 
 local M = {}
 
+--- Last-seen rate-limit status. Updated by `M.check_rate_limit` (explicit poll) and
+--- `M.note_rate_limit` (passive detection from gh stderr).
+---
+--- Inspect interactively: `:lua = require('guh.gh').rate_limit`
+--- @type { limited: boolean, kind?: 'primary'|'secondary', checked_at?: integer, core?: table, message?: string }
+M.rate_limit = { limited = false }
+
 local function parse_or_default(str, default)
   local success, result = pcall(vim.json.decode, str, { luanil = { object = true, array = true } })
   if success then
@@ -14,6 +21,52 @@ local function parse_or_default(str, default)
   end
 
   return default
+end
+
+--- Scans gh stderr for known rate-limit error strings. Updates `M.rate_limit` if matched.
+--- Safe to call on every gh call.
+---
+--- @param stderr string
+--- @param code integer gh exit code
+function M.note_rate_limit(stderr, code)
+  if code == 0 or not stderr or stderr == '' then
+    return
+  end
+  local kind = (stderr:match('secondary rate limit') or stderr:match('abuse detection'))
+    and 'secondary'
+    or (stderr:match('API rate limit exceeded') or stderr:match('rate limit exceeded'))
+    and 'primary'
+    or nil
+
+  if kind then
+    M.rate_limit = {
+      limited = true,
+      kind = kind,
+      checked_at = vim.uv.now(),
+      message = vim.trim(stderr),
+    }
+  end
+end
+
+--- Polls `gh api rate_limit` (the rate-limit endpoint is itself "free") and updates `M.rate_limit`.
+--- Use this to actively check; passive detection only fires on failures.
+---
+--- @param on_done? fun(rate_limit: table)
+function M.check_rate_limit(on_done)
+  util.system({ 'gh', 'api', 'rate_limit' }, nil, function(r)
+    if r.code == 0 then
+      local core = vim.tbl_get(parse_or_default(r.stdout, {}), 'resources', 'core')
+      M.rate_limit = {
+        limited = core and core.remaining == 0 or false,
+        kind = 'primary',
+        checked_at = vim.uv.now(),
+        core = core,
+      }
+    end -- else: `note_rate_limit` was already invoked by `util.system` on failure.
+    if on_done then
+      on_done(M.rate_limit)
+    end
+  end)
 end
 
 --- Takes nested threads (GraphQL: `reviewThreads.nodes`) and produces a flat list of comments.
@@ -282,12 +335,12 @@ function M.get_pr_data(prnum, repo, opts, on_result)
     '-f',
     'query=' .. query,
   }
-  util.system(cmd, function(stdout, stderr, code)
-    if code ~= 0 then
-      util.log('get_pr_data error', stderr)
-      return on_result(nil, ('Failed to fetch PR #%s: %s'):format(prnum, vim.trim(stderr or '')))
+  util.system(cmd, nil, function(r)
+    if r.code ~= 0 then
+      util.log('get_pr_data error', r.stderr)
+      return on_result(nil, ('Failed to fetch PR #%s: %s'):format(prnum, vim.trim(r.stderr or '')))
     end
-    local resp = parse_or_default(stdout, {})
+    local resp = parse_or_default(r.stdout, {})
     -- GraphQL can return HTTP 200 with an `errors` array (e.g. invalid field) and no `data`.
     if resp.errors then
       util.log('get_pr_data graphql errors', resp.errors)
@@ -315,20 +368,18 @@ end
 function M.get_repo(cwd, on_done)
   local progress = util.new_progress_report('Loading...', 0)
   progress('running')
-  vim.system(
+  util.system(
     { 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' },
-    { text = true, cwd = cwd },
-    function(result)
-      vim.schedule(function()
-        local repo = result.code == 0 and vim.trim(result.stdout or '') or ''
-        if repo == '' then
-          progress('failed')
-          on_done(nil)
-        else
-          progress('success')
-          on_done(repo)
-        end
-      end)
+    { cwd = cwd },
+    function(r)
+      local repo = r.code == 0 and vim.trim(r.stdout or '') or ''
+      if repo == '' then
+        progress('failed')
+        on_done(nil)
+      else
+        progress('success')
+        on_done(repo)
+      end
     end
   )
 end
@@ -349,8 +400,8 @@ local function gh_api(logname, method, endpoint, fields, cb)
     table.insert(request, kv[2])
   end
   util.log(logname .. ' request', request)
-  util.system(request, function(stdout)
-    local resp = parse_or_default(stdout, { errors = {} })
+  util.system(request, nil, function(r)
+    local resp = parse_or_default(r.stdout, { errors = {} })
     util.log(logname .. ' resp', resp)
     cb(resp)
   end)
@@ -394,9 +445,9 @@ end
 function M.new_top_comment(kind, id, repo, body, cb)
   local request = M.cmd(repo, kind, 'comment', tostring(id), '--body', body)
   util.log('new_top_comment request', request)
-  util.system(request, function(stdout, stderr, code)
-    util.log('new_top_comment resp', { stdout = stdout, stderr = stderr, code = code })
-    cb(code == 0, stderr)
+  util.system(request, nil, function(r)
+    util.log('new_top_comment resp', { stdout = r.stdout, stderr = r.stderr, code = r.code })
+    cb(r.code == 0, r.stderr)
   end)
 end
 
@@ -486,8 +537,8 @@ function M.merge_pr(id, repo, method, subject, body, admin, cb)
   if admin then
     table.insert(cmd, '--admin')
   end
-  util.system(cmd, function(_, stderr, code)
-    cb(code == 0, stderr or '')
+  util.system(cmd, nil, function(r)
+    cb(r.code == 0, r.stderr or '')
   end)
 end
 
@@ -510,8 +561,8 @@ function M.review_pr(id, repo, action, body, cb)
     table.insert(cmd, '--body')
     table.insert(cmd, body)
   end
-  util.system(cmd, function(_, stderr, code)
-    cb(code == 0, stderr or '')
+  util.system(cmd, nil, function(r)
+    cb(r.code == 0, r.stderr or '')
   end)
 end
 
@@ -551,8 +602,8 @@ function M.rerun_ci(run_id, repo, job_id, on_response)
   else
     table.insert(cmd, '--failed')
   end
-  util.system(cmd, function(_, stderr, code)
-    on_response(code == 0, stderr or '')
+  util.system(cmd, nil, function(r)
+    on_response(r.code == 0, r.stderr or '')
   end)
 end
 
@@ -571,14 +622,14 @@ function M.get_pr_ci_log(job_id, repo, on_result)
     'gh',
     'api',
     f('repos/%s/actions/jobs/%s/logs', repo, tostring(job_id)),
-  }, function(logs, stderr, code)
-    if code ~= 0 or util.is_empty(vim.trim(logs or '')) then
+  }, nil, function(r)
+    if r.code ~= 0 or util.is_empty(vim.trim(r.stdout or '')) then
       progress('failed')
-      on_result(nil, ('Log unavailable: %s'):format(vim.trim(stderr or '')))
+      on_result(nil, ('Log unavailable: %s'):format(vim.trim(r.stderr or '')))
       return
     end
     -- Strip the leading UTF-8 BOM that the REST API prepends to log payloads.
-    logs = logs:gsub('^\xef\xbb\xbf', '')
+    local logs = r.stdout:gsub('^\xef\xbb\xbf', '')
     progress('success')
     on_result(vim.trim(logs))
   end)

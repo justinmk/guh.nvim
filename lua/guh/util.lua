@@ -27,13 +27,21 @@ end
 local progress_echo_id = nil ---@type integer?
 
 --- Runs a command asynchronously via `vim.system`. The callback is deferred (`vim.schedule_wrap`).
+--- Passively detects rate-limiting on any failed `gh` call (checks stderr).
 ---
 --- @param cmd string[] argv list.
---- @param cb? fun(stdout: string, stderr: string, code: integer)
-function M.system(cmd, cb)
-  vim.system(cmd, { text = true }, function(result)
+--- @param opts vim.SystemOpts? Options for `vim.system`. Defaults to `text=true`.
+--- @param cb? fun(r: vim.SystemCompleted)
+function M.system(cmd, opts, cb)
+  opts = opts or {}
+  opts.text = opts.text == nil and true or opts.text
+  vim.system(cmd, opts, function(result)
+    -- Passive rate-limit detection.
+    if result.code ~= 0 and cmd[1] == 'gh' then
+      require('guh.gh').note_rate_limit(result.stderr or '', result.code)
+    end
     if type(cb) == 'function' then
-      vim.schedule_wrap(cb)(result.stdout, result.stderr, result.code)
+      vim.schedule_wrap(cb)(result)
     end
   end)
 end
