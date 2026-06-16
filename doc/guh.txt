@@ -111,7 +111,7 @@ cI      Rerun CI jobs. Opens a picker (or use `[count]cI` to skip):
 cM      Merge PR. |guh-merge|
         <Plug>(guh-merge)
 
-cR      Review PR (approve / comment / request-changes).
+cR      Review PR (approve / comment / request-changes / toggle draft).
         <Plug>(guh-review)
 
 c:      Edit title/body/labels/milestone/… via `gh` in a :terminal.
@@ -224,11 +224,12 @@ Review PRs: approve, request changes, or reject                   *guh-review*
 
 `cR` on a PR view opens a picker:
 
-1. approve
-2. comment
-3. request-changes
+1. Approve
+2. Comment
+3. Request-changes
+4. Draft/Undraft: toggles the PR "ready for review" state.
 
-`[count]cR` skips the picker (e.g. `1cR` = approve, `2cR` = comment, …).
+`[count]cR` skips the picker (`1cR` = approve, `4cR` = toggle draft, …).
 
 To confirm the "review" action, Guh presents a `guh://…/review/<id>` buffer.
 Write-and-close to confirm the "review" action. |guh-confirm|
