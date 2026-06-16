@@ -319,10 +319,8 @@ end
 --- - Output of `cmds[i>1]` is buffered while a lower-index command is still streaming, then flushed
 ---   to the terminal in-order once the lower-index commands exit.
 ---
---- HACK: special-case `opts.term=true` for use with a single (interactive) cmd, until upstream fix: https://github.com/neovim/neovim/issues/40194
----
 --- @param buf integer (must have `b:guh` set by `state.init_buf()`)
---- @param opts? { pty?: boolean, term?: boolean }
+--- @param opts? { pty?: boolean }
 --- @param cmds string[][] List of commands.
 --- @param on_done? fun()
 function M.run_term_cmds(buf, opts, cmds, on_done)
@@ -335,31 +333,6 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
   assert(b_guh and b_guh.feat and b_guh.bufkey, ('run_term_cmds: invalid b:guh on buf %d'):format(buf))
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
-
-  if opts and opts.term then
-    assert(#cmds == 1, 'run_term_cmds: term=true allows only 1 cmd')
-    local env = { GH_PAGER = 'cat', PAGER = 'cat' }
-    if vim.g.guh_debug == 'trace' then
-      env.GH_DEBUG = 'api'
-    end
-    vim.schedule(function()
-      assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmds: invalid buf %d'):format(buf))
-      -- `jobstart({term=true})` requires the target buf to be curbuf — nvim_buf_call sets that.
-      vim.api.nvim_buf_call(buf, function()
-        vim.fn.jobstart(cmds[1], {
-          term = true,
-          env = env,
-          on_exit = function()
-            if on_done then
-              on_done()
-            end
-            progress('success')
-          end,
-        })
-      end)
-    end)
-    return
-  end
 
   vim.schedule(function()
     assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmds: invalid buf %d'):format(buf))
