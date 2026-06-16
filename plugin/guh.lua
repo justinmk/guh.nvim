@@ -1,7 +1,7 @@
 vim.api.nvim_set_hl(0, 'GuhHeading', { default = true, link = 'PmenuSel' })
 vim.api.nvim_set_hl(0, 'GuhWarning', { default = true, link = 'WarningMsg' })
 
-local group = vim.api.nvim_create_augroup('guh.keymaps', { clear = true })
+local group = vim.api.nvim_create_augroup('guh', { clear = true })
 
 -- ":edit guh://pr/owner/repo/N" (etc.) dispatches to :Guh.
 -- Wipe the placeholder buffer that :edit created.
@@ -21,9 +21,34 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
 
 -- :syncbind the prdiff/prcomments windows.
 vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
-  pattern = { 'guh://*/prdiff/*', 'guh://*/prcomments/*' },
+  pattern = 'guh://*/{prdiff,prcomments}/*',
   group = group,
-  command = 'keepjumps syncbind',
+  command = 'if &l:scrollbind | keepjumps syncbind | endif',
+})
+
+-- XXX: Trim leading/trailing whitespace from text copied from pr/ and issue/ buffers.
+-- Workaround for:
+-- - "gh" annoyingly indents pr/issue comments
+-- - :terminal (currently, probably?) overuses whitespace where it should have negative space.
+vim.api.nvim_create_autocmd('TextYankPost', {
+  pattern = 'guh://*/{pr,issue}/*',
+  group = group,
+  callback = function()
+    local feat = (vim.b.guh or {}).feat
+    if feat ~= 'pr' and feat ~= 'prdiff' and feat ~= 'issue' then
+      return
+    end
+    local ev = vim.v.event
+    if ev.operator ~= 'y' then
+      return
+    end
+    local stripped = {}
+    for _, line in ipairs(ev.regcontents) do
+      -- gh pr/issue body view prefixes comments 2 spaces; strip exactly that.
+      table.insert(stripped, (line:gsub('^  ', ''):gsub('%s+$', '')))
+    end
+    vim.fn.setreg(ev.regname, stripped, ev.regtype)
+  end,
 })
 
 vim.api.nvim_create_user_command('Guh', function(args)
