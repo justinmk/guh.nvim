@@ -320,7 +320,7 @@ end
 ---   to the terminal in-order once the lower-index commands exit.
 ---
 --- @param buf integer (must have `b:guh` set by `state.init_buf()`)
---- @param opts? { pty?: boolean }
+--- @param opts? { pty?: boolean, force?: boolean } `force=true` cancels any in-flight jobs on `buf`.
 --- @param cmds string[][] List of commands.
 --- @param on_done? fun()
 function M.run_term_cmds(buf, opts, cmds, on_done)
@@ -331,6 +331,12 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
   -- Fail fast if b:guh is invalid (init_buf() wasn't called?).
   local b_guh = vim.b[buf].guh
   assert(b_guh and b_guh.feat and b_guh.bufkey, ('run_term_cmds: invalid b:guh on buf %d'):format(buf))
+  -- Skip duplicate requests.
+  if b_guh.chan and not (opts and opts.force) then
+    M.log(('run_term_cmds: buf already loaded, skipping: %s'):format(vim.api.nvim_buf_get_name(buf)))
+    return
+  end
+
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
 
@@ -345,23 +351,39 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
       end)
     end
 
+    -- Cancel any in-flight jobs from a prior run (only reachable via force=true).
+    -- Each on_exit will check `is_cancelled()`.
+    local old = state.get_b_guh(buf) or {}
+    if old.chan then
+      pcall(vim.fn.chanclose, old.chan)
+    end
+    for _, j in ipairs(old.jobs or {}) do
+      pcall(vim.fn.jobstop, j)
+    end
+    state.set_b_guh(buf, { jobs = vim.NIL })
+
     -- (Re)create the terminal-buf channel. `nvim_open_term` can attach to an existing
     -- buftype=terminal if the previous channel is closed.
-    local old_chan = (state.get_b_guh(buf) or {}).chan
-    if old_chan then
-      pcall(vim.fn.chanclose, old_chan)
-    end
     local chan = vim.api.nvim_open_term(buf, {})
     -- XXX: store `b:guh.chan` because `nvim_open_term` doesn't set `vim.bo.channel` (Nvim bug).
     state.set_b_guh(buf, { chan = chan })
+    local jobs = {} ---@type integer[]
 
     local debug = vim.g.guh_debug == 'debug' or vim.g.guh_debug == 'trace'
     local trace = vim.g.guh_debug == 'trace'
-    -- Per-cmd result. `exited` is `on_exit` timestamp.
+    -- Per-cmd result. `exited` is the `on_exit` timestamp.
     local r = {} ---@type { out?: string, err?: string, exited?: number }[]
     local start_ms = vim.uv.now()
 
+    -- True if `run_term_cmds{force=true}` superseded the in-flight work.
+    local function is_cancelled()
+      return (state.get_b_guh(buf) or {}).chan ~= chan
+    end
+
     local function on_all_done()
+      if is_cancelled() then
+        return
+      end
       -- Append a timing report.
       local report = { '', '--- timing ---' }
       for i, cmd in ipairs(cmds) do
@@ -389,6 +411,9 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     -- Advance through exited cmds, display their output in-order.
     local curr = 1
     local function try_advance()
+      if is_cancelled() then
+        return
+      end
       while curr <= #cmds and r[curr] and r[curr].exited do
         local out = r[curr].out
         if out and vim.trim(out) ~= '' then
@@ -460,12 +485,14 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         job_opts.term = true
         job_opts.width = width
         vim.api.nvim_buf_call(qbuf, function()
-          vim.fn.jobstart(cmd, job_opts)
+          table.insert(jobs, vim.fn.jobstart(cmd, job_opts))
         end)
       else
-        vim.fn.jobstart(cmd, job_opts)
+        table.insert(jobs, vim.fn.jobstart(cmd, job_opts))
       end
     end
+    -- Store job-ids in case a later `run_term_cmds{force=true}` invocation forces a re-request.
+    state.set_b_guh(buf, { jobs = jobs })
   end)
 end
 
