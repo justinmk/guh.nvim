@@ -123,9 +123,10 @@ function M.is_empty(value)
 end
 
 --- Appends a log entry to `stdpath('log')/guh.log` when `vim.g.guh_debug` is set. No-op otherwise.
+--- Each entry is prefixed with `[<wallclock> +<ms-since-prev>]` to make timing-trace inspection cheap.
 ---
 --- @param key string
---- @param message any
+--- @param message? any
 function M.log(key, message)
   if not vim.g.guh_debug then
     return
@@ -135,9 +136,15 @@ function M.log(key, message)
   if not log_file then
     return
   end
-  log_file:write(os.date('%Y-%m-%d %H:%M:%S') .. ' ' .. key .. ':\n')
-  log_file:write(vim.inspect(message))
-  log_file:write('\n\n')
+  local now = vim.uv.now()
+  local delta = M._last_log_ms and (now - M._last_log_ms) or 0
+  M._last_log_ms = now
+  log_file:write(('[%s +%4dms] %s:\n'):format(os.date('%H:%M:%S'), delta, key))
+  if message ~= nil then
+    log_file:write(vim.inspect(message))
+    log_file:write('\n')
+  end
+  log_file:write('\n')
   log_file:close()
 end
 
@@ -345,10 +352,12 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     return
   end
 
+  M.log('run_term_cmds.enter', { buf = buf, n_cmds = #cmds })
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
 
   vim.schedule(function()
+    M.log('run_term_cmds.scheduled')
     assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmds: invalid buf %d'):format(buf))
 
     -- UX: Preserve viewport of windows showing the buf. This makes "reload" less disorienting.
@@ -459,6 +468,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         on_exit = function()
           r[i] = r[i] or {}
           r[i].exited = vim.uv.now()
+          M.log(('run_term_cmds.job.exit[%d]'):format(i), { dur_ms = r[i].exited - start_ms, cmd = cmds[i] })
           if qbuf and vim.api.nvim_buf_is_valid(qbuf) then
             vim.api.nvim_buf_delete(qbuf, { force = true })
           end
