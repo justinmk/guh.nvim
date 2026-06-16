@@ -860,11 +860,12 @@ end
 function M.toggle_viewed()
   local _, id, repo = require_pr()
   local buf = vim.api.nvim_get_current_buf()
-  local path, lnum, quasi = comments.find_nearby_diff_file(buf)
+  local path, quasi = comments.jump_to_file_heading(buf)
   if not path then
     return util.msg('No file at cursor', vim.log.levels.WARN)
   end
-  util.hl_flash(buf, lnum - 1, lnum - 1)
+  -- Flash curline (filepath heading after `jump_to_diff_file`).
+  util.hl_flash(buf, vim.fn.line('.') - 1, vim.fn.line('.') - 1)
 
   local pr_data = state.get_pr_data(repo, id)
   if not pr_data or not pr_data.node_id then

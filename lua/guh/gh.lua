@@ -436,7 +436,7 @@ function M.resolve_thread(thread_node_id, cb)
   }, cb)
 end
 
---- Marks a file as Viewed (or Unviewed) for the current user on a PR.
+--- Marks a file as Viewed/Unviewed for the current user on a PR.
 ---
 --- @param pr_node_id string PR's GraphQL node ID (`pr_data.node_id`).
 --- @param path string File path.
