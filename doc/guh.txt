@@ -103,15 +103,15 @@ cC      Comment on the PR/issue (top-level). |guh-comment|
         <Plug>(guh-comment-top)
 
 cI      Rerun CI jobs. Opens a picker (or use `[count]cI` to skip):
-        1. current job (from a CI logs buffer)
-        2. failed jobs
+        1. Current job (from a CI logs buffer)
+        2. Failed jobs
 
         <Plug>(guh-ci)
 
 cM      Merge PR. |guh-merge|
         <Plug>(guh-merge)
 
-cR      Review PR (approve / comment / request-changes / toggle draft).
+cR      Review PR (Approve / Comment / Request-changes / Toggle draft).
         <Plug>(guh-review)
 
 c:      Edit title/body/labels/milestone/… via `gh` in a :terminal.

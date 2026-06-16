@@ -32,10 +32,8 @@ function M.note_rate_limit(stderr, code)
   if code == 0 or not stderr or stderr == '' then
     return
   end
-  local kind = (stderr:match('secondary rate limit') or stderr:match('abuse detection'))
-    and 'secondary'
-    or (stderr:match('API rate limit exceeded') or stderr:match('rate limit exceeded'))
-    and 'primary'
+  local kind = (stderr:match('secondary rate limit') or stderr:match('abuse detection')) and 'secondary'
+    or (stderr:match('API rate limit exceeded') or stderr:match('rate limit exceeded')) and 'primary'
     or nil
 
   if kind then
@@ -368,20 +366,16 @@ end
 function M.get_repo(cwd, on_done)
   local progress = util.new_progress_report('Loading...', 0)
   progress('running')
-  util.system(
-    { 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' },
-    { cwd = cwd },
-    function(r)
-      local repo = r.code == 0 and vim.trim(r.stdout or '') or ''
-      if repo == '' then
-        progress('failed')
-        on_done(nil)
-      else
-        progress('success')
-        on_done(repo)
-      end
+  util.system({ 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' }, { cwd = cwd }, function(r)
+    local repo = r.code == 0 and vim.trim(r.stdout or '') or ''
+    if repo == '' then
+      progress('failed')
+      on_done(nil)
+    else
+      progress('success')
+      on_done(repo)
     end
-  )
+  end)
 end
 
 --- Runs `gh api --method <method> <endpoint>` with `fields` of the form `{ {'-f','key=val'}, {'-F','key=val'}, … }`.
@@ -634,21 +628,25 @@ function M.get_pr_ci_log(job_id, repo, on_result)
 
   vim.validate('repo', repo, 'string')
   -- Use the raw REST endpoint instead of `gh run view --log` to avoid gh's "{workflow} / {job} {step}" prefix.
-  util.system({
-    'gh',
-    'api',
-    f('repos/%s/actions/jobs/%s/logs', repo, tostring(job_id)),
-  }, nil, function(r)
-    if r.code ~= 0 or util.is_empty(vim.trim(r.stdout or '')) then
-      progress('failed')
-      on_result(nil, ('Log unavailable: %s'):format(vim.trim(r.stderr or '')))
-      return
+  util.system(
+    {
+      'gh',
+      'api',
+      f('repos/%s/actions/jobs/%s/logs', repo, tostring(job_id)),
+    },
+    nil,
+    function(r)
+      if r.code ~= 0 or util.is_empty(vim.trim(r.stdout or '')) then
+        progress('failed')
+        on_result(nil, ('Log unavailable: %s'):format(vim.trim(r.stderr or '')))
+        return
+      end
+      -- Strip the leading UTF-8 BOM that the REST API prepends to log payloads.
+      local logs = r.stdout:gsub('^\xef\xbb\xbf', '')
+      progress('success')
+      on_result(vim.trim(logs))
     end
-    -- Strip the leading UTF-8 BOM that the REST API prepends to log payloads.
-    local logs = r.stdout:gsub('^\xef\xbb\xbf', '')
-    progress('success')
-    on_result(vim.trim(logs))
-  end)
+  )
 end
 
 --- Concurrently fetches CI logs for the given `jobs`. Invokes `on_result()` in completion order.

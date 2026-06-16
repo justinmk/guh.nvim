@@ -216,8 +216,7 @@ function M.show_commit(sha, repo, focus)
   }
   util.system(cmd, nil, function(r)
     if r.code ~= 0 then
-      done('failed')
-      return util.msg(('Failed to load commit %s: %s'):format(sha, vim.trim(r.stderr or '')), vim.log.levels.ERROR)
+      return done('failed', vim.trim(r.stderr or ''))
     end
     -- Patch format's first line is "From <full-sha> Mon Sep 17 00:00:00 2001".
     local full_sha = r.stdout:match('^From%s+(%x+)') or sha
@@ -386,16 +385,14 @@ end
 --- @param repo string "owner/name"
 --- @param is_draft boolean current state (true = currently draft).
 local function toggle_draft(id, repo, is_draft)
-  local gerund = is_draft and 'Marking as "Ready"' or 'Marking as "Draft"'
-  local past = is_draft and 'Marked as "Ready"' or 'Marked as "Draft"'
-  local done = util.progress(('%s PR #%s…'):format(gerund, id))
+  local label = is_draft and 'Set as Ready' or 'Set as Draft'
+  local done = util.progress(('%s PR #%s…'):format(label, id))
   gh.set_pr_draft(id, repo, not is_draft, function(ok, stderr)
-    done(ok and 'success' or 'failed')
     if ok then
-      util.msg(('%s PR #%s'):format(past, id))
+      done('success')
       M.refresh({ feat = 'pr', id = id, repo = repo })
     else
-      util.msg(('Failed: %s'):format(vim.trim(stderr)), vim.log.levels.ERROR)
+      done('failed', vim.trim(stderr))
     end
   end)
 end
@@ -406,26 +403,20 @@ end
 function M.review_pr()
   local _, id, repo = require_pr()
 
-  local labels = {
-    ['approve'] = { gerund = 'Approving', past = 'Approved' },
-    ['comment'] = { gerund = 'Posting review on', past = 'Posted review on' },
-    ['request-changes'] = { gerund = 'Requesting changes on', past = 'Requested changes on' },
-  }
-
-  local function do_action(action)
-    local L = labels[action]
-    local msg = ('%s PR #%s | ZZ to submit (ZQ to abort)'):format(L.gerund, id)
+  local function do_action(label)
+    local gh_action = label:lower()
+    local heading = ('%s PR #%s'):format(label, id)
+    local msg = ('%s | ZZ to submit (ZQ to abort)'):format(heading)
     -- Prefill ":+1:" in the Approve body, so the user can Approve without writing a comment. #64
-    local content = action == 'approve' and { ':+1:' } or { '' }
+    local content = label == 'Approve' and { ':+1:' } or { '' }
     comments.edit_comment('review', id, content, { { msg, 'Comment' } }, function(input)
       local body = vim.trim(input)
-      local done = util.progress(('%s PR #%s…'):format(L.gerund, id))
-      gh.review_pr(id, repo, action, body, function(ok, stderr)
-        done(ok and 'success' or 'failed')
+      local done = util.progress(('%s…'):format(heading))
+      gh.review_pr(id, repo, gh_action, body, function(ok, stderr)
         if ok then
-          util.msg(('%s PR #%s'):format(L.past, id))
+          done('success')
         else
-          util.msg(('Review failed: %s'):format(vim.trim(stderr)), vim.log.levels.ERROR)
+          done('failed', vim.trim(stderr))
         end
       end)
     end)
@@ -436,7 +427,7 @@ function M.review_pr()
   local is_draft = pr_data.isDraft == true
   local draft_label = is_draft and 'Set as Ready' or 'Set as Draft'
 
-  local actions = { 'approve', 'comment', 'request-changes', draft_label }
+  local actions = { 'Approve', 'Comment', 'Request-changes', draft_label }
   local count = vim.v.count
   if count >= 1 and count <= #actions then
     if actions[count] == draft_label then
@@ -508,11 +499,10 @@ function M.merge_pr()
     local admin = choice:find('--admin', 1, true) ~= nil
     local done = util.progress(('Merging PR #%s (%s)…'):format(id, choice))
     gh.merge_pr(id, repo, method, subject, body, admin, function(ok, stderr)
-      done(ok and 'success' or 'failed')
       if ok then
-        util.msg(('Merged PR #%s'):format(id))
+        done('success')
       else
-        util.msg(('Merge failed: %s'):format(vim.trim(stderr)), vim.log.levels.ERROR)
+        done('failed', vim.trim(stderr))
       end
     end)
   end
@@ -913,9 +903,11 @@ function M.toggle_viewed()
   local done = util.progress((viewed and 'Marking' or 'Unmarking') .. ' as viewed: ' .. path)
   gh.set_file_viewed(pr_data.node_id, path, viewed, function(resp)
     if resp['errors'] ~= nil then
-      done('failed')
-      util.msg(('Failed to %s viewed: %s'):format(viewed and 'mark' or 'unmark', path), vim.log.levels.ERROR)
-      return
+      local errs = {}
+      for _, e in ipairs(resp.errors) do
+        table.insert(errs, e.message or vim.inspect(e))
+      end
+      return done('failed', errs)
     end
     done('success')
     M.refresh({ feat = 'pr', id = id, repo = repo })
@@ -932,19 +924,10 @@ function M.ci_rerun(opts)
 
   local function do_rerun(run_id, job_id, label, on_done)
     if not run_id then
-      util.msg(('Cannot rerun %s: missing GitHub Actions run id ("R" to refresh)'):format(label), vim.log.levels.ERROR)
-      if on_done then
-        on_done(false)
-      end
-      return
+      return on_done(false, ('Cannot rerun %s: missing GitHub Actions run id ("R" to refresh)'):format(label))
     end
     gh.rerun_ci(run_id, repo, job_id, function(ok, stderr)
-      if not ok then
-        util.msg(('CI rerun failed for %s: %s'):format(label, vim.trim(stderr or '')), vim.log.levels.ERROR)
-      end
-      if on_done then
-        on_done(ok)
-      end
+      on_done(ok, not ok and vim.trim(stderr or '') or nil)
     end)
   end
 
@@ -960,11 +943,8 @@ function M.ci_rerun(opts)
         return util.msg('Unknown CI job for this log buffer', vim.log.levels.ERROR)
       end
       local done = util.progress(('Rerunning CI job "%s"…'):format(job.name))
-      return do_rerun(job.runId, job.databaseId, job.name, function(ok)
-        done(ok and 'success' or 'failed')
-        if ok then
-          util.msg(('Rerunning CI job "%s"'):format(job.name))
-        end
+      return do_rerun(job.runId, job.databaseId, job.name, function(ok, err)
+        done(ok and 'success' or 'failed', err)
       end)
     end)
   end
@@ -983,11 +963,8 @@ function M.ci_rerun(opts)
 
       local run_id = failed_job.runId
       local done = util.progress(('Rerunning failed CI for PR #%s…'):format(id))
-      do_rerun(run_id, nil, ('run %s'):format(run_id), function(ok)
-        done(ok and 'success' or 'failed')
-        if ok then
-          util.msg(('Rerunning failed CI for run %s on PR #%s'):format(run_id, id))
-        end
+      do_rerun(run_id, nil, ('run %s'):format(run_id), function(ok, err)
+        done(ok and 'success' or 'failed', err)
       end)
     end
 
