@@ -182,10 +182,9 @@ function M.select(args, id, repo)
     elseif state.get_buf('issue', repo, target.id, false) then
       dispatch(false)
     else -- Probe PR-vs-issue. Async so the hl_flash() highlight works.
-      vim.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, { text = true }, function(r)
-        vim.schedule(function()
-          dispatch(r.code == 0)
-        end)
+      util.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, nil, function(r)
+        util.log('select.probe.done', { code = r.code })
+        dispatch(r.code == 0)
       end)
     end
   else
@@ -215,15 +214,15 @@ function M.show_commit(sha, repo, focus)
     '-H',
     'Accept: application/vnd.github.v3.patch',
   }
-  util.system(cmd, function(stdout, stderr, code)
-    if code ~= 0 then
+  util.system(cmd, nil, function(r)
+    if r.code ~= 0 then
       done('failed')
-      return util.msg(('Failed to load commit %s: %s'):format(sha, vim.trim(stderr or '')), vim.log.levels.ERROR)
+      return util.msg(('Failed to load commit %s: %s'):format(sha, vim.trim(r.stderr or '')), vim.log.levels.ERROR)
     end
     -- Patch format's first line is "From <full-sha> Mon Sep 17 00:00:00 2001".
-    local full_sha = stdout:match('^From%s+(%x+)') or sha
+    local full_sha = r.stdout:match('^From%s+(%x+)') or sha
     local buf = state.init_buf('commit', focus, repo, full_sha, { id = full_sha })
-    local lines = vim.split(stdout, '\n', { plain = true, trimempty = true })
+    local lines = vim.split(r.stdout, '\n', { plain = true, trimempty = true })
     util.buf_set_readonly_lines(buf, lines, 'gitcommit')
     util.set_default_keymaps(buf)
     done('success')
@@ -246,9 +245,6 @@ local function render_ci_log(buf, logs)
   -- state.set_b_guh(buf, { chan = chan })
   vim.fn.chanclose(chan)
   util.set_default_keymaps(buf)
-  if vim.api.nvim_get_current_buf() == buf then
-    vim.cmd.norm [[gg0]]
-  end
 end
 
 --- Shows a `prlogs/…` buffer. Fetches the logs unless `b:guh.chan` is set (= already rendered).
@@ -723,12 +719,12 @@ function M.load_pr(opts, on_done)
   end)
 
   -- 2. Get the current PR diff.
-  util.system(gh.cmd(repo, 'pr', 'diff', tostring(id)), function(stdout, stderr, code)
-    if code ~= 0 then
-      progress('failed', nil, vim.trim(stderr or ''))
+  util.system(gh.cmd(repo, 'pr', 'diff', tostring(id)), nil, function(r)
+    if r.code ~= 0 then
+      progress('failed', nil, vim.trim(r.stderr or ''))
       return
     end
-    diff_stdout = stdout
+    diff_stdout = r.stdout
     try_render()
   end)
 end
@@ -860,11 +856,12 @@ end
 function M.toggle_viewed()
   local _, id, repo = require_pr()
   local buf = vim.api.nvim_get_current_buf()
-  local path, lnum, quasi = comments.find_nearby_diff_file(buf)
+  local path, quasi = comments.jump_to_file_heading(buf)
   if not path then
     return util.msg('No file at cursor', vim.log.levels.WARN)
   end
-  util.hl_flash(buf, lnum - 1, lnum - 1)
+  -- Flash curline (filepath heading after `jump_to_diff_file`).
+  util.hl_flash(buf, vim.fn.line('.') - 1, vim.fn.line('.') - 1)
 
   local pr_data = state.get_pr_data(repo, id)
   if not pr_data or not pr_data.node_id then

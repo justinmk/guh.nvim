@@ -122,33 +122,32 @@ local function to_line_map(diff_lines)
   return line_map
 end
 
---- Finds the file at the current cursor position of `buf` (a prdiff/ buffer). Cursor may be on
---- a `(viewed) <path>` collapsed line, or any line within a file's diff (walks up to the most
---- recent `diff --git a/<a> b/<b>` header).
+--- Jumps to the `diff --git a/… b/…` (or `(viewed) <path>`) filepath heading at or above cursor in
+--- `buf` (a prdiff/ buffer).
 ---
---- Strips quasi-filename prefixes (`outdated-<id>:`, `outside-<id>:`) and returns a hint if so.
+--- Strips quasi-filename prefixes (`outdated-<id>:`, `outside-<id>:`) and returns a hint.
 ---
 --- @param buf integer prdiff buffer.
 --- @return string? path Filepath (minus quasi-filename prefix), or nil if none found.
---- @return integer? lnum 1-indexed buffer-line where the filepath was found.
 --- @return 'outdated'|'outside'|nil quasi nil if the path is a current-HEAD file.
-function M.find_nearby_diff_file(buf)
-  local path, lnum = vim.api.nvim_buf_call(buf, function()
+function M.jump_to_file_heading(buf)
+  local path = vim.api.nvim_buf_call(buf, function()
     local p = vim.api.nvim_get_current_line():match('^%(viewed%) (.+)$')
     if p then
-      return p, vim.fn.line('.')
+      return p
     end
-    local lnum_ = vim.fn.search(diff_git_regex, 'bcnW')
-    if lnum_ ~= 0 then
-      return vim.fn.getline(lnum_):match(diff_git_pat), lnum_
+    -- Drop the `n` flag so search() moves the cursor to the match.
+    local lnum = vim.fn.search(diff_git_regex, 'bcW')
+    if lnum ~= 0 then
+      return vim.fn.getline(lnum):match(diff_git_pat)
     end
   end)
   if not path then
-    return nil, nil, nil
+    return nil, nil
   end
   local quasi = path:match(outdated_prefix_pat) and 'outdated' or path:match(outside_prefix_pat) and 'outside' or nil
   path = path:gsub(outdated_prefix_pat, ''):gsub(outside_prefix_pat, '')
-  return path, lnum, quasi
+  return path, quasi
 end
 
 --- Display path: opens prcomments/ in a 'scrollbind' split next to the prdiff window, and sets

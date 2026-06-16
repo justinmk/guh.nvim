@@ -27,13 +27,21 @@ end
 local progress_echo_id = nil ---@type integer?
 
 --- Runs a command asynchronously via `vim.system`. The callback is deferred (`vim.schedule_wrap`).
+--- Passively detects rate-limiting on any failed `gh` call (checks stderr).
 ---
 --- @param cmd string[] argv list.
---- @param cb? fun(stdout: string, stderr: string, code: integer)
-function M.system(cmd, cb)
-  vim.system(cmd, { text = true }, function(result)
+--- @param opts vim.SystemOpts? Options for `vim.system`. Defaults to `text=true`.
+--- @param cb? fun(r: vim.SystemCompleted)
+function M.system(cmd, opts, cb)
+  opts = opts or {}
+  opts.text = opts.text == nil and true or opts.text
+  vim.system(cmd, opts, function(result)
+    -- Passive rate-limit detection.
+    if result.code ~= 0 and cmd[1] == 'gh' then
+      require('guh.gh').note_rate_limit(result.stderr or '', result.code)
+    end
     if type(cb) == 'function' then
-      vim.schedule_wrap(cb)(result.stdout, result.stderr, result.code)
+      vim.schedule_wrap(cb)(result)
     end
   end)
 end
@@ -115,9 +123,10 @@ function M.is_empty(value)
 end
 
 --- Appends a log entry to `stdpath('log')/guh.log` when `vim.g.guh_debug` is set. No-op otherwise.
+--- Each entry is prefixed with `[<wallclock> +<ms-since-prev>]` to make timing-trace inspection cheap.
 ---
 --- @param key string
---- @param message any
+--- @param message? any
 function M.log(key, message)
   if not vim.g.guh_debug then
     return
@@ -127,9 +136,15 @@ function M.log(key, message)
   if not log_file then
     return
   end
-  log_file:write(os.date('%Y-%m-%d %H:%M:%S') .. ' ' .. key .. ':\n')
-  log_file:write(vim.inspect(message))
-  log_file:write('\n\n')
+  local now = vim.uv.now()
+  local delta = M._last_log_ms and (now - M._last_log_ms) or 0
+  M._last_log_ms = now
+  log_file:write(('[%s +%4dms] %s:\n'):format(os.date('%H:%M:%S'), delta, key))
+  if message ~= nil then
+    log_file:write(vim.inspect(message))
+    log_file:write('\n')
+  end
+  log_file:write('\n')
   log_file:close()
 end
 
@@ -337,10 +352,12 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     return
   end
 
+  M.log('run_term_cmds.enter', { buf = buf, n_cmds = #cmds })
   local progress = M.new_progress_report('Loading...', buf)
   progress('running')
 
   vim.schedule(function()
+    M.log('run_term_cmds.scheduled')
     assert(vim.api.nvim_buf_is_valid(buf), ('run_term_cmds: invalid buf %d'):format(buf))
 
     -- UX: Preserve viewport of windows showing the buf. This makes "reload" less disorienting.
@@ -451,6 +468,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         on_exit = function()
           r[i] = r[i] or {}
           r[i].exited = vim.uv.now()
+          M.log(('run_term_cmds.job.exit[%d]'):format(i), { dur_ms = r[i].exited - start_ms, cmd = cmds[i] })
           if qbuf and vim.api.nvim_buf_is_valid(qbuf) then
             vim.api.nvim_buf_delete(qbuf, { force = true })
           end
