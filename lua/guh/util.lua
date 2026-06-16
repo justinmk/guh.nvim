@@ -177,28 +177,47 @@ function M.require_b_guh(required, errmsg)
   return unpack(vals)
 end
 
+--- @param errs string | string[]
+local function defer_error(errs)
+  local msg = type(errs) == 'table' and table.concat(errs, '\n  ') or tostring(errs)
+  vim.schedule(function()
+    error(('guh: %s'):format(msg), 0)
+  end)
+end
+
 --- @param action string
 --- @param buf integer
 --- @return fun(status: 'running'|'success'|'failed'|'cancel', percent?: integer, fmt?: string, ...:any): nil
 function M.new_progress_report(action, buf)
-  local progress = { kind = 'progress', title = 'guh' }
+  local progress = { kind = 'progress', source = 'guh', title = 'guh' }
   local incremented = false
   if buf and not vim.in_fast_event() and buf > 0 then
     vim.bo[buf].busy = vim.bo[buf].busy + 1
     incremented = true
   end
 
+  -- For 'running'  : `fmt+...` formats the status message.
+  -- For 'failed'   : `fmt+...` formats an error message, reported via `defer_error` (scheduled
+  --                  `error()`) AFTER the progress slot is cleared — survives subsequent
+  --                  progress writes.
+  -- For 'success'/'cancel': `fmt+...` is ignored.
   return vim.schedule_wrap(function(status, percent, fmt, ...)
     local done = (status == 'failed' or status == 'success' or status == 'cancel')
-    progress.source = 'guh.nvim'
+    local err_msg = (status == 'failed' and fmt) and (fmt):format(...) or nil
     progress.status = status
     progress.percent = not done and percent or nil
     progress.title = not done and progress.title or nil
     progress.id = progress_echo_id
-    local msg = done and '' or ('%s %s'):format(action, (fmt or ''):format(...))
-    progress_echo_id = vim.api.nvim_echo({ { msg } }, status ~= 'running', progress)
+    local body = done and '' or ('%s %s'):format(action, (fmt or ''):format(...))
     if done then
+      vim.api.nvim_echo({ { body } }, status ~= 'running', progress)
       progress_echo_id = nil
+    else
+      progress_echo_id = vim.api.nvim_echo({ { body } }, false, progress)
+    end
+
+    if err_msg then
+      defer_error(err_msg)
     end
 
     -- Only decrement on done, and only if we incremented in the first place.
@@ -209,27 +228,35 @@ function M.new_progress_report(action, buf)
   end)
 end
 
---- Synchronously emits "Loading..." (or `label`) under a shared progress-id.
---- Returns a finalizer that emits `status` (default 'success') to dismiss.
+--- Synchronously emits "Loading..." (or `label`) under the shared progress-id. Returns
+--- a "finalizer" `fun(status?, errs?)`:
+---
+--- - `status` defaults to 'success'.
+--- - `errs` (string or list of strings): if non-empty, is reported as a deferred error message to
+---   increase the likelihood that it is visible. Use this to surface errors collected during the
+---   progress cycle.
 ---
 --- @param label? string default: "Loading..."
---- @return fun(status?: 'success'|'failed'|'cancel')
+--- @return fun(status?: 'success'|'failed'|'cancel', errs?: string|string[])
 function M.progress(label)
   progress_echo_id = vim.api.nvim_echo({ { label or 'Loading...' } }, false, {
     kind = 'progress',
-    source = 'guh.nvim',
+    source = 'guh',
     title = 'guh',
     status = 'running',
     id = progress_echo_id,
   })
-  return function(status)
-    progress_echo_id = vim.api.nvim_echo({ { '' } }, false, {
+  return function(status, errs)
+    vim.api.nvim_echo({ { '' } }, false, {
       kind = 'progress',
-      source = 'guh.nvim',
+      source = 'guh',
       status = status or 'success',
       id = progress_echo_id,
     })
     progress_echo_id = nil
+    if errs and (type(errs) == 'string' or #errs > 0) then
+      defer_error(errs)
+    end
   end
 end
 
