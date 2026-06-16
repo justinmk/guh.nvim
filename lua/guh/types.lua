@@ -2,7 +2,7 @@
 
 --- @class BufState
 --- Buffer-local b:guh dict.
---- @field chan? integer Terminal channel-id (for `prlogs/…` buffers).
+--- @field chan? integer Channel-id for `run_term_cmds` or other terminal-buffers.
 --- @field jobs? integer[] In-flight jobs for the current `run_term_cmds` run.
 --- @field feat? Feat Feature name
 --- @field id? integer|string PR or issue number, or commit SHA.

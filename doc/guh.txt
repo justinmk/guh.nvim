@@ -320,6 +320,13 @@ Run specific tests: >
 
     NEOVIM_PATH='/path/to/neovim/' make test TEST_FILTER=load_comments
 
+ARCHITECTURE
+
+- "Reload" internally is designed to work by "clearing the guh:// buffer
+  state" (i.e. call state.invalidate()). Don't pass `force` parameters around
+  in a bespoke fashion. And as a result, guh:// buffers are by default _never_
+  reloaded _unless_ their state was cleared.
+
 
 ------------------------------------------------------------------------------
 vim:tw=78:ts=8:sw=4:et:ft=help:norl:

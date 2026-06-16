@@ -441,6 +441,10 @@ function M.refresh(target)
     return
   end
   if feat == 'status' then
+    local status_buf = state.get_buf('status', nil, 'all', false)
+    if status_buf then
+      state.invalidate(status_buf)
+    end
     return M.show_status(true)
   end
   local b = vim.b.guh or {}
@@ -453,9 +457,15 @@ function M.refresh(target)
     -- rendered AND the job has a `conclusion` (not "in_progress").
     local pr_buf = state.get_buf('pr', repo, id, false)
     if pr_buf then
-      state.set_b_guh(pr_buf, { pr_data = vim.NIL })
+      state.invalidate(pr_buf)
     end
     M.show_pr(id, repo, nil)
+  elseif feat == 'issue' then
+    local issue_buf = state.get_buf('issue', repo, id, false)
+    if issue_buf then
+      state.invalidate(issue_buf)
+    end
+    M.show_issue(id, repo, true)
   else
     M.select(feat, id, repo)
   end

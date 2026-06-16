@@ -320,7 +320,7 @@ end
 ---   to the terminal in-order once the lower-index commands exit.
 ---
 --- @param buf integer (must have `b:guh` set by `state.init_buf()`)
---- @param opts? { pty?: boolean, force?: boolean } `force=true` cancels any in-flight jobs on `buf`.
+--- @param opts? { pty?: boolean }
 --- @param cmds string[][] List of commands.
 --- @param on_done? fun()
 function M.run_term_cmds(buf, opts, cmds, on_done)
@@ -331,8 +331,8 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
   -- Fail fast if b:guh is invalid (init_buf() wasn't called?).
   local b_guh = vim.b[buf].guh
   assert(b_guh and b_guh.feat and b_guh.bufkey, ('run_term_cmds: invalid b:guh on buf %d'):format(buf))
-  -- Skip duplicate requests.
-  if b_guh.chan and not (opts and opts.force) then
+  -- Skip duplicate requests. To force a reload, call `state.invalidate(buf)`.
+  if b_guh.chan then
     M.log(('run_term_cmds: buf already loaded, skipping: %s'):format(vim.api.nvim_buf_get_name(buf)))
     return
   end
@@ -350,17 +350,6 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         return vim.fn.winsaveview()
       end)
     end
-
-    -- Cancel any in-flight jobs from a prior run (only reachable via force=true).
-    -- Each on_exit will check `is_cancelled()`.
-    local old = state.get_b_guh(buf) or {}
-    if old.chan then
-      pcall(vim.fn.chanclose, old.chan)
-    end
-    for _, j in ipairs(old.jobs or {}) do
-      pcall(vim.fn.jobstop, j)
-    end
-    state.set_b_guh(buf, { jobs = vim.NIL })
 
     -- (Re)create the terminal-buf channel. `nvim_open_term` can attach to an existing
     -- buftype=terminal if the previous channel is closed.

@@ -181,6 +181,21 @@ function M.init_buf(feat, focus, repo, id, bufstate)
   return buf, key
 end
 
+--- Resets `buf` to "not loaded" state so the next show_* will reload from scratch. Closes any
+--- in-flight jobs/channels and clears cached payloads (`pr_data`). Idempotent.
+---
+--- @param buf integer
+function M.invalidate(buf)
+  local b_guh = M.get_b_guh(buf) or {}
+  if b_guh.chan then
+    pcall(vim.fn.chanclose, b_guh.chan)
+  end
+  for _, j in ipairs(b_guh.jobs or {}) do
+    pcall(vim.fn.jobstop, j)
+  end
+  M.set_b_guh(buf, { chan = vim.NIL, jobs = vim.NIL, pr_data = vim.NIL })
+end
+
 --- Gets buffer URI:
 --- - `guh://<owner>/<repo>/<feat>/<id>` for per-repo per-feature buffers.
 --- - `guh://<feat>` for "global" buffers (`guh://status`).
