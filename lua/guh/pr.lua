@@ -318,9 +318,9 @@ end
 --- @param repo string "owner/name"
 --- @param on_jobs fun(jobs: CIJob[])
 local function with_ci_jobs(pr_id, repo, on_jobs)
-  local function dispatch(pr)
+  local function dispatch(pr, err)
     if not pr then
-      return util.msg(('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
+      return util.msg(err or ('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
     end
     local jobs = pr.ci_jobs or {}
     if #jobs == 0 then
@@ -485,9 +485,9 @@ function M.merge_pr()
     if method == 'rebase' then
       return do_merge(choice)
     end
-    gh.get_pr_data(id, repo, nil, function(pr)
+    gh.get_pr_data(id, repo, nil, function(pr, err)
       if not pr then
-        return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+        return util.msg(err or ('PR #%s not found'):format(id), vim.log.levels.ERROR)
       end
       vim.schedule(function()
         local subject, body
@@ -701,9 +701,9 @@ function M.load_pr(opts, on_done)
   end
 
   -- 1. Fetch PR data. Prefers cached `b:guh.pr_data`; callers force a refetch by clearing the cache.
-  gh.get_pr_data(id, repo, nil, function(pr)
+  gh.get_pr_data(id, repo, nil, function(pr, err)
     if not pr then
-      return progress('failed')
+      return progress('failed', nil, '%s', err or ('PR #%s not found'):format(id))
     end
     pr_data = pr
     try_render()
@@ -749,9 +749,9 @@ local function new_comment(pr_id, repo, line1, line2)
     return
   end
   util.hl_flash(buf, line1 - 1, line2 - 1)
-  gh.get_pr_data(pr_id, repo, nil, function(pr)
+  gh.get_pr_data(pr_id, repo, nil, function(pr, err)
     if not pr then
-      return util.msg(('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
+      return util.msg(err or ('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
     end
     local range = info.start_line == info.end_line and tostring(info.end_line)
       or ('%d..%d'):format(info.start_line, info.end_line)
@@ -928,9 +928,9 @@ function M.ci_rerun(opts)
   end
 
   local function rerun_all_failed()
-    local function dispatch(pr)
+    local function dispatch(pr, err)
       if not pr then
-        return util.msg(('PR #%s not found'):format(id), vim.log.levels.ERROR)
+        return util.msg(err or ('PR #%s not found'):format(id), vim.log.levels.ERROR)
       end
       local failed_job = vim.iter(pr.ci_jobs or {}):find(function(j)
         return j.runId and j.conclusion and j.conclusion ~= 'success'

@@ -194,6 +194,36 @@ describe('guh.gh', function()
     end)
   end)
 
+  it('get_pr_data surfaces a GraphQL HTTP-200-with-errors response', function()
+    n.exec_lua(function()
+      local gh = require('guh.gh')
+      local util = require('guh.util')
+
+      -- Mock `util.system`: invoke the callback synchronously with a GraphQL errors body
+      -- (no `data` field), the shape returned for e.g. "Field 'previousFilename' doesn't exist".
+      util.system = function(_, cb)
+        cb(
+          [[{"data":null,"errors":[{"path":["query"],"message":"Field 'previousFilename' doesn't exist on type 'PullRequestChangedFile'"}]}]],
+          '',
+          0
+        )
+      end
+
+      local cb_called = false
+      gh.get_pr_data(42, 'o/r', { force = true }, function(pr, err)
+        assert(pr == nil, 'expected nil pr on errors')
+        assert(err, 'expected err string')
+        -- Real callers feed `err` into `util.msg` or `progress('failed', nil, err)`. The screen
+        -- assertion below verifies the user-visible end of that pipeline.
+        util.msg(err, vim.log.levels.ERROR)
+        cb_called = true
+      end)
+      assert(cb_called, 'callback not invoked')
+    end)
+
+    screen:expect({ any = "Failed to fetch PR.*Field 'previousFilename' doesn't exist" })
+  end)
+
   it('get_user returns nil when not logged in', function()
     n.exec_lua(function(tmpdir)
       -- Point `gh` at an empty config dir and unset any auth tokens so it has no active account.
@@ -507,18 +537,9 @@ describe(':Guh', function()
       vim.fn.setenv('GH_CONFIG_DIR', tmpdir)
       vim.fn.setenv('GH_TOKEN', '')
       vim.fn.setenv('GITHUB_TOKEN', '')
-      local captured
-      vim.notify = function(msg, level)
-        captured = { msg = msg, level = level }
-      end
       require('guh.pr').select({ args = '1' })
-      vim.wait(1000, function()
-        return captured ~= nil
-      end, 20)
-      assert(captured, 'vim.notify() was not called')
-      assert(captured.msg:match('[Nn]ot logged in'), ('msg: %q'):format(captured.msg))
-      assert(captured.level == vim.log.levels.ERROR, ('level: %s'):format(tostring(captured.level)))
     end, t.tmpname(true))
+    screen:expect({ any = '[Nn]ot logged in' })
   end)
 
   it('"dd" loads PR diff + comments split window', function()

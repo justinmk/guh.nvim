@@ -138,7 +138,8 @@ end
 --- @param level? integer one of `vim.log.levels.*`
 function M.msg(message, level)
   vim.schedule(function()
-    vim.notify(('guh: %s'):format(message), level)
+    local hl = level == vim.log.levels.WARN and 'WarningMsg' or nil
+    vim.api.nvim_echo({ { ('guh: %s'):format(message), hl } }, true, { err = level == vim.log.levels.ERROR })
   end)
 end
 
