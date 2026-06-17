@@ -98,7 +98,7 @@ end
 --- @param id string|integer PR/issue number.
 --- @return boolean true if the buffer exists and was focused, else false.
 function M.try_show(feat, repo, id)
-  local buf = M.get_buf(feat, repo, id)
+  local buf = assert(M.get_buf(feat, repo, id))
   local wins = vim.fn.win_findbuf(buf)
   if #wins > 0 then
     -- Already displayed elsewhere, focus it.
@@ -113,9 +113,13 @@ end
 --- @param repo_or_buf string|integer "owner/name", or a `pr/…` buf number.
 --- @param id? string|integer PR number (required when `repo_or_buf` is a repo).
 --- @return PullRequest?
+--- @return integer? pr_buf The `pr/…` buffer, or nil.
 function M.get_pr_data(repo_or_buf, id)
   local pr_buf = id == nil and repo_or_buf or M.get_buf('pr', repo_or_buf, id, false)
-  return (M.get_b_guh(pr_buf) or {}).pr_data
+  if type(pr_buf) ~= 'number' then
+    return nil, nil
+  end
+  return (M.get_b_guh(pr_buf) or {}).pr_data, pr_buf
 end
 
 --- Gets the `b:guh` buffer-local dict (if any), or nil if `buf` is invalid.

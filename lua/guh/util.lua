@@ -122,6 +122,18 @@ function M.is_empty(value)
   return value == nil or value == '' or value == 0 or #value == 0
 end
 
+--- Extracts error messages from a GitHub/GraphQL `response.errors` array, or `{}` if none.
+---
+--- @param resp table? decoded response (e.g. from `gh api graphql`).
+--- @return string[] messages
+function M.gh_errors(resp)
+  local msgs = {}
+  for _, e in ipairs(resp and resp.errors or {}) do
+    table.insert(msgs, e.message or vim.inspect(e))
+  end
+  return msgs
+end
+
 --- Appends a log entry to `stdpath('log')/guh.log` when `vim.g.guh_debug` is set. No-op otherwise.
 --- Each entry is prefixed with `[<wallclock> +<ms-since-prev>]` to make timing-trace inspection cheap.
 ---

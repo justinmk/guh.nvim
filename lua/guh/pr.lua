@@ -683,7 +683,7 @@ function M.show_pr(id, repo, focus)
   end
 end
 
---- Loads (maybe-cached) PR data into prdiff/, prcomments/ buffers WITHOUT displaying them.
+--- Loads (maybe-cached) PR data into prdiff/, prcomments/ buffers WITHOUT presenting (focusing) them.
 --- - Outdated-unresolved diff + comments are shown at top.
 --- - Current diff + comments are shown after that.
 --- - "Viewed" files collapse to a `(viewed) <path>` line.
@@ -704,6 +704,11 @@ function M.load_pr(opts, on_done)
     if not pr_data or not diff_stdout then
       return
     end
+    local pr_buf = state.get_buf('pr', repo, id, false)
+    -- Cache the prdiff in `b:guh.pr_data`. Do this here so it runs only after `gh.get_pr_data` stored `pr_data`.
+    if pr_buf and pr_data.diff_stdout ~= diff_stdout then
+      state.set_b_guh(pr_buf, { pr_data = vim.tbl_extend('force', pr_data, { diff_stdout = diff_stdout }) })
+    end
     local lines, threads, n_files, n_viewed_threads = comments.render_diff(pr_data, diff_stdout)
     util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
     -- filetype=gitcommit enables plugins like https://github.com/barrettruth/diffs.nvim
@@ -718,7 +723,6 @@ function M.load_pr(opts, on_done)
     -- Update `b:guh.pr_data` so the display step doesn't attempt to re-fetch.
     -- Use Vimscript to avoid re-serializing pr_data.
     -- TODO: https://github.com/neovim/neovim/issues/40159
-    local pr_buf = state.get_buf('pr', repo, id, false)
     if pr_buf and vim.b[pr_buf].guh and vim.b[pr_buf].guh.pr_data then
       vim.api.nvim_buf_call(pr_buf, function()
         vim.cmd(('let b:guh.pr_data.n_files = %d'):format(n_files))
@@ -737,18 +741,22 @@ function M.load_pr(opts, on_done)
       return progress('failed', nil, '%s', err or ('PR #%s not found'):format(id))
     end
     pr_data = pr
+    diff_stdout = pr.diff_stdout or diff_stdout -- Fallback to the cached prdiff, if any.
     try_render()
   end)
 
-  -- 2. Get the current PR diff.
-  util.system(gh.cmd(repo, 'pr', 'diff', tostring(id)), nil, function(r)
-    if r.code ~= 0 then
-      progress('failed', nil, vim.trim(r.stderr or ''))
-      return
-    end
-    diff_stdout = r.stdout
-    try_render()
-  end)
+  -- 2. Get the current PR diff, unless `gh.get_pr_data` found a cached one (synchronously).
+  --    Caching `pr_data.diff_stdout` lets re-renders (e.g. toggling "Viewed") skip this.
+  if not diff_stdout then
+    util.system(gh.cmd(repo, 'pr', 'diff', tostring(id)), nil, function(r)
+      if r.code ~= 0 then
+        progress('failed', nil, vim.trim(r.stderr or ''))
+        return
+      end
+      diff_stdout = r.stdout
+      try_render()
+    end)
+  end
 end
 
 --- This is only used by "<Plug>(guh-diff)" now...
@@ -885,7 +893,7 @@ function M.toggle_viewed()
   -- Flash curline (filepath heading after `jump_to_diff_file`).
   util.hl_flash(buf, vim.fn.line('.') - 1, vim.fn.line('.') - 1)
 
-  local pr_data = state.get_pr_data(repo, id)
+  local pr_data, pr_buf = state.get_pr_data(repo, id)
   if not pr_data or not pr_data.node_id then
     return util.msg(('PR #%s not loaded? ("R" to refresh)'):format(id), vim.log.levels.ERROR)
   end
@@ -900,17 +908,18 @@ function M.toggle_viewed()
     return util.msg(('"%s" is not a current file in PR #%s'):format(path, id), vim.log.levels.WARN)
   end
   local viewed = not (pr_data.viewed and pr_data.viewed[path])
-  local done = util.progress((viewed and 'Marking' or 'Unmarking') .. ' as viewed: ' .. path)
+
+  -- Optimization: patch `viewed` locally, then re-render from cache.
+  -- Do "optimistic" gh.set_file_viewed(); on failure, local state is stale until "Refresh".
+  local new_viewed = vim.tbl_extend('force', {}, pr_data.viewed or {})
+  local done = util.progress(('%s as viewed: %s'):format(viewed and 'Marking' or 'Unmarking', path))
+  new_viewed[path] = viewed or nil
+  state.set_b_guh(pr_buf, { pr_data = vim.tbl_extend('force', pr_data, { viewed = new_viewed }) })
+  M.load_pr({ id = id, repo = repo }) -- Re-render from cache.
+
   gh.set_file_viewed(pr_data.node_id, path, viewed, function(resp)
-    if resp['errors'] ~= nil then
-      local errs = {}
-      for _, e in ipairs(resp.errors) do
-        table.insert(errs, e.message or vim.inspect(e))
-      end
-      return done('failed', errs)
-    end
-    done('success')
-    M.refresh({ feat = 'pr', id = id, repo = repo })
+    done(resp['errors'] and 'failed' or 'success', util.gh_errors(resp))
+    -- We intentionally do not refresh() here.
   end)
 end
 

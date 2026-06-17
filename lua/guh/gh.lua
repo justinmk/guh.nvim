@@ -342,11 +342,7 @@ function M.get_pr_data(prnum, repo, opts, on_result)
     -- GraphQL can return HTTP 200 with an `errors` array (e.g. invalid field) and no `data`.
     if resp.errors then
       util.log('get_pr_data graphql errors', resp.errors)
-      local msgs = {}
-      for _, e in ipairs(resp.errors) do
-        table.insert(msgs, e.message or vim.inspect(e))
-      end
-      return on_result(nil, ('Failed to fetch PR #%s: %s'):format(prnum, table.concat(msgs, '; ')))
+      return on_result(nil, ('Failed to fetch PR #%s: %s'):format(prnum, table.concat(util.gh_errors(resp), '; ')))
     end
     local node = vim.tbl_get(resp, 'data', 'repository', 'pullRequest')
     if not node then

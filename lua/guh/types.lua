@@ -89,3 +89,4 @@
 --- @field n_resolved integer Resolved review-thread count.
 --- @field n_threads integer Total review-thread count (resolved + unresolved).
 --- @field n_viewed_threads? integer Unresolved threads hidden in "Viewed" files. Set by `pr.load_pr`.
+--- @field diff_stdout? string Cached raw `gh pr diff` output. Set by `pr.load_pr`.
