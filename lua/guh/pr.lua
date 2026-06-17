@@ -241,7 +241,7 @@ local function render_ci_log(buf, logs)
   end
   local chan = vim.api.nvim_open_term(buf, {})
   vim.api.nvim_chan_send(chan, logs)
-  -- state.set_b_guh(buf, { chan = chan })
+  -- state.set_b_key(buf, 'guh.chan', chan)
   vim.fn.chanclose(chan)
   util.set_default_keymaps(buf)
 end
@@ -707,7 +707,7 @@ function M.load_pr(opts, on_done)
     local pr_buf = state.get_buf('pr', repo, id, false)
     -- Cache the prdiff in `b:guh.pr_data`. Do this here so it runs only after `gh.get_pr_data` stored `pr_data`.
     if pr_buf and pr_data.diff_stdout ~= diff_stdout then
-      state.set_b_guh(pr_buf, { pr_data = vim.tbl_extend('force', pr_data, { diff_stdout = diff_stdout }) })
+      state.set_b_key(pr_buf, 'guh.pr_data.diff_stdout', diff_stdout)
     end
     local lines, threads, n_files, n_viewed_threads = comments.render_diff(pr_data, diff_stdout)
     util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
@@ -721,13 +721,9 @@ function M.load_pr(opts, on_done)
     util.set_default_keymaps(buf)
     comments.load_pr_comments(id, repo, buf, pr_data, threads, n_files, n_viewed_threads)
     -- Update `b:guh.pr_data` so the display step doesn't attempt to re-fetch.
-    -- Use Vimscript to avoid re-serializing pr_data.
-    -- TODO: https://github.com/neovim/neovim/issues/40159
-    if pr_buf and vim.b[pr_buf].guh and vim.b[pr_buf].guh.pr_data then
-      vim.api.nvim_buf_call(pr_buf, function()
-        vim.cmd(('let b:guh.pr_data.n_files = %d'):format(n_files))
-        vim.cmd(('let b:guh.pr_data.n_viewed_threads = %d'):format(n_viewed_threads))
-      end)
+    if pr_buf then
+      state.set_b_key(pr_buf, 'guh.pr_data.n_files', n_files)
+      state.set_b_key(pr_buf, 'guh.pr_data.n_viewed_threads', n_viewed_threads)
     end
     progress('success')
     if on_done then
@@ -912,9 +908,9 @@ function M.toggle_viewed()
   -- Optimization: patch `viewed` locally, then re-render from cache.
   -- Do "optimistic" gh.set_file_viewed(); on failure, local state is stale until "Refresh".
   local new_viewed = vim.tbl_extend('force', {}, pr_data.viewed or {})
-  local done = util.progress(('%s as viewed: %s'):format(viewed and 'Marking' or 'Unmarking', path))
   new_viewed[path] = viewed or nil
-  state.set_b_guh(pr_buf, { pr_data = vim.tbl_extend('force', pr_data, { viewed = new_viewed }) })
+  local done = util.progress(('%s as viewed: %s'):format(viewed and 'Marking' or 'Unmarking', path))
+  state.set_b_key(pr_buf, 'guh.pr_data.viewed', next(new_viewed) and new_viewed or vim.empty_dict())
   M.load_pr({ id = id, repo = repo }) -- Re-render from cache.
 
   gh.set_file_viewed(pr_data.node_id, path, viewed, function(resp)

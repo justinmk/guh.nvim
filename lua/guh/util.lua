@@ -411,7 +411,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
     -- buftype=terminal if the previous channel is closed.
     local chan = vim.api.nvim_open_term(buf, {})
     -- XXX: store `b:guh.chan` because `nvim_open_term` doesn't set `vim.bo.channel` (Nvim bug).
-    state.set_b_guh(buf, { chan = chan })
+    state.set_b_key(buf, 'guh.chan', chan)
     local jobs = {} ---@type integer[]
 
     local debug = vim.g.guh_debug == 'debug' or vim.g.guh_debug == 'trace'
@@ -541,7 +541,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
       end
     end
     -- Store job-ids in case a later `run_term_cmds{force=true}` invocation forces a re-request.
-    state.set_b_guh(buf, { jobs = jobs })
+    state.set_b_key(buf, 'guh.jobs', jobs)
   end)
 end
 

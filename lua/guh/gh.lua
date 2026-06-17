@@ -181,8 +181,8 @@ local function to_pr(node)
   for _, n in ipairs(vim.tbl_get(node, 'commits', 'nodes') or {}) do
     table.insert(commits, n.commit)
   end
-  local viewed = {}
-  local file_paths = {} ---@type table<string,true>   -- All current paths in this PR.
+  local viewed = vim.empty_dict()
+  local file_paths = vim.empty_dict() ---@type table<string,true>   -- All current paths in this PR.
   for _, n in ipairs(vim.tbl_get(node, 'files', 'nodes') or {}) do
     file_paths[n.path] = true
     if n.viewerViewedState == 'VIEWED' then
@@ -351,7 +351,7 @@ function M.get_pr_data(prnum, repo, opts, on_result)
     end
     local pr = to_pr(node)
     -- Cache on the `pr/…` buffer only (single-source-of-truth). Create it if needed.
-    state.set_b_guh(assert(state.get_buf('pr', repo, prnum)), { pr_data = pr })
+    state.set_b_key(assert(state.get_buf('pr', repo, prnum)), 'guh.pr_data', pr)
     util.log('get_pr_data resp', { comments = #pr.raw_comments, viewed = vim.tbl_count(pr.viewed) })
     on_result(pr)
   end)

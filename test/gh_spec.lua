@@ -653,3 +653,30 @@ describe('util', function()
     t.eq({ owner = 'owner', repo = 'repo' }, parse_target('https://github.com/owner/repo/'))
   end)
 end)
+
+describe('guh.state', function()
+  -- TODO: https://github.com/neovim/neovim/issues/40159
+  it('set_b_key patches a nested key-path, preserving siblings', function()
+    -- Returns `b:guh` after seeding it with `init` and setting `path = value`.
+    local function set_key(init, path, value)
+      return n.exec_lua(function(init_, path_, value_)
+        local buf = vim.api.nvim_get_current_buf()
+        vim.b[buf].guh = init_
+        require('guh.state').set_b_key(buf, path_, value_)
+        return vim.b[buf].guh
+      end, init, path, value)
+    end
+
+    -- Nested scalar set: sibling keys preserved.
+    t.eq(
+      { pr_data = { n = 2, viewed = { a = true } }, chan = 5 },
+      set_key({ pr_data = { n = 1, viewed = { a = true } }, chan = 5 }, 'guh.pr_data.n', 2)
+    )
+
+    -- Set a new nested key.
+    t.eq({ pr_data = { n = 1, diff_stdout = 'X' } }, set_key({ pr_data = { n = 1 } }, 'guh.pr_data.diff_stdout', 'X'))
+
+    -- Set a top-level key.
+    t.eq({ pr_data = { n = 1 }, chan = 9 }, set_key({ pr_data = { n = 1 }, chan = 5 }, 'guh.chan', 9))
+  end)
+end)

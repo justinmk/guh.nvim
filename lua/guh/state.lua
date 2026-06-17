@@ -132,16 +132,40 @@ function M.get_b_guh(buf)
   return vim.b[buf].guh
 end
 
---- Sets the `b:guh` buffer-local dict. `bufstate` is merged with existing state, if any.
+--- Sets a single (possibly nested) key-path on a `b:` variable, without the serialization "roundtrip"
+--- (`local x = vim.b.x; x.y.z = v; vim.b.x = x`). The root var is created if absent; any deeper parent
+--- must already exist, e.g. for `'guh.pr_data.n_files'` the buffer must already have `b:guh.pr_data`.
 ---
---- Note: To delete a field, set its value to `vim.NIL`:
---- ```lua
---- state.set_b_guh(pr_buf, { pr_data = vim.NIL })
---- ```
+--- TODO: https://github.com/neovim/neovim/issues/40159
+---
+--- @param buf integer
+--- @param path string Dotted key-path under `b:` (e.g. "guh.pr_data.n_files").
+--- @param value any
+function M.set_b_key(buf, path, value)
+  vim.api.nvim_buf_call(buf, function()
+    vim.b._guh_patch = value -- Marshall one-way.
+    local root = path:match('^[^.]+') -- "foo.bar" => "foo"
+    vim.cmd(([[
+      " Ensure b:foo exists (but not b:foo.x.y).
+      let b:%s = get(b:, '%s', {})
+      let b:%s = b:_guh_patch
+      unlet b:_guh_patch
+    ]]):format(root, root, path))
+  end)
+end
+
+--- Sets the `b:guh` buffer-local dict. `bufstate` is (shallowly) merged with existing state, if any.
+---
+--- - For performance, prefer `set_b_key`.
+--- - Creates `b:guh` if absent.
+--- - To delete a field, set its value to `vim.NIL`:
+---   ```lua
+---   state.set_b_guh(pr_buf, { pr_data = vim.NIL })
+---   ```
 ---
 --- @param buf integer
 --- @param bufstate BufState
-function M.set_b_guh(buf, bufstate)
+local function set_b_guh(buf, bufstate)
   local merged = vim.tbl_extend('force', vim.b[buf].guh or {}, bufstate)
   for k, v in pairs(bufstate) do
     if v == vim.NIL then
@@ -180,7 +204,7 @@ function M.init_buf(feat, focus, repo, id, bufstate)
   -- XXX: Stash the key so anything (e.g. `util.run_term_cmds()`) can rebuild the `guh://…` URL,
   -- even for "global" (non-repo-specific) buffers like `guh://status`.
   bufstate.bufkey = key
-  M.set_b_guh(buf, bufstate)
+  set_b_guh(buf, bufstate)
   M.set_buf_name(buf, feat, key)
   return buf, key
 end
@@ -197,7 +221,7 @@ function M.invalidate(buf)
   for _, j in ipairs(b_guh.jobs or {}) do
     pcall(vim.fn.jobstop, j)
   end
-  M.set_b_guh(buf, { chan = vim.NIL, jobs = vim.NIL, pr_data = vim.NIL })
+  set_b_guh(buf, { chan = vim.NIL, jobs = vim.NIL, pr_data = vim.NIL })
 end
 
 --- Gets buffer URI:
