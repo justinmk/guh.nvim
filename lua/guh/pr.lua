@@ -181,6 +181,9 @@ function M.select(args, id, repo)
       dispatch(true)
     elseif state.get_buf('issue', repo, target.id, false) then
       dispatch(false)
+    elseif state.get_b_key(state.get_buf('status', nil, 'all', false), { 'guh', 'notifications', arg }) then
+      local notif = state.get_b_key(state.get_buf('status', nil, 'all', false), { 'guh', 'notifications', arg })
+      dispatch(notif.is_pr)
     else -- Probe PR-vs-issue. Async so the hl_flash() highlight works.
       util.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, nil, function(r)
         util.log('select.probe.done', { code = r.code })
@@ -585,14 +588,14 @@ local function load_user_notifications(buf, on_stdout, _on_stderr, on_exit)
     local lines = {}
     local ok, items = pcall(vim.json.decode, r.code == 0 and r.stdout or '')
     if ok and type(items) == 'table' and vim.api.nvim_buf_is_valid(buf) then
-      local map = vim.empty_dict() ---@type table<string, string> slug ("owner/repo#NNN") => thread-id.
+      local map = vim.empty_dict() ---@type table<string, Notification> slug ("owner/repo#NNN") => Notification.
       lines = { '', 'Notifications (unread):' }
       for _, n in ipairs(items) do
         local typ = n.subject and n.subject.type
         if typ == 'Issue' or typ == 'PullRequest' then
-          -- `owner/repo#NNN` is a cWORD `<CR>` (`:Guh .`) can open.
+          -- `owner/repo#NNN` is a slug that ":Guh ." can open.
           local slug = ('%s#%s'):format(n.repository.full_name, (n.subject.url or ''):match('(%d+)$'))
-          map[slug] = n.id
+          map[slug] = { thread_id = n.id, is_pr = typ == 'PullRequest' }
           table.insert(lines, ('  %s  %s'):format(slug, n.subject.title))
         end
       end
@@ -629,7 +632,7 @@ function M.show_status(focus, repo)
     local tmpl = vim.text.indent(
       0,
       [[
-      {{"Open PRs (last-updated):\n" -}}
+      {{"\nOpen PRs (last-updated):\n" -}}
       {{range .data.repository.pullRequests.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end -}}
       {{"\nOpen issues (last-updated):\n" -}}
       {{range .data.repository.issues.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end}}

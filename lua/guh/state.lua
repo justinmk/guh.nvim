@@ -132,9 +132,38 @@ function M.get_b_guh(buf)
   return vim.b[buf].guh
 end
 
---- Sets a single (possibly nested) key-path on a `b:` variable, without the serialization "roundtrip"
---- (`local x = vim.b.x; x.y.z = v; vim.b.x = x`). The root var is created if absent; any deeper parent
---- must already exist, e.g. for `'guh.pr_data.n_files'` the buffer must already have `b:guh.pr_data`.
+--- Gets a nested key from a `b:` variable (cf. `vim.tbl_get()`), marshalling back only the leaf (avoid unnecessary serialization).
+---
+--- @param buf integer?
+--- @param path string[] Key-path under `b:` (e.g. `{ 'guh', 'notifications', 'owner/repo#1' }`).
+--- @return any? value The leaf value, or nil.
+function M.get_b_key(buf, path)
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then
+    return nil
+  end
+  return vim.api.nvim_buf_call(buf, function()
+    vim.b._guh_path = path -- Marshall one-way.
+    vim.cmd([[
+      let s:v = b:
+      for s:k in b:_guh_path
+        if type(s:v) != v:t_dict || !has_key(s:v, s:k)
+          let s:v = v:null
+          break
+        endif
+        let s:v = s:v[s:k]
+      endfor
+      let b:_guh_leaf = s:v
+      unlet b:_guh_path s:v
+    ]])
+    local v = vim.b._guh_leaf
+    vim.b._guh_leaf = nil
+    return v ~= vim.NIL and v or nil
+  end)
+end
+
+--- Sets a single (possibly nested) key-path on a `b:` variable, WITHOUT the serialization "roundtrip"
+--- (`local x = vim.b.x; x.y.z = v; vim.b.x = x`), for performance. The root var (`b:foo`) is
+--- created if absent; any deeper keys must already exist.
 ---
 --- TODO: https://github.com/neovim/neovim/issues/40159
 ---

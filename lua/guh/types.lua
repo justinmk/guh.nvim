@@ -6,6 +6,10 @@
 --- Command for `util.run_term_cmds` command: a shell argv, or a `TermCmdFn`.
 --- @alias TermCmd string[]|TermCmdFn
 
+--- @class Notification A `b:guh.notifications` entry (keyed by slug "owner/repo#NNN").
+--- @field thread_id string GitHub notification thread-id (for mark-as-read/done).
+--- @field is_pr boolean Lets `pr.select` skip its PR-vs-issue probe.
+
 --- @class BufState
 --- Buffer-local b:guh dict.
 --- @field chan? integer Channel-id for `run_term_cmds` or other terminal-buffers.
@@ -14,6 +18,7 @@
 --- @field id? integer|string PR or issue number, or commit SHA.
 --- @field pr_data? PullRequest
 --- @field repo? string "owner/name"
+--- @field notifications? table<string, Notification> Unread notifications on `guh://status` (keyed by slug).
 
 --- @class Comment
 --- @field body string
