@@ -75,8 +75,12 @@ where [count] is the menu-item you want to select.
 
 Example: If you want "D" to toggle Draft/Ready, map it to menu-item 4: >vim
   nnoremap D 4<Plug>(guh-review)
-
-
+<
+Example: Try mapping ":Guh ." globally, then you can use it from anywhere,
+even non-Guh buffers:
+>vim
+  nnoremap Ug <cmd>Guh .<cr>
+<
                                                                 *guh-mappings*
 Default mappings (local to `guh://` buffers):
 

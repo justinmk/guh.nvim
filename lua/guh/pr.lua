@@ -608,11 +608,20 @@ local function load_user_notifications(buf, on_stdout, _on_stderr, on_exit)
   end)
 end
 
+--- Implements `guh://status`.
+---
 --- @param focus boolean
 --- @param repo? string Optional "owner/name" repo.
 function M.show_status(focus, repo)
-  repo = repo or resolve_repo()
-  local buf = state.init_buf('status', focus, nil, 'all', { repo = repo })
+  -- For `:Guh` (no args), keep the existing b:guh.repo instead of resolving from *current* buffer.
+  local buf = state.get_buf('status', nil, 'all', false)
+  local cur_repo = buf and (state.get_b_guh(buf) or {}).repo or nil
+  repo = repo or cur_repo or resolve_repo()
+  -- If the repo actually changed (e.g. explicit `:Guh owner/repo`), force a refresh.
+  if buf and repo ~= cur_repo then
+    state.invalidate(buf)
+  end
+  buf = state.init_buf('status', focus, nil, 'all', { repo = repo })
   local cmds = {} ---@type TermCmd[]
 
   if repo then
