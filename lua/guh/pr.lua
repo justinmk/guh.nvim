@@ -576,38 +576,6 @@ function M.merge_pr()
   end)
 end
 
---- Fetches the user's "Unread" notifications, and stores their thread-ids in the `b:guh.notifications`
---- map, for use by the mark-as-read/done action.
----
---- @param buf integer The `guh://status` buffer.
---- @param on_stdout fun(_, data: string[])
---- @param _on_stderr? fun(_, data: string[])
---- @param on_exit fun()
-local function load_user_notifications(buf, on_stdout, _on_stderr, on_exit)
-  util.system({ 'gh', 'api', 'notifications' }, nil, function(r)
-    local lines = {}
-    local ok, items = pcall(vim.json.decode, r.code == 0 and r.stdout or '')
-    if ok and type(items) == 'table' and vim.api.nvim_buf_is_valid(buf) then
-      local map = vim.empty_dict() ---@type table<string, Notification> slug ("owner/repo#NNN") => Notification.
-      lines = { '', 'Notifications (unread):' }
-      for _, n in ipairs(items) do
-        local typ = n.subject and n.subject.type
-        if typ == 'Issue' or typ == 'PullRequest' then
-          -- `owner/repo#NNN` is a slug that ":Guh ." can open.
-          local slug = ('%s#%s'):format(n.repository.full_name, (n.subject.url or ''):match('(%d+)$'))
-          map[slug] = { thread_id = n.id, is_pr = typ == 'PullRequest' }
-          table.insert(lines, ('  %s  %s'):format(slug, n.subject.title))
-        end
-      end
-      state.set_b_key(buf, 'guh.notifications', map)
-    end
-    if #lines > 0 then
-      on_stdout(nil, { table.concat(lines, '\r\n') .. '\r\n' })
-    end
-    on_exit()
-  end)
-end
-
 --- Implements `<Plug>(guh-up)` ("-"): navigates to the "parent" of a `guh://` buffer.
 function M.go_up()
   local b = vim.b.guh or {}
@@ -680,7 +648,7 @@ function M.show_status(focus, repo)
     }
   end
 
-  cmds[#cmds + 1] = load_user_notifications
+  cmds[#cmds + 1] = gh.get_user_notifications
 
   util.run_term_cmds(buf, { pty = true }, cmds, function()
     util.set_default_keymaps(buf)
