@@ -422,7 +422,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
 
     -- True if `run_term_cmds{force=true}` superseded the in-flight work.
     local function is_cancelled()
-      return (state.get_b_guh(buf) or {}).chan ~= chan
+      return state.get_b_key(buf, { 'guh', 'chan' }) ~= chan
     end
 
     local function on_all_done()

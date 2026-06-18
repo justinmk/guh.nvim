@@ -753,6 +753,8 @@ function M.load_pr(opts, on_done)
     -- filetype=gitcommit enables plugins like https://github.com/barrettruth/diffs.nvim
     util.buf_set_readonly_lines(buf, lines, 'gitcommit')
     vim.api.nvim_buf_call(buf, function()
+      -- Override the builtin `diffFile` highlight. But let GuhWarning win for its sub-spans.
+      vim.cmd([[syntax match GuhDiffFile /^diff --git.*/ containedin=ALL]])
       vim.cmd([[syntax match GuhWarning /^(viewed)/ containedin=ALL]])
       -- Match offdiff file prefix ("outdated-3271868956:", "outside-3271868956:").
       vim.cmd([[syntax match GuhWarning /\<\(outdated\|outside\)\ze-\d\+:/ containedin=ALL]])

@@ -60,17 +60,24 @@ accepts a (potentially optional) text input, Guh presents a "guh://…/edit".
 
 
 ------------------------------------------------------------------------------
-Keymaps                                                         *guh-mappings*
+Keymaps                                                           *guh-config*
 
 Guh defines global `<Plug>(guh-…)` keys at startup. You can map anything to
-those |<Plug>| keys to "override" the default Guh keymaps. When a `guh://`
-buffer is opened it sets buffer-local default mappings unless you have defined
-such an override.
+those |<Plug>| keys to "override" the default Guh keymaps. Each `guh://`
+buffer sets buffer-local default mappings unless you defined your own.
 
-Example: the `<Plug>(guh-merge)` feature is mapped to "cM" by default, but you
-can override it by mapping it to <F5>, then Guh will not map "cM": >vim
-  nmap <F5> <Plug>(guh-merge)
-<
+Example: `<Plug>(guh-merge)` is mapped to "cM" by default, but if you define
+your own mapping, Guh will not map "cM": >vim
+  nnoremap <leader>m <Plug>(guh-merge)
+
+If you want to skip the menu for an action, just map `[count]<Plug>(guh-…)`,
+where [count] is the menu-item you want to select.
+
+Example: If you want "D" to toggle Draft/Ready, map it to menu-item 4: >vim
+  nnoremap D 4<Plug>(guh-review)
+
+
+                                                                *guh-mappings*
 Default mappings (local to `guh://` buffers):
 
 BUFFER-RELATIVE VIEW ACTIONS
@@ -138,7 +145,9 @@ cr
         `guh://…/prcomments/` buffer. |guh-comment|
         <Plug>(guh-thread)
 
-cv      Toggle "Viewed" state of the diff file at cursor.
+cv      Toggle "Viewed" state of the diff-file at cursor. Also works on
+        OUTDATED/OUTSIDE diff-files, but only locally: "R" (refresh) will show
+        those files again until their threads are resolved.
         <Plug>(guh-viewed)
 
 
@@ -146,14 +155,15 @@ cv      Toggle "Viewed" state of the diff file at cursor.
 View PR diff                                                        *guh-diff*
 
 `dd` on a PR view opens the diff + comments in 'scrollbind' split windows.
+Comments are also provided as diagnostics (and loaded into the quickfix list).
 
 - OUTDATED diffs (if any) are shown as extra diff section above the "current"
   diff, if any UNRESOLVED comments are anchored thereto.
 - Unresolved comments on OUTDATED code (i.e. code from an old push), are
-  attached to diff-hunks with filename format `outdated-<id>:<file>`.
+  attached to diff-hunks with pseudo-filename `outdated-<id>:<file>`.
 - UNRESOLVED comments on code OUTSIDE of the PR diff, are similarly attached
-  to diff-hunks with filename format `outside-<id>:<file>`.
-- The current, latest diff follows those quasi-diffs, and is always shown.
+  to diff-hunks with pseudo-filename `outside-<id>:<file>`.
+- The current PR diff follows the above sections.
 - Only UNRESOLVED comments are shown.
 - Comments on VIEWED files are never shown.
 

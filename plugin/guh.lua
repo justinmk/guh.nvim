@@ -1,3 +1,4 @@
+vim.api.nvim_set_hl(0, 'GuhDiffFile', { default = true, link = 'PmenuSel' })
 vim.api.nvim_set_hl(0, 'GuhHeading', { default = true, link = 'PmenuSel' })
 vim.api.nvim_set_hl(0, 'GuhWarning', { default = true, link = 'WarningMsg' })
 
