@@ -94,7 +94,7 @@
 --- @field title string
 --- @field url string
 --- @field raw_comments Comment[] Flat per-comment list from `flatten_review_threads`.
---- @field viewed table<string, boolean> Per-file "Viewed" flag.
+--- @field viewed table<string, boolean> Per-file "Viewed" flag. Also for quasi-filepaths (e.g. `outdated-<id>:<path>`).
 --- @field file_paths table<string, true> Set of all current paths in this PR's diff. Used to validate `markFileAsViewed` targets locally.
 --- @field n_files? integer Files in the rendered diff (incl. outdated/outside virtual files). Set by `pr.load_pr`.
 --- @field n_resolved integer Resolved review-thread count.

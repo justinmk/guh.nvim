@@ -46,8 +46,10 @@ end
 ---
 --- @param comments_list table<string, CommentThread[]>
 --- @param file_prefix string
+--- @param viewed table<string,boolean> "viewed" map (keyed by the synthetic path); collapsed to "(viewed) …".
 --- @return string[]
-local function to_offdiff_section(comments_list, file_prefix)
+local function to_offdiff_section(comments_list, file_prefix, viewed)
+  viewed = viewed or {}
   local entries = {}
   for synthetic, comment_threads in pairs(comments_list) do
     if synthetic:match('^' .. file_prefix .. '%-%d+:') then
@@ -67,13 +69,17 @@ local function to_offdiff_section(comments_list, file_prefix)
   local lines = {}
   for _, e in ipairs(entries) do
     local first = e.thread.comments[1]
-    table.insert(lines, ('diff --git a/%s b/%s'):format(e.synthetic, e.synthetic))
-    -- Fake "index" line for visual symmetry with real diff sections (dummy SHA).
-    table.insert(lines, 'index 0000000..0000000 100644')
-    table.insert(lines, ('--- a/%s'):format(e.synthetic))
-    table.insert(lines, ('+++ b/%s'):format(e.synthetic))
-    for hunk_line in (first.diff_hunk or ''):gmatch('[^\n]+') do
-      table.insert(lines, hunk_line)
+    if viewed[e.synthetic] then -- Collapse to a "(viewed) <synthetic>" line (cf. `prepare_pr_diff`).
+      table.insert(lines, ('(viewed) %s'):format(e.synthetic))
+    else
+      table.insert(lines, ('diff --git a/%s b/%s'):format(e.synthetic, e.synthetic))
+      -- Fake "index" line for visual symmetry with real diff sections (dummy SHA).
+      table.insert(lines, 'index 0000000..0000000 100644')
+      table.insert(lines, ('--- a/%s'):format(e.synthetic))
+      table.insert(lines, ('+++ b/%s'):format(e.synthetic))
+      for hunk_line in (first.diff_hunk or ''):gmatch('[^\n]+') do
+        table.insert(lines, hunk_line)
+      end
     end
   end
   return lines
@@ -125,10 +131,11 @@ end
 --- Jumps to the `diff --git a/… b/…` (or `(viewed) <path>`) filepath heading at or above cursor in
 --- `buf` (a prdiff/ buffer).
 ---
---- Strips quasi-filename prefixes (`outdated-<id>:`, `outside-<id>:`) and returns a hint.
+--- Returns the path *as displayed* (and thus as keyed in `pr_data.viewed`): real path for current
+--- files, or the `outdated-<id>:`/`outside-<id>:` quasi-filename for off-diff sections.
 ---
 --- @param buf integer prdiff buffer.
---- @return string? path Filepath (minus quasi-filename prefix), or nil if none found.
+--- @return string? path Filepath (or quasi-filepath), or nil if none found.
 --- @return 'outdated'|'outside'|nil quasi nil if the path is a current-HEAD file.
 function M.jump_to_file_heading(buf)
   local path = vim.api.nvim_buf_call(buf, function()
@@ -146,7 +153,6 @@ function M.jump_to_file_heading(buf)
     return nil, nil
   end
   local quasi = path:match(outdated_prefix_pat) and 'outdated' or path:match(outside_prefix_pat) and 'outside' or nil
-  path = path:gsub(outdated_prefix_pat, ''):gsub(outside_prefix_pat, '')
   return path, quasi
 end
 
@@ -263,9 +269,8 @@ function M.load_pr_comments(id, repo, diff_buf, pr_data, comments_list, n_files,
   --- @param filename string Key from `comments_list` (may be `outdated-<id>:<path>` format).
   --- @param file_comments CommentThread[]
   local function process_file(filename, file_comments)
-    -- Skip "viewed" files. Strip "outdated-<id>:" and "outside-<id>:" to match the real path.
-    local real_path = (filename:gsub(outdated_prefix_pat, ''):gsub(outside_prefix_pat, ''))
-    if viewed[real_path] then
+    -- Skip "viewed" files, including quasi-filepaths (e.g. `outdated-<id>:<path>`).
+    if viewed[filename] then
       return
     end
     local normalized_filename = normalize_diff_path(filename)
@@ -546,9 +551,6 @@ function M.render_diff(pr_data, diff_stdout)
   local line_map = to_line_map(diff_lines)
   local viewed_threads = {} ---@type table<integer, true>
   for _, c in ipairs(pr_data.raw_comments) do
-    if viewed[c.path] and c.thread_id then
-      viewed_threads[c.thread_id] = true
-    end
     if c.thread_id then
       if c.outdated then
         c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
@@ -558,12 +560,16 @@ function M.render_diff(pr_data, diff_stdout)
         c.path = ('outside-%d:%s'):format(c.thread_id, c.path)
       end
     end
+    -- Count threads hidden by "viewed". After the `c.path` assignment above, it matches how `viewed` is keyed.
+    if viewed[c.path] and c.thread_id then
+      viewed_threads[c.thread_id] = true
+    end
   end
   local threads = M.to_threads(pr_data.raw_comments)
   local lines = vim
     .iter({
-      to_offdiff_section(threads, 'outdated'),
-      to_offdiff_section(threads, 'outside'),
+      to_offdiff_section(threads, 'outdated', viewed),
+      to_offdiff_section(threads, 'outside', viewed),
       diff_lines,
     })
     :flatten()

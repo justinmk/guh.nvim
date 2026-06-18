@@ -734,7 +734,9 @@ function M.load_pr(opts, on_done)
   local _, id, repo = require_pr(opts)
   local buf = state.init_buf('prdiff', nil, repo, id) -- focus=nil (no display)
 
-  local progress = util.new_progress_report('Loading PR...', buf)
+  -- Show "Loading…" only if we actually fetch.
+  local cached = state.get_pr_data(repo, id)
+  local progress = (cached and cached.diff_stdout) and function() end or util.new_progress_report('Loading PR...', buf)
   progress('running')
 
   local pr_data --[[@type PullRequest?]]
@@ -935,13 +937,8 @@ function M.toggle_viewed()
     return util.msg(('PR #%s not loaded? ("R" to refresh)'):format(id), vim.log.levels.ERROR)
   end
   -- `markFileAsViewed` cannot work with renamed/removed files.
-  if not (pr_data.file_paths or {})[path] then
-    if quasi then
-      return util.msg(
-        ('File "%s" is not in the PR (%s thread). Use "cr" to resolve the thread instead.'):format(path, quasi),
-        vim.log.levels.WARN
-      )
-    end
+  local local_only = quasi ~= nil
+  if not local_only and not (pr_data.file_paths or {})[path] then
     return util.msg(('"%s" is not a current file in PR #%s'):format(path, id), vim.log.levels.WARN)
   end
   local viewed = not (pr_data.viewed and pr_data.viewed[path])
@@ -950,14 +947,26 @@ function M.toggle_viewed()
   -- Do "optimistic" gh.set_file_viewed(); on failure, local state is stale until "Refresh".
   local new_viewed = vim.tbl_extend('force', {}, pr_data.viewed or {})
   new_viewed[path] = viewed or nil
-  local done = util.progress(('%s as viewed: %s'):format(viewed and 'Marking' or 'Unmarking', path))
   state.set_b_key(pr_buf, 'guh.pr_data.viewed', next(new_viewed) and new_viewed or vim.empty_dict())
-  M.load_pr({ id = id, repo = repo }) -- Re-render from cache.
 
-  gh.set_file_viewed(pr_data.node_id, path, viewed, function(resp)
-    done(resp['errors'] and 'failed' or 'success', util.gh_errors(resp))
-    -- We intentionally do not refresh() here.
+  local msg = ('%s%s: %s'):format(
+    viewed and 'Viewed' or 'Unviewed',
+    local_only and (' (%s file, Refresh will forget)'):format(quasi) or '',
+    path
+  )
+
+  -- Re-render from cache.
+  M.load_pr({ id = id, repo = repo }, function()
+    util.msg(msg)
   end)
+  -- Send API request for non-quasi files.
+  if not local_only then
+    local done = util.progress(msg)
+    gh.set_file_viewed(pr_data.node_id, path, viewed, function(resp)
+      done(resp['errors'] and 'failed' or 'success', util.gh_errors(resp))
+      -- We intentionally do not refresh() here.
+    end)
+  end
 end
 
 --- Reruns CI for the current PR. Shows a vim.ui.select picker unless `[count]` was given.

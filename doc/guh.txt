@@ -157,21 +157,20 @@ View PR diff                                                        *guh-diff*
 `dd` on a PR view opens the diff + comments in 'scrollbind' split windows.
 Comments are also provided as diagnostics (and loaded into the quickfix list).
 
-- OUTDATED diffs (if any) are shown as extra diff section above the "current"
-  diff, if any UNRESOLVED comments are anchored thereto.
-- Unresolved comments on OUTDATED code (i.e. code from an old push), are
-  attached to diff-hunks with pseudo-filename `outdated-<id>:<file>`.
-- UNRESOLVED comments on code OUTSIDE of the PR diff, are similarly attached
-  to diff-hunks with pseudo-filename `outside-<id>:<file>`.
-- The current PR diff follows the above sections.
 - Only UNRESOLVED comments are shown.
-- Comments on VIEWED files are never shown.
+- Comments on VIEWED files are never shown, even if Unresolved.
+- Unresolved comments on OUTDATED code (i.e. code from an old push), are
+  anchored to pseudo-diff sections above the "current" PR diff, with
+  pseudo-filename `outdated-<id>:<file>`.
+- Unresolved comments on code OUTSIDE of the PR diff, are similarly anchored
+  to pseudo-filename `outside-<id>:<file>`.
+- The current PR diff follows the above sections.
 
 PR diff:
 
 - Lists diff-hunks in this order:
-  1. Outdated (only if unresolved comments)
-  2. Outside (only if unresolved comments)
+  1. Outdated (if any)
+  2. Outside (if any)
   3. Current
 - Shows VIEWED files as a single line (diff/comments not loaded): >
   (viewed) path/to/file
