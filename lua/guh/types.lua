@@ -1,5 +1,11 @@
 --- @alias Feat 'comment'|'commit'|'edit'|'issue'|'merge'|'pr'|'prcomments'|'prdiff'|'prlogs'|'review'|'status'
 
+--- Function "cmd" for `util.run_term_cmds`. Not added to `b:guh.jobs` (not cancellable), so must check buffer validity.
+--- @alias TermCmdFn fun(buf: integer, on_stdout: fun(_: any, data: string[]), on_stderr: fun(_: any, data: string[])?, on_exit: fun())
+
+--- Command for `util.run_term_cmds` command: a shell argv, or a `TermCmdFn`.
+--- @alias TermCmd string[]|TermCmdFn
+
 --- @class BufState
 --- Buffer-local b:guh dict.
 --- @field chan? integer Channel-id for `run_term_cmds` or other terminal-buffers.

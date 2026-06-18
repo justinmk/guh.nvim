@@ -573,12 +573,45 @@ function M.merge_pr()
   end)
 end
 
+--- Fetches the user's "Unread" notifications, and stores their thread-ids in the `b:guh.notifications`
+--- map, for use by the mark-as-read/done action.
+---
+--- @param buf integer The `guh://status` buffer.
+--- @param on_stdout fun(_, data: string[])
+--- @param _on_stderr? fun(_, data: string[])
+--- @param on_exit fun()
+local function load_user_notifications(buf, on_stdout, _on_stderr, on_exit)
+  util.system({ 'gh', 'api', 'notifications' }, nil, function(r)
+    local lines = {}
+    local ok, items = pcall(vim.json.decode, r.code == 0 and r.stdout or '')
+    if ok and type(items) == 'table' and vim.api.nvim_buf_is_valid(buf) then
+      local map = vim.empty_dict() ---@type table<string, string> slug ("owner/repo#NNN") => thread-id.
+      lines = { '', 'Notifications (unread):' }
+      for _, n in ipairs(items) do
+        local typ = n.subject and n.subject.type
+        if typ == 'Issue' or typ == 'PullRequest' then
+          -- `owner/repo#NNN` is a cWORD `<CR>` (`:Guh .`) can open.
+          local slug = ('%s#%s'):format(n.repository.full_name, (n.subject.url or ''):match('(%d+)$'))
+          map[slug] = n.id
+          table.insert(lines, ('  %s  %s'):format(slug, n.subject.title))
+        end
+      end
+      state.set_b_key(buf, 'guh.notifications', map)
+    end
+    if #lines > 0 then
+      on_stdout(nil, { table.concat(lines, '\r\n') .. '\r\n' })
+    end
+    on_exit()
+  end)
+end
+
 --- @param focus boolean
 --- @param repo? string Optional "owner/name" repo.
 function M.show_status(focus, repo)
   repo = repo or resolve_repo()
   local buf = state.init_buf('status', focus, nil, 'all', { repo = repo })
-  local cmds = { { 'gh', 'status' } }
+  local cmds = {} ---@type TermCmd[]
+
   if repo then
     local owner, name = repo:match('^([^/]+)/(.+)$')
     local query = vim.text.indent(
@@ -596,14 +629,14 @@ function M.show_status(focus, repo)
     local tmpl = vim.text.indent(
       0,
       [[
-      {{"\nOpen PRs (last-updated):\n" -}}
+      {{"Open PRs (last-updated):\n" -}}
       {{range .data.repository.pullRequests.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end -}}
       {{"\nOpen issues (last-updated):\n" -}}
       {{range .data.repository.issues.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end}}
     ]]
     )
-    table.insert(cmds, { 'gh', 'pr', 'status', '--repo', repo })
-    table.insert(cmds, {
+    cmds[#cmds + 1] = { 'gh', 'pr', 'status', '--repo', repo }
+    cmds[#cmds + 1] = {
       'gh',
       'api',
       'graphql',
@@ -615,8 +648,11 @@ function M.show_status(focus, repo)
       'query=' .. query,
       '--template',
       tmpl,
-    })
+    }
   end
+
+  cmds[#cmds + 1] = load_user_notifications
+
   util.run_term_cmds(buf, { pty = true }, cmds, function()
     util.set_default_keymaps(buf)
   end)

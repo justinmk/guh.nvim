@@ -375,7 +375,7 @@ end
 ---
 --- @param buf integer (must have `b:guh` set by `state.init_buf()`)
 --- @param opts? { pty?: boolean }
---- @param cmds string[][] List of commands.
+--- @param cmds TermCmd[] Commands to run. Note: functions are not cancellable.
 --- @param on_done? fun()
 function M.run_term_cmds(buf, opts, cmds, on_done)
   vim.validate('buf', buf, 'number')
@@ -434,7 +434,11 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         -- Append a timing report.
         local report = { '', '--- timing ---' }
         for i, cmd in ipairs(cmds) do
-          local cmd_str = table.concat(cmd, ' '):gsub('%s+', ' ')
+          local cmd_str = type(cmd) == 'table' and table.concat(cmd, ' '):gsub('%s+', ' ')
+            or ('<lua %s:%d>'):format(
+              vim.fs.basename(_G.debug.getinfo(cmd, 'S').short_src),
+              _G.debug.getinfo(cmd, 'S').linedefined
+            )
           if #cmd_str > 60 then
             cmd_str = cmd_str:sub(1, 57) .. '...'
           end
@@ -525,7 +529,10 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
         end,
       }
 
-      if pty then
+      if type(cmd) == 'function' then
+        -- Note: Function not added to `jobs` (not cancellable), so it must guard buffer validity itself.
+        cmd(buf, job_opts.on_stdout, job_opts.on_stderr, job_opts.on_exit)
+      elseif pty then
         -- Per-job term=true scratchbuf for handling terminal queries (DA1/OSC/…) from commands like
         -- "gh", which would otherwise hang/timeout waiting for a response. Needed because pty=true
         -- does not handle queries. We also capture raw output via `on_stdout` so we can present the
