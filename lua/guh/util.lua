@@ -300,12 +300,29 @@ end
 ---
 --- @param buf integer
 function M.set_default_keymaps(buf)
-  -- "Global" (buffer-relative) VIEW actions:
+  -- Buffer-relative VIEW actions:
+  M.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
+  M.map_default(buf, 'n', '-', '<Plug>(guh-up)', 'Go "up"')
   M.map_default(buf, 'n', 'R', '<Plug>(guh-refresh)', 'Refresh this guh:// buffer')
   M.map_default(buf, 'n', 'dd', '<Plug>(guh-diff)', 'View the PR diff')
   M.map_default(buf, 'n', 'dl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
   M.map_default(buf, 'n', ']f', '<Plug>(guh-next)', 'View the next PR commit / CI job')
   M.map_default(buf, 'n', '[f', '<Plug>(guh-prev)', 'View the previous PR commit / CI job')
+
+  -- Buffer-relative UPDATE actions:
+  M.map_default(buf, 'n', 'cI', '<Plug>(guh-ci)', 'Rerun CI jobs')
+  M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-top)', 'Comment on PR/issue overview')
+  M.map_default(buf, 'n', 'c:', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`, `gh issue edit`)')
+  M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge)', 'Merge PR')
+  M.map_default(buf, 'n', 'cR', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
+
+  -- Cursor-relative actions:
+  M.map_default(buf, 'n', '<Enter>', '<Plug>(guh-open)', 'Open :Guh target at cursor')
+  M.map_default(buf, 'n', '<C-W><Enter>', '<Plug>(guh-open-split)', 'Open :Guh target at cursor in a split')
+  M.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  M.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
+  M.map_default(buf, 'n', 'cr', '<Plug>(guh-thread)', 'Reply-to or Resolve a comment thread')
+  M.map_default(buf, 'n', 'cv', '<Plug>(guh-viewed)', 'Toggle "Viewed" state of the diff file at cursor')
 
   -- The builtin gitcommit/diff ftplugins don't map [[/]] ?
   local heading = [[\v^(diff --git a/|\(viewed\) )]]
@@ -319,23 +336,6 @@ function M.set_default_keymaps(buf)
       vim.fn.search(heading, 'bW')
     end
   end, { buffer = buf, silent = true, desc = 'Jump to previous diff-file heading' })
-
-  M.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
-
-  -- "Global" (buffer-relative) UPDATE actions:
-  M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-top)', 'Comment on PR/issue overview')
-  M.map_default(buf, 'n', 'cI', '<Plug>(guh-ci)', 'Rerun CI jobs')
-  M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge)', 'Merge PR')
-  M.map_default(buf, 'n', 'cR', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
-  M.map_default(buf, 'n', 'c:', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`, `gh issue edit`)')
-
-  -- "Local" (cursor-relative) actions:
-  M.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
-  M.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
-  M.map_default(buf, 'n', 'cr', '<Plug>(guh-thread)', 'Reply-to or Resolve a comment thread')
-  M.map_default(buf, 'n', 'cv', '<Plug>(guh-viewed)', 'Toggle "Viewed" state of the diff file at cursor')
-  M.map_default(buf, 'n', '<Enter>', '<Plug>(guh-open)', 'Open :Guh target at cursor')
-  M.map_default(buf, 'n', '<C-W><Enter>', '<Plug>(guh-open-split)', 'Open :Guh target at cursor in a split')
 end
 
 function M.buf_keymap(buf, mode, lhs, desc, rhs)

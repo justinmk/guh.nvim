@@ -608,6 +608,23 @@ local function load_user_notifications(buf, on_stdout, _on_stderr, on_exit)
   end)
 end
 
+--- Implements `<Plug>(guh-up)` ("-"): navigates to the "parent" of a `guh://` buffer.
+function M.go_up()
+  local b = vim.b.guh or {}
+  if b.feat == 'pr' or b.feat == 'issue' then
+    M.show_status(true, b.repo)
+  elseif b.feat == 'prdiff' or b.feat == 'prcomments' or b.feat == 'prlogs' then
+    M.show_pr(assert(vim._tointeger(b.id)), b.repo, true)
+  elseif b.feat == 'commit' then
+    local pr_id = find_pr_for_commit_sha(b.id)
+    if pr_id then
+      M.show_pr(pr_id, b.repo, true)
+    else
+      M.show_status(true, b.repo)
+    end
+  end
+end
+
 --- Implements `guh://status`.
 ---
 --- @param focus boolean

@@ -86,6 +86,11 @@ Default mappings (local to `guh://` buffers):
 
 BUFFER-RELATIVE VIEW ACTIONS
 
+-       Go "up" to the parent of the current thing.
+        - From a prlogs/ buffer, this opens the pr/ buffer.
+        - From a pr/ buffer, this opens the status/ buffer.
+        <Plug>(guh-up)
+
 R       Refresh the current thing. In a PR-related buffer, refreshes all
         objects related to that PR (except immutable objects such as prlogs/
         and commit/).
