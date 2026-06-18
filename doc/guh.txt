@@ -159,6 +159,10 @@ cv      Toggle "Viewed" state of the diff-file at cursor. Also works on
         those files again until their threads are resolved.
         <Plug>(guh-viewed)
 
+gf      In a prdiff/ buffer, view the full contents of the diff-file at
+        cursor.
+        <Plug>(guh-file)
+
 ]]      In a prdiff/ buffer, jump [count] sections forward, where each
         "section" is a "diff --git" heading.
 

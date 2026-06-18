@@ -231,6 +231,41 @@ function M.show_commit(sha, repo, focus)
   end)
 end
 
+--- Opens the full contents of the diff-file at cursor (in a prdiff/ buffer), at the PR's head commit.
+function M.show_file()
+  local _, id, repo = require_pr()
+  local path, quasi = comments.jump_to_file_heading(0)
+  if not path then
+    return util.msg('No file at cursor', vim.log.levels.WARN)
+  elseif quasi then
+    return util.msg(('Cannot fetch file for %s diff'):format(quasi), vim.log.levels.WARN)
+  end
+  local pr_data = state.get_pr_data(repo, id)
+  if not pr_data or not pr_data.headRefOid then
+    return util.msg(('PR #%s not loaded? ("R" to refresh)'):format(id), vim.log.levels.ERROR)
+  end
+  local sha = pr_data.headRefOid
+  local key = ('%s/%s'):format(sha, path) -- Key by `<sha>/<path>` so each (commit, file) gets its own reusable buffer.
+  local existing = state.get_buf('file', repo, key, false)
+  if existing and vim.api.nvim_buf_line_count(existing) > 1 then
+    state.init_buf('file', true, repo, key, { id = id }) -- Already loaded; just navigate.
+    return
+  end
+  local done = util.progress(('Loading %s @ %s...'):format(path, sha:sub(1, 7)))
+  local cmd =
+    { 'gh', 'api', ('repos/%s/contents/%s?ref=%s'):format(repo, path, sha), '-H', 'Accept: application/vnd.github.raw' }
+  util.system(cmd, nil, function(r)
+    if r.code ~= 0 then
+      return done('failed', vim.trim(r.stderr or ''))
+    end
+    local buf = state.init_buf('file', true, repo, key, { id = id })
+    local lines = vim.split(r.stdout, '\n', { plain = true })
+    util.buf_set_readonly_lines(buf, lines, vim.filetype.match({ filename = path }) or '')
+    util.set_default_keymaps(buf)
+    done('success')
+  end)
+end
+
 --- Renders `logs` into a `prlogs/…` terminal-buf, or does nothing if `b:guh.chan` is already set.
 local function render_ci_log(buf, logs)
   if (state.get_b_guh(buf) or {}).chan then
@@ -581,7 +616,7 @@ function M.go_up()
   local b = vim.b.guh or {}
   if b.feat == 'pr' or b.feat == 'issue' then
     M.show_status(true, b.repo)
-  elseif b.feat == 'prdiff' or b.feat == 'prcomments' or b.feat == 'prlogs' then
+  elseif b.feat == 'prdiff' or b.feat == 'prcomments' or b.feat == 'prlogs' or b.feat == 'file' then
     M.show_pr(assert(vim._tointeger(b.id)), b.repo, true)
   elseif b.feat == 'commit' then
     local pr_id = find_pr_for_commit_sha(b.id)

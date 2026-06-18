@@ -5,7 +5,6 @@ vim.api.nvim_set_hl(0, 'GuhWarning', { default = true, link = 'WarningMsg' })
 local group = vim.api.nvim_create_augroup('guh', { clear = true })
 
 -- ":edit guh://pr/owner/repo/N" (etc.) dispatches to :Guh.
--- Wipe the placeholder buffer that :edit created.
 vim.api.nvim_create_autocmd('BufReadCmd', {
   pattern = 'guh://*',
   group = group,
@@ -13,6 +12,7 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
     local uri = args.match
     vim.schedule(function()
       if vim.api.nvim_buf_is_valid(args.buf) then
+        -- Wipe the placeholder buffer that :edit created.
         vim.api.nvim_buf_delete(args.buf, { force = true })
       end
       vim.cmd('Guh ' .. vim.fn.fnameescape(uri))
@@ -22,7 +22,7 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
 
 -- :syncbind the prdiff/prcomments windows.
 vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
-  pattern = 'guh://*/{prdiff,prcomments}/*',
+  pattern = [[guh://[^/]\+/[^/]\+/{prdiff,prcomments}/*]],
   group = group,
   command = 'if &l:scrollbind | keepjumps syncbind | endif',
 })
@@ -32,7 +32,7 @@ vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
 -- - "gh" annoyingly indents pr/issue comments
 -- - :terminal (currently, probably?) overuses whitespace where it should have negative space.
 vim.api.nvim_create_autocmd('TextYankPost', {
-  pattern = 'guh://*/{pr,issue}/*',
+  pattern = [[guh://[^/]\+/[^/]\+/{pr,issue}/*]],
   group = group,
   callback = function()
     local feat = (vim.b.guh or {}).feat
@@ -103,6 +103,9 @@ vim.keymap.set('n', '<Plug>(guh-open-split)', '<cmd>horizontal Guh .<cr>', opts)
 vim.keymap.set('n', '<Plug>(guh-comment)', '<cmd>GuhComment<cr>', opts)
 -- Use ":" so the Visual range '<,'> is passed to the command.
 vim.keymap.set('x', '<Plug>(guh-comment)', ':GuhComment<cr>', opts)
+vim.keymap.set('n', '<Plug>(guh-file)', function()
+  require('guh.pr').show_file()
+end, opts)
 vim.keymap.set('n', '<Plug>(guh-thread)', function()
   require('guh.comments').reply_or_resolve(vim.fn.line('.'))
 end, opts)

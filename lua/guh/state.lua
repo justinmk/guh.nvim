@@ -11,6 +11,8 @@ local bufs = {
   ---@type table<string, integer>
   edit = {},
   ---@type table<string, integer>
+  file = {},
+  ---@type table<string, integer>
   issue = {},
   ---@type table<string, integer>
   merge = {},
