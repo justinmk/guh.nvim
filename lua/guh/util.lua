@@ -306,6 +306,20 @@ function M.set_default_keymaps(buf)
   M.map_default(buf, 'n', 'dl', '<Plug>(guh-logs)', 'View the CI logs for this PR')
   M.map_default(buf, 'n', ']f', '<Plug>(guh-next)', 'View the next PR commit / CI job')
   M.map_default(buf, 'n', '[f', '<Plug>(guh-prev)', 'View the previous PR commit / CI job')
+
+  -- The builtin gitcommit/diff ftplugins don't map [[/]] ?
+  local heading = [[\v^(diff --git a/|\(viewed\) )]]
+  vim.keymap.set('n', ']]', function()
+    for _ = 1, vim.v.count1 do
+      vim.fn.search(heading, 'W')
+    end
+  end, { buffer = buf, silent = true, desc = 'Jump to next diff-file heading' })
+  vim.keymap.set('n', '[[', function()
+    for _ = 1, vim.v.count1 do
+      vim.fn.search(heading, 'bW')
+    end
+  end, { buffer = buf, silent = true, desc = 'Jump to previous diff-file heading' })
+
   M.map_default(buf, 'n', 'g?', '<Plug>(guh-help)', 'Show guh-mappings help', { nowait = true })
 
   -- "Global" (buffer-relative) UPDATE actions:

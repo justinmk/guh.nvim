@@ -1,1 +1,3 @@
 doc/tags
+# XXX: can remove this after Nvim test harness is exposed as a runtime feature.
+guh.nvim
