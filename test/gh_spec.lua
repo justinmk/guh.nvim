@@ -601,6 +601,28 @@ describe(':Guh', function()
       assert(has_prdiff, 'prdiff/ buf should be eagerly loaded')
     end)
   end)
+
+  it('":Guh <repo>" shows the repo overview page (guh://owner/repo)', function()
+    -- Resolve the current repo's "owner/name" (the test runs inside the guh.nvim repo).
+    local slug = n.exec_lua(function()
+      local r = vim.system({ 'gh', 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner' }):wait()
+      return vim.trim(r.stdout or '')
+    end)
+    assert(slug ~= '', 'could not resolve repo slug')
+    n.command('Guh ' .. slug)
+
+    -- The repo overview is a `repo` feat buf, focused in curwin, named "guh://owner/repo" (no /feat/id).
+    local info = n.exec_lua(function()
+      local b = vim.b.guh or {}
+      return { feat = b.feat, repo = b.repo, name = vim.api.nvim_buf_get_name(0) }
+    end)
+    t.eq('repo', info.feat)
+    t.eq(slug, info.repo)
+    t.eq(('guh://%s'):format(slug), info.name)
+
+    -- The "Recent commits" section renders (async, from the GraphQL fetch).
+    screen:expect({ any = 'Recent commits', timeout = 15000 })
+  end)
 end)
 
 describe('util', function()
@@ -648,11 +670,21 @@ describe('util', function()
     )
     t.eq({ owner = 'neovim', repo = 'neovim', id = 24, is_pr = false }, parse_target('guh://neovim/neovim/issue/24'))
 
+    t.eq(
+      { owner = 'justinmk', repo = 'guh.nvim', sha = 'a1b2c3d' },
+      parse_target('guh://justinmk/guh.nvim/commit/a1b2c3d')
+    )
+
     t.eq(nil, parse_target('garbage'))
     t.eq(nil, parse_target(''))
+    -- Bare repo (no id) -> repo overview page.
     t.eq({ owner = 'owner', repo = 'repo' }, parse_target('owner/repo'))
     t.eq({ owner = 'owner', repo = 'repo' }, parse_target('https://github.com/owner/repo'))
     t.eq({ owner = 'owner', repo = 'repo' }, parse_target('https://github.com/owner/repo/'))
+    t.eq({ owner = 'justinmk', repo = 'guh.nvim' }, parse_target('guh://justinmk/guh.nvim'))
+    t.eq({ owner = 'justinmk', repo = 'guh.nvim' }, parse_target('guh://justinmk/guh.nvim/'))
+    -- Global status page.
+    t.eq({ status = true }, parse_target('guh://status'))
   end)
 end)
 

@@ -68,7 +68,12 @@ local function resolve_pr(opts, optional)
     error('guh: Not in a guh:// buffer', 0)
   end
   -- Reject non-PR bufs early. Note: guh://status has `id=0`.
-  if not optional and not id and b_guh and (b_guh.feat == 'issue' or b_guh.feat == 'status') then
+  if
+    not optional
+    and not id
+    and b_guh
+    and (b_guh.feat == 'issue' or b_guh.feat == 'status' or b_guh.feat == 'repo')
+  then
     error('guh: Not a PR', 0)
   end
 
@@ -143,31 +148,38 @@ function M.select(args, id, repo)
       id = id,
       is_pr = ({ pr = true, prdiff = true, prcomments = true, prlogs = true, issue = false })[feat],
     }
-    repo = repo or resolve_repo()
   elseif #arg > 0 then
     target = util.parse_target(arg)
     if not target then
       util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
       return
     end
-    repo = target.owner and (target.owner .. '/' .. target.repo) or resolve_repo()
-    if not repo then
-      util.msg('Failed to get repo info', vim.log.levels.ERROR)
-      return
-    end
+  end
+
+  -- Resolve the repo once. Skip for guh://status (repo-less); prefer an explicit owner/repo target.
+  if not (target and target.status) then
+    repo = repo or (target and target.owner and ('%s/%s'):format(target.owner, target.repo)) or resolve_repo()
+  end
+  -- PR/issue/commit target needs a repo; bare `:Guh` falls back to status if none resolves.
+  if target and (target.id or target.sha) and not repo then
+    util.msg('Failed to get repo info', vim.log.levels.ERROR)
+    return
   end
 
   local function dispatch(is_pr)
     if window_mod then
       vim.cmd((cmdargs.mods or '') .. ' new')
     end
-    if not target then
-      M.show_status(focus)
+    if target and target.status then
+      M.show_status(focus) -- Explicit `guh://status`.
+    elseif not target and repo then
+      M.show_repo(focus, repo) -- No args, but resolved a repo.
+    elseif not target then
+      M.show_status(focus) -- No args, no repo: guh://status.
     elseif target.sha then
       M.show_commit(target.sha, repo, focus)
     elseif not target.id then
-      -- Repo target ("owner/repo" or "https://github.com/owner/repo" )
-      M.show_status(focus, repo)
+      M.show_repo(focus, repo) -- Repo target ("owner/repo", "https://github.com/owner/repo").
     elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
       M.show_pr(target.id, repo, focus)
     else
@@ -497,31 +509,32 @@ function M.refresh(target)
   if not feat then
     return
   end
-  if feat == 'status' then
-    local status_buf = state.get_buf('status', nil, 'all', false)
-    if status_buf then
-      state.invalidate(status_buf)
-    end
-    return M.show_status(true)
-  end
   local b = vim.b.guh or {}
   local id = target.id or b.id
   local repo = target.repo or b.repo
 
-  if feat == 'pr' or feat == 'prdiff' or feat == 'prcomments' or feat == 'prlogs' then
+  --- Clears the cached `b:guh` state (if any), to force a reload.
+  local function invalidate(feat_, repo_, id_)
+    local buf = state.get_buf(feat_, repo_, id_, false)
+    if buf then
+      state.invalidate(buf)
+    end
+  end
+
+  if feat == 'status' then
+    invalidate('status', nil, 'all')
+    return M.show_status(true)
+  elseif feat == 'repo' then
+    invalidate('repo', repo, 'all')
+    return M.show_repo(true, repo)
+  elseif feat == 'pr' or feat == 'prdiff' or feat == 'prcomments' or feat == 'prlogs' then
     -- Reload all "PR bufs" (pr/ + prdiff/ + prcomments/), without changing win/buf layout.
     -- Note: `preload_ci_logs` only refetches per-job if the job's `prlogs/` buf is not yet
     -- rendered AND the job has a `conclusion` (not "in_progress").
-    local pr_buf = state.get_buf('pr', repo, id, false)
-    if pr_buf then
-      state.invalidate(pr_buf)
-    end
+    invalidate('pr', repo, id)
     M.show_pr(id, repo, nil)
   elseif feat == 'issue' then
-    local issue_buf = state.get_buf('issue', repo, id, false)
-    if issue_buf then
-      state.invalidate(issue_buf)
-    end
+    invalidate('issue', repo, id)
     M.show_issue(id, repo, true)
   else
     M.select(feat, id, repo)
@@ -615,7 +628,7 @@ end
 function M.go_up()
   local b = vim.b.guh or {}
   if b.feat == 'pr' or b.feat == 'issue' then
-    M.show_status(true, b.repo)
+    M.show_repo(true, b.repo)
   elseif b.feat == 'prdiff' or b.feat == 'prcomments' or b.feat == 'prlogs' or b.feat == 'file' then
     M.show_pr(assert(vim._tointeger(b.id)), b.repo, true)
   elseif b.feat == 'commit' then
@@ -623,52 +636,70 @@ function M.go_up()
     if pr_id then
       M.show_pr(pr_id, b.repo, true)
     else
-      M.show_status(true, b.repo)
+      M.show_repo(true, b.repo)
     end
+  elseif b.feat == 'repo' then
+    M.show_status(true)
   end
 end
 
---- Implements `guh://status`.
+--- Implements `guh://status` (global): the user's unread notifications across all repos.
 ---
 --- @param focus boolean
---- @param repo? string Optional "owner/name" repo.
-function M.show_status(focus, repo)
-  -- For `:Guh` (no args), keep the existing b:guh.repo instead of resolving from *current* buffer.
-  local buf = state.get_buf('status', nil, 'all', false)
-  local cur_repo = buf and (state.get_b_guh(buf) or {}).repo or nil
-  repo = repo or cur_repo or resolve_repo()
-  -- If the repo actually changed (e.g. explicit `:Guh owner/repo`), force a refresh.
-  if buf and repo ~= cur_repo then
-    state.invalidate(buf)
+function M.show_status(focus)
+  local buf = state.init_buf('status', focus, nil, 'all')
+  if state.get_b_key(buf, { 'guh', 'notifications' }) then
+    return -- Skip the re-fetch if already loaded.
   end
-  buf = state.init_buf('status', focus, nil, 'all', { repo = repo })
-  local cmds = {} ---@type TermCmd[]
+  local done = util.progress('Loading notifications...')
+  gh.get_user_notifications(buf, function(lines, err)
+    if not lines then
+      return done('failed', err)
+    end
+    util.buf_set_readonly_lines(buf, lines, '')
+    util.set_default_keymaps(buf)
+    done('success')
+  end)
+end
 
-  if repo then
-    local owner, name = repo:match('^([^/]+)/(.+)$')
-    local query = vim.text.indent(
-      0,
-      [[
-      query($owner:String!,$name:String!){
-        repository(owner:$owner,name:$name){
-          pullRequests(first:10,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title}}
-          issues(first:10,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title}}
-        }
+--- Implements `guh://<owner>/<repo>`: repo overview + the user's `gh pr status` for the repo.
+---
+--- @param focus boolean
+--- @param repo? string "owner/name"
+function M.show_repo(focus, repo)
+  repo = repo or resolve_repo()
+  if not repo then
+    return util.msg('Failed to resolve repo', vim.log.levels.ERROR)
+  end
+  local buf = state.init_buf('repo', focus, repo, 'all')
+  local owner, name = repo:match('^([^/]+)/(.+)$')
+  local query = vim.text.indent(
+    0,
+    [[
+    query($owner:String!,$name:String!){
+      repository(owner:$owner,name:$name){
+        defaultBranchRef{ target{ ... on Commit{ history(first:10){ nodes{ oid messageHeadline } } } } }
+        pullRequests(first:10,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title}}
+        issues(first:10,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title}}
       }
-    ]]
-    )
-    -- "#NNN" matches `b:guh.repo` so <CR> works on these rows.
-    local tmpl = vim.text.indent(
-      0,
-      [[
-      {{"\nOpen PRs (last-updated):\n" -}}
-      {{range .data.repository.pullRequests.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end -}}
-      {{"\nOpen issues (last-updated):\n" -}}
-      {{range .data.repository.issues.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end}}
-    ]]
-    )
-    cmds[#cmds + 1] = { 'gh', 'pr', 'status', '--repo', repo }
-    cmds[#cmds + 1] = {
+    }
+  ]]
+  )
+  -- "#NNN" and commit-oid rows match `b:guh.repo` so <CR> opens them.
+  local tmpl = vim.text.indent(
+    0,
+    [[
+    {{"\nRecent commits:\n" -}}
+    {{range .data.repository.defaultBranchRef.target.history.nodes}}{{printf "  %s  %s\n" (slice .oid 0 12) .messageHeadline}}{{end -}}
+    {{"\nOpen PRs (last-updated):\n" -}}
+    {{range .data.repository.pullRequests.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end -}}
+    {{"\nOpen issues (last-updated):\n" -}}
+    {{range .data.repository.issues.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end}}
+  ]]
+  )
+
+  util.run_term_cmds(buf, { pty = true }, {
+    {
       'gh',
       'api',
       'graphql',
@@ -680,12 +711,9 @@ function M.show_status(focus, repo)
       'query=' .. query,
       '--template',
       tmpl,
-    }
-  end
-
-  cmds[#cmds + 1] = gh.get_user_notifications
-
-  util.run_term_cmds(buf, { pty = true }, cmds, function()
+    },
+    { 'gh', 'pr', 'status', '--repo', repo },
+  }, function()
     util.set_default_keymaps(buf)
   end)
 end
@@ -795,7 +823,7 @@ local function render_pr_header(pr)
     ('  - CI: %s'):format(checks_summary(pr.ci_jobs or {}) or ''),
   }
 
-  vim.list_extend(lines, { '', pr.body or '' })
+  vim.list_extend(lines, { '', pr.body or '', '', '' })
   -- XXX: Newlines must be CRLF for the terminal.
   return (table.concat(lines, '\n'):gsub('\r', ''):gsub('\n', '\r\n'))
 end
