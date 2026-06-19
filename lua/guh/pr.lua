@@ -795,7 +795,7 @@ local function render_pr_header(pr)
     ('  - CI: %s'):format(checks_summary(pr.ci_jobs or {}) or ''),
   }
 
-  vim.list_extend(lines, { '', pr.body or '' })
+  vim.list_extend(lines, { '', pr.body or '', '', '' })
   -- XXX: Newlines must be CRLF for the terminal.
   return (table.concat(lines, '\n'):gsub('\r', ''):gsub('\n', '\r\n'))
 end
