@@ -591,13 +591,15 @@ describe(':Guh', function()
         {MATCH:.*}|
       ]],
     }
-    -- prdiff/ buf exists in state.bufs even though it's not displayed.
-    local has_prdiff = n.exec_lua(function()
-      local state = require('guh.state')
-      local buf = state.get_buf('prdiff', vim.b.guh.repo, vim.b.guh.id, false)
-      return buf ~= nil and vim.api.nvim_buf_is_valid(buf)
+    -- prdiff/ buf gets loaded in the background (after the PR data fetch), even though it's not displayed.
+    t.retry(nil, 10000, function()
+      local has_prdiff = n.exec_lua(function()
+        local state = require('guh.state')
+        local buf = state.get_buf('prdiff', vim.b.guh.repo, vim.b.guh.id, false)
+        return buf ~= nil and vim.api.nvim_buf_is_valid(buf)
+      end)
+      assert(has_prdiff, 'prdiff/ buf should be eagerly loaded')
     end)
-    assert(has_prdiff, 'prdiff/ buf should be eagerly loaded')
   end)
 end)
 

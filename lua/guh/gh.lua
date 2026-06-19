@@ -14,6 +14,27 @@ local M = {}
 --- @type { limited: boolean, kind?: 'primary'|'secondary', checked_at?: integer, core?: table, message?: string }
 M.rate_limit = { limited = false }
 
+-- PR-state highlights. Open=green, Closed=red, Merged=blue (Draft falls through to default).
+M.state_hl = { Open = 'OkMsg', Closed = 'ErrorMsg', Merged = 'DiagnosticHint' }
+
+-- GraphQL `reactionGroups[].content` → emoji.
+M.reaction_emoji = {
+  THUMBS_UP = '👍',
+  THUMBS_DOWN = '👎',
+  LAUGH = '😄',
+  HOORAY = '🎉',
+  CONFUSED = '😕',
+  HEART = '❤️',
+  ROCKET = '🚀',
+  EYES = '👀',
+}
+
+--- "Open" | "Draft" | "Closed" | "Merged" | "?".
+--- @param pr PullRequest
+function M.pr_state_label(pr)
+  return pr.isDraft and 'Draft' or (pr.state and (pr.state:sub(1, 1) .. pr.state:sub(2):lower()) or '?')
+end
+
 local function parse_or_default(str, default)
   local success, result = pcall(vim.json.decode, str, { luanil = { object = true, array = true } })
   if success then
@@ -194,6 +215,7 @@ local function to_pr(node)
 
   return {
     node_id = node.id,
+    additions = node.additions,
     author = node.author,
     baseRefName = node.baseRefName,
     baseRefOid = node.baseRefOid,
@@ -202,13 +224,16 @@ local function to_pr(node)
     ci_jobs = to_ci_jobs(node),
     commits = commits,
     createdAt = node.createdAt,
+    deletions = node.deletions,
     headRefName = node.headRefName,
     headRefOid = node.headRefOid,
     isDraft = node.isDraft,
     labels = vim.tbl_get(node, 'labels', 'nodes') or {},
     number = node.number,
+    reactions = node.reactionGroups or {},
     reviewDecision = node.reviewDecision,
     reviews = vim.tbl_get(node, 'reviews', 'nodes') or {},
+    state = node.state,
     title = node.title,
     url = node.url,
     raw_comments = flattened_comments,
@@ -265,12 +290,16 @@ function M.get_pr_data(prnum, repo, opts, on_result)
   local query = [[
     query($owner:String!,$name:String!,$number:Int!){
       repository(owner:$owner,name:$name){
+        defaultBranchRef{ name }
         pullRequest(number:$number){
           id
-          author{login}
+          author{login ... on User{name}}
+          additions deletions
           baseRefName baseRefOid
           body
           changedFiles
+          state
+          reactionGroups{ content reactors{ totalCount } }
           commits(first:100){ nodes{ commit{ oid committedDate messageHeadline messageBody } } }
           createdAt
           headRefName headRefOid
@@ -350,6 +379,7 @@ function M.get_pr_data(prnum, repo, opts, on_result)
       return on_result(nil, ('PR #%s not found in repo "%s"'):format(prnum, repo))
     end
     local pr = to_pr(node)
+    pr.defaultBranch = vim.tbl_get(resp, 'data', 'repository', 'defaultBranchRef', 'name')
     -- Cache on the `pr/…` buffer only (single-source-of-truth). Create it if needed.
     state.set_b_key(assert(state.get_buf('pr', repo, prnum)), 'guh.pr_data', pr)
     util.log('get_pr_data resp', { comments = #pr.raw_comments, viewed = vim.tbl_count(pr.viewed) })

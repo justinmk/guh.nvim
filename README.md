@@ -67,6 +67,7 @@ Requirements:
 - ["gh" (GitHub CLI)](https://cli.github.com/)
 - (Optional) For working with Git, use a plugin such as [vim-fugitive](https://github.com/tpope/vim-fugitive).
 - (Optional) For highlighting diffs, use a plugin such as [diffs.nvim](https://github.com/barrettruth/diffs.nvim).
+- (Optional) For improved Markdown rendering, use a plugin such as [render-markdown.nvim](https://github.com/MeanderingProgrammer/render-markdown.nvim).
 
 ## Related
 

@@ -389,7 +389,7 @@ end
 ---   to the terminal in-order once the lower-index commands exit.
 ---
 --- @param buf integer (must have `b:guh` set by `state.init_buf()`)
---- @param opts? { pty?: boolean }
+--- @param opts? { pty?: boolean, transform?: fun(out: string, i: integer): string } `transform` rewrites a command's raw stdout before sending to the channel.
 --- @param cmds TermCmd[] Commands to run. Note: functions are not cancellable.
 --- @param on_done? fun()
 function M.run_term_cmds(buf, opts, cmds, on_done)
@@ -447,7 +447,7 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
 
       if debug then
         -- Append a timing report.
-        local report = { '', '--- timing ---' }
+        local report = { '', '## timing' }
         for i, cmd in ipairs(cmds) do
           local cmd_str = type(cmd) == 'table' and table.concat(cmd, ' '):gsub('%s+', ' ')
             or ('<lua %s:%d>'):format(
@@ -484,6 +484,9 @@ function M.run_term_cmds(buf, opts, cmds, on_done)
       while curr <= #cmds and r[curr] and r[curr].exited do
         local out = r[curr].out
         if out and vim.trim(out) ~= '' then
+          if opts and opts.transform then
+            out = opts.transform(out, curr)
+          end
           vim.api.nvim_chan_send(chan, out)
         end
         local err = r[curr].err

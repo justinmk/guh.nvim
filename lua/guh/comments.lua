@@ -181,17 +181,17 @@ function M.show_pr_comments(id, repo, diff_buf, pr_data, n_files, n_viewed_threa
   local diff_win = vim.fn.win_findbuf(diff_buf)[1]
   local comments_win = vim.fn.win_findbuf(buf)[1]
   util.show_winbar(diff_win, {
-    { 'PR diff | ', 'Comment' },
-    { ('Files: %d ('):format(n_files, n_viewed), 'Comment' },
+    { 'PR diff | ' },
+    { ('Files: %d ('):format(n_files, n_viewed) },
     { 'Viewed', '@markup.italic' },
-    { (': %d) | '):format(n_viewed), 'Comment' },
+    { (': %d) | '):format(n_viewed) },
     { 'Unresolved', '@markup.italic' },
-    { (' threads: %d'):format(visible_threads), 'Comment' },
+    { (' threads: %d'):format(visible_threads) },
   })
   util.show_winbar(comments_win, {
-    { ('PR comments | Visible: %d | Unresolved in '):format(visible_threads), 'Comment' },
+    { ('PR comments | Visible: %d | Unresolved in '):format(visible_threads) },
     { 'Viewed', '@markup.italic' },
-    { (' files: %d'):format(n_viewed_threads), 'Comment' },
+    { (' files: %d'):format(n_viewed_threads) },
   })
 
   -- Set scrollbind+cursorbind on both windows *after* writing the buffer content.
@@ -702,11 +702,11 @@ function M.update_comment(linenr)
   with_comment(linenr, 'Which comment?', function(c, prnum, repo, _)
     local content = vim.split(c.body or '', '\n', { plain = true })
     local same = gh.get_user() == c.user
-    local infomsg = same and { { ('Updating comment %d | ZZ to confirm (ZQ to abort)'):format(c.id), 'Comment' } }
+    local infomsg = same and { { ('Updating comment %d | ZZ to confirm (ZQ to abort)'):format(c.id) } }
       or {
-        { 'Updating comment by ', 'Comment' },
+        { 'Updating comment by ' },
         { ('%s %d (not you)'):format(c.user or '?', c.id), 'ErrorMsg' },
-        { ' | ZZ to confirm (ZQ to abort)', 'Comment' },
+        { ' | ZZ to confirm (ZQ to abort)' },
       }
     M.edit_comment('comment', prnum, content, infomsg, function(input)
       local progress = util.new_progress_report('Updating comment...', vim.api.nvim_get_current_buf())
@@ -744,7 +744,7 @@ function M.reply_or_resolve(linenr)
           'comment',
           prnum,
           { '' },
-          { { ('Reply to %s. ZZ to send (ZQ to abort)'):format(c.user or '?'), 'Comment' } },
+          { { ('Reply to %s. ZZ to send (ZQ to abort)'):format(c.user or '?') } },
           function(input)
             local progress = util.new_progress_report('Sending reply...', vim.api.nvim_get_current_buf())
             gh.reply_to_comment(prnum, input, c.id, repo, function(resp)
@@ -845,7 +845,7 @@ function M.edit_comment(feat, prnum, content, infomsg, on_confirm)
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
-  util.show_winbar(0, infomsg or { { 'Edit comment | ZZ to post (ZQ to abort)', 'Comment' } })
+  util.show_winbar(0, infomsg or { { 'Edit comment | ZZ to post (ZQ to abort)' } })
 
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].bufhidden = 'wipe' -- Ensure BufWipeout fires on :q.

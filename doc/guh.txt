@@ -24,6 +24,7 @@ Requirements:
 - "gh" (GitHub CLI): https://cli.github.com/
 - (Optional) For working with Git, use a plugin such as: https://github.com/tpope/vim-fugitive
 - (Optional) For highlighting diffs, use a plugin such as: https://github.com/barrettruth/diffs.nvim
+- (Optional) For improved Markdown rendering, use a plugin such as: https://github.com/MeanderingProgrammer/render-markdown.nvim
 
 Install: >lua
   vim.pack.add{ 'https://github.com/justinmk/guh.nvim' }

@@ -76,7 +76,8 @@
 
 --- @class PullRequest PR data selected from GraphQL by `gh.get_pr_data`.
 --- @field node_id string GraphQL global node id (e.g. `PR_kw…`). Needed by mutations like `markFileAsViewed`.
---- @field author table
+--- @field additions number Lines added across the diff.
+--- @field author table `{ login, name? }` (`name` only for User authors, not Bots).
 --- @field baseRefName string
 --- @field baseRefOid string
 --- @field body string
@@ -84,13 +85,17 @@
 --- @field ci_jobs CIJob[] Latest matrix-expanded github-actions jobs at the head commit (sorted by status, name).
 --- @field commits PRCommit[]
 --- @field createdAt string
+--- @field defaultBranch? string Repo's default branch.
+--- @field deletions number Lines deleted across the diff.
 --- @field headRefName string
 --- @field headRefOid string
 --- @field isDraft boolean
 --- @field labels table
 --- @field number number
+--- @field reactions { content: string, reactors: { totalCount: integer } }[] Reaction groups (incl. zero-count).
 --- @field reviewDecision string
 --- @field reviews table
+--- @field state 'OPEN'|'CLOSED'|'MERGED'
 --- @field title string
 --- @field url string
 --- @field raw_comments Comment[] Flat per-comment list from `flatten_review_threads`.

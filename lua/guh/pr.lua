@@ -298,9 +298,9 @@ local function show_ci_log(job, pr_id, repo)
   local buf = state.init_buf('prlogs', true, repo, job.databaseId, { id = pr_id })
   local status = job.conclusion or job.status or '?'
   util.show_winbar(0, {
-    { ('Logs | PR #%s | '):format(pr_id), 'Comment' },
+    { ('Logs | PR #%s | '):format(pr_id) },
     { status == 'success' and '✅' or '❌' },
-    { (' "%s"'):format(job.name), 'Comment' },
+    { (' "%s"'):format(job.name) },
   })
   if (state.get_b_guh(buf) or {}).chan then
     return -- Cache hit (preload or prior open).
@@ -447,7 +447,7 @@ function M.review_pr()
     local msg = ('%s | ZZ to submit (ZQ to abort)'):format(heading)
     -- Prefill ":+1:" in the Approve body, so the user can Approve without writing a comment. #64
     local content = label == 'Approve' and { ':+1:' } or { '' }
-    comments.edit_comment('review', id, content, { { msg, 'Comment' } }, function(input)
+    comments.edit_comment('review', id, content, { { msg } }, function(input)
       local body = vim.trim(input)
       local done = util.progress(('%s…'):format(heading))
       gh.review_pr(id, repo, gh_action, body, function(ok, stderr)
@@ -587,8 +587,8 @@ function M.merge_pr()
         local text = ('%s\n\n%s'):format(subject, body):gsub('\r', '')
         local content = vim.split(text, '\n', { plain = true })
         local heading = {
-          { ('[%s]'):format(choice), admin and 'ErrorMsg' or 'Comment' },
-          { ' | First line = subject; rest = body | ZZ to merge (ZQ to abort)', 'Comment' },
+          { ('[%s]'):format(choice), admin and 'ErrorMsg' or nil },
+          { ' | First line = subject; rest = body | ZZ to merge (ZQ to abort)' },
         }
         comments.edit_comment('merge', id, content, heading, function(input)
           local subject, body = input:match('^([^\n]*)\n?(.*)$')
@@ -700,6 +700,106 @@ function M.show_issue(id, repo, focus)
   end)
 end
 
+--- Strips SGR/CSI escapes. Used only to *detect* line structure; the kept text keeps its escapes.
+local function strip_ansi(s)
+  return (s:gsub('\27%[[%d;:?]*%a', ''))
+end
+
+--- HACK: Keeps only the comments from `gh pr view --comments` output: drops gh's own header+body.
+--- The header is the contiguous block at the top; the body that follows is indented, so the first
+--- non-indented line after it is the first comment-author line. Returns "" if there are no comments.
+--- @param out string Raw (ANSI) stdout of `gh pr view --comments`.
+local function snip_pr_comments(out)
+  local lines = vim.split(out, '\n', { plain = true })
+  local meta_end, body_end
+  for i, l in ipairs(lines) do
+    local plain = strip_ansi(l)
+    if not meta_end then
+      if vim.trim(plain) == '' then
+        meta_end = i
+      end
+    elseif plain:match('^%S') then
+      body_end = i
+      break
+    end
+  end
+  return body_end and table.concat(vim.list_slice(lines, body_end), '\n') or ''
+end
+
+--- Formats an ISO-8601 timestamp as a relative "… ago" string.
+local function reltime(iso)
+  local t = iso and vim.fn.strptime('%Y-%m-%dT%H:%M:%S', iso) or 0
+  if t == 0 then
+    return '' -- empty / unparseable
+  end
+  return require('vim._core.time').fmt_rtime(math.max(0, os.time() - t)) .. ' ago'
+end
+
+--- "✓ Checks passing" / "✗ N/M checks failing" / "● N/M checks pending", or nil if there are no jobs.
+--- @param jobs CIJob[]
+local function checks_summary(jobs)
+  if #jobs == 0 then
+    return nil
+  end
+  local fail, pending = 0, 0
+  for _, j in ipairs(jobs) do
+    if not j.conclusion then
+      pending = pending + 1
+    elseif j.conclusion ~= 'success' and j.conclusion ~= 'neutral' and j.conclusion ~= 'skipped' then
+      fail = fail + 1
+    end
+  end
+  if fail > 0 then
+    return ('✗ %d/%d Checks failing'):format(fail, #jobs)
+  elseif pending > 0 then
+    return ('● %d/%d Checks pending'):format(pending, #jobs)
+  end
+  return '✓ Checks passing'
+end
+
+--- "login (Display Name)" when a name is present, else "login" (for bots?).
+local function who(login, name)
+  return (name and name ~= '') and ('%s (%s)'):format(login, name) or login
+end
+
+--- Renders the PR header (title/author/diffstat/reactions) + raw markdown body from `pr_data`.
+---
+--- NOTE: Intentionally omits Reviewers/Assignees/Labels (seems useless, wait until someone actually wants this).
+---
+--- @param pr PullRequest
+local function render_pr_header(pr)
+  local author = pr.author or {}
+  local n = #(pr.commits or {})
+
+  local reactions = {}
+  for _, g in ipairs(pr.reactions or {}) do
+    local count = vim.tbl_get(g, 'reactors', 'totalCount') or 0
+    if count > 0 then
+      reactions[#reactions + 1] = ('%d %s'):format(count, gh.reaction_emoji[g.content] or g.content)
+    end
+  end
+
+  local lines = {
+    '# ' .. (pr.title or ''),
+    '',
+    ('  - Author: %s %s'):format(who(author.login or '?', author.name), table.concat(reactions, ' • ')),
+    ('  - Date: %s'):format(reltime(pr.createdAt)),
+    ('  - Diff: +%d -%d, %d commit%s to `%s` from `%s`'):format(
+      pr.additions or 0,
+      pr.deletions or 0,
+      n,
+      n == 1 and '' or 's',
+      pr.baseRefName or '?',
+      pr.headRefName or '?'
+    ),
+    ('  - CI: %s'):format(checks_summary(pr.ci_jobs or {}) or ''),
+  }
+
+  vim.list_extend(lines, { '', pr.body or '' })
+  -- XXX: Newlines must be CRLF for the terminal.
+  return (table.concat(lines, '\n'):gsub('\r', ''):gsub('\n', '\r\n'))
+end
+
 --- Shows PR details + the most-recent commits (since the last force-push).
 ---
 --- - Loads the prdiff/ + prcomments/ buffers also.
@@ -718,37 +818,50 @@ function M.show_pr(id, repo, focus)
     {{range .commits}}  {{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
   ]]
   )
-  util.run_term_cmds(buf, { pty = true }, {
+
+  util.run_term_cmds(buf, {
+    pty = true,
+    transform = function(out, i)
+      -- We only use `gh pr view --comments` to render comments.
+      return i == 2 and snip_pr_comments(out) or out
+    end,
+  }, {
+    -- Get the header+body in the pr_data query, bc "gh pr view" looks like shit.
+    function(_, on_stdout, _, on_exit)
+      local is_reload = not state.get_pr_data(repo, id)
+      gh.get_pr_data(id, repo, nil, function(pr)
+        on_stdout(nil, { pr and render_pr_header(pr) or 'FAILED render_pr_header' }) -- Note: Must send non-nil to on_stdout to allow it to advance.
+        on_exit()
+        -- `preload_ci_logs` is idempotent: skips per-job if already-rendered or "in_progress".
+        if pr and is_reload then
+          M.load_pr({ id = id, repo = repo }, function(_, pr2)
+            preload_ci_logs(id, repo, pr2.ci_jobs or {})
+          end)
+        end
+      end)
+    end,
     gh.cmd(repo, 'pr', 'view', '--comments', tostring(id)),
     gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'commits', '--template', commits_tmpl),
   }, function()
     util.set_default_keymaps(buf)
-    -- Poll `state.get_pr_data` (populated by `load_pr`) until ready.
-    local tries = 0
-    local function set_winbar()
-      tries = tries + 1
-      local pr = state.get_pr_data(repo, id)
-      local win = vim.fn.win_findbuf(buf)[1]
-      if pr and pr.title and win then
-        util.show_winbar(win, {
-          { ('PR #%s | "%s"'):format(id, pr.title), 'Comment' },
-        })
-      elseif tries < 40 then
-        vim.defer_fn(set_winbar, 200) -- Retry...
+    vim.bo[buf].filetype = 'markdown'
+    local pr = state.get_pr_data(repo, id)
+    local win = vim.fn.win_findbuf(buf)[1]
+    if pr and pr.title and win then
+      local st = gh.pr_state_label(pr)
+      local chunks = {
+        { ('PR #%s '):format(id) },
+        { st, gh.state_hl[st] },
+      }
+      -- Flag PRs targeting a non-default branch.
+      if pr.defaultBranch and pr.baseRefName ~= pr.defaultBranch then
+        chunks[#chunks + 1] = { ' | ' }
+        chunks[#chunks + 1] = { ('Target: %s'):format(pr.baseRefName), 'WarningMsg' }
       end
+      chunks[#chunks + 1] = { (' | %s'):format(pr.title) }
+      util.show_winbar(win, chunks)
     end
-    set_winbar()
   end)
-
-  -- Eagerly load the prdiff/ buf in the background (not displayed), but only if its guh:// buffer
-  -- is not already loaded. "Refresh" (R) forces reload by calling `state.invalidate(pr_buf)`.
-  if not state.get_pr_data(repo, id) then
-    M.load_pr({ id = id, repo = repo }, function(_, pr_data)
-      -- `preload_ci_logs` is idempotent: skips per-job if already rendered, and skips "in_progress" jobs.
-      -- Calling on every refresh picks up newly-completed jobs without needing a HEAD-changed gate.
-      preload_ci_logs(id, repo, pr_data.ci_jobs or {})
-    end)
-  end
 end
 
 --- Loads (maybe-cached) PR data into prdiff/, prcomments/ buffers WITHOUT presenting (focusing) them.
@@ -765,6 +878,10 @@ function M.load_pr(opts, on_done)
 
   -- Show "Loading…" only if we actually fetch.
   local cached = state.get_pr_data(repo, id)
+  util.log(
+    'load_pr',
+    { id = id, repo = repo, cached = cached ~= nil, cached_diff = (cached and cached.diff_stdout) ~= nil }
+  )
   local progress = (cached and cached.diff_stdout) and function() end or util.new_progress_report('Loading PR...', buf)
   progress('running')
 
@@ -863,9 +980,9 @@ local function new_comment(pr_id, repo, line1, line2)
     local range = info.start_line == info.end_line and tostring(info.end_line)
       or ('%d..%d'):format(info.start_line, info.end_line)
     local infomsg = {
-      { 'Comment on ', 'Comment' },
+      { 'Comment on ' },
       { ('%s:%s'):format(info.file, range), 'Directory' },
-      { ' | ZZ to send (ZQ to abort)', 'Comment' },
+      { ' | ZZ to send (ZQ to abort)' },
     }
     vim.schedule(function()
       comments.edit_comment('comment', pr_id, { '' }, infomsg, function(input)
