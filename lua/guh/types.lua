@@ -1,4 +1,4 @@
---- @alias Feat 'comment'|'commit'|'edit'|'file'|'issue'|'merge'|'pr'|'prcomments'|'prdiff'|'prlogs'|'review'|'status'
+--- @alias Feat 'comment'|'commit'|'edit'|'file'|'issue'|'merge'|'pr'|'prcomments'|'prdiff'|'prlogs'|'repo'|'review'|'status'
 
 --- Function "cmd" for `util.run_term_cmds`. Not added to `b:guh.jobs` (not cancellable), so must check buffer validity.
 --- @alias TermCmdFn fun(buf: integer, on_stdout: fun(_: any, data: string[]), on_stderr: fun(_: any, data: string[])?, on_exit: fun())

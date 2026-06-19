@@ -12,7 +12,8 @@ buffer.
 
 ## Usage
 
-Run `:Guh` to see status.
+Run `:Guh` to see the current repo status (commits/PRs/issues), or the global "guh://status"
+(notifications) page if no repo can be guessed from the current buffer or directory.
 
     :Guh
 
@@ -39,6 +40,7 @@ Inside any `guh://` buffer,
 
 - Hit `g?` to see the keymaps.
 - Hit `<Enter>` to open the target at cursor.
+- Hit `-` to go "up" (to PR overview ⇒ repo overview ⇒ user notifications).
 
 When viewing a PR,
 

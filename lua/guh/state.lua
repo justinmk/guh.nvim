@@ -25,6 +25,8 @@ local bufs = {
   ---@type table<string, integer>
   prlogs = {},
   ---@type table<string, integer>
+  repo = {},
+  ---@type table<string, integer>
   review = {},
   ---@type table<string, integer>
   status = {},
@@ -38,8 +40,8 @@ end
 --- Gets the existing buf or creates a new one, for the given PR + feature.
 ---
 --- @param feat Feat
---- @param repo string|nil "owner/name", or nil for non-thing-bound feats ("guh://status").
---- @param id string|integer PR/issue number, or "all" for "guh://status".
+--- @param repo string|nil "owner/name", or nil for repo-less feats ("guh://status").
+--- @param id string|integer PR/issue number, or "all" for page-level feats (status, repo) which have no thing-id.
 --- @param create? boolean (default: true) If false, return nil instead of creating a new buf.
 --- @return integer? buf
 function M.get_buf(feat, repo, id, create)
@@ -211,8 +213,8 @@ end
 ---   - true: Navigate to existing window (if any).
 ---   - false: Show buf in current window.
 ---   - nil: Don't show the buf, only load/prepare it.
---- @param repo string|nil "owner/name", or nil for non-thing-bound feats ("guh://status").
---- @param id string|integer PR/issue number, or "all" for status.
+--- @param repo string|nil "owner/name", or nil for repo-less feats ("guh://status").
+--- @param id string|integer PR/issue number, or "all" for page-level feats (status, repo) which have no thing-id.
 --- @param bufstate? BufState
 --- @return integer buf
 --- @return string key the `(feat, key)` key
@@ -241,7 +243,7 @@ function M.init_buf(feat, focus, repo, id, bufstate)
 end
 
 --- Resets `buf` to "not loaded" state so the next show_* will reload from scratch. Closes any
---- in-flight jobs/channels and clears cached payloads (`pr_data`). Idempotent.
+--- in-flight jobs/channels and clears cached payloads (`pr_data`, `notifications`). Idempotent.
 ---
 --- @param buf integer
 function M.invalidate(buf)
@@ -252,18 +254,22 @@ function M.invalidate(buf)
   for _, j in ipairs(b_guh.jobs or {}) do
     pcall(vim.fn.jobstop, j)
   end
-  set_b_guh(buf, { chan = vim.NIL, jobs = vim.NIL, pr_data = vim.NIL })
+  set_b_guh(buf, { chan = vim.NIL, jobs = vim.NIL, pr_data = vim.NIL, notifications = vim.NIL })
 end
 
 --- Gets buffer URI:
+--- - `guh://<owner>/<repo>` for repo overview.
 --- - `guh://<owner>/<repo>/<feat>/<id>` for per-repo per-feature buffers.
 --- - `guh://<feat>` for "global" buffers (`guh://status`).
 ---
 --- @param feat Feat
---- @param key string PR/issue number, or "all" for status.
+--- @param key string The `get_key(repo, id)` value: "owner/repo/<id>" (per-repo) or "<id>" (repo-less, e.g. "all" for guh://status).
 local function get_buf_name(feat, key)
   local owner, repo, n = key:match('^([^/]+)/([^/]+)/(.+)$')
   if owner then
+    if feat == 'repo' then
+      return ('guh://%s/%s'):format(owner, repo)
+    end
     return ('guh://%s/%s/%s/%s'):format(owner, repo, feat, n)
   end
   return ('guh://%s'):format(feat)

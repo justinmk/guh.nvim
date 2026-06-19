@@ -428,33 +428,31 @@ local function gh_api(logname, method, endpoint, fields, cb)
 end
 
 --- Fetches the user's "Unread" notifications, and stores their thread-ids in the `b:guh.notifications`
---- map, for use by the mark-as-read/done action.
+--- map (for mark-as-read/done and opportunistic probe-skip), and returns the rendered lines.
 ---
 --- @param buf integer The `guh://status` buffer.
---- @param on_stdout fun(_, data: string[])
---- @param _on_stderr? fun(_, data: string[])
---- @param on_exit fun()
-function M.get_user_notifications(buf, on_stdout, _on_stderr, on_exit)
+--- @param on_done fun(lines?: string[], err?: string)
+function M.get_user_notifications(buf, on_done)
   gh_api('get_user_notifications', 'GET', 'notifications', {}, function(r)
-    local lines = {}
-    if not r.errors and vim.api.nvim_buf_is_valid(buf) then
-      local map = vim.empty_dict() ---@type table<string, Notification> slug ("owner/repo#NNN") => Notification.
-      lines = { '', 'Notifications (unread):' }
-      for _, n in ipairs(r) do
-        local typ = n.subject and n.subject.type
-        if typ == 'Issue' or typ == 'PullRequest' then
-          -- `owner/repo#NNN` is a slug that ":Guh ." can open.
-          local slug = ('%s#%s'):format(n.repository.full_name, (n.subject.url or ''):match('(%d+)$'))
-          map[slug] = { thread_id = n.id, is_pr = typ == 'PullRequest' }
-          table.insert(lines, ('  %s  %s'):format(slug, n.subject.title))
-        end
+    if r.errors then
+      local errs = util.gh_errors(r)
+      return on_done(nil, #errs > 0 and table.concat(errs, '; ') or 'Failed to fetch notifications')
+    end
+    local map = vim.empty_dict() ---@type table<string, Notification> slug ("owner/repo#NNN") => Notification.
+    local lines = { 'Notifications (unread):' }
+    for _, n in ipairs(r) do
+      local typ = n.subject and n.subject.type
+      if typ == 'Issue' or typ == 'PullRequest' then
+        -- `owner/repo#NNN` is a slug that ":Guh ." can open.
+        local slug = ('%s#%s'):format(n.repository.full_name, (n.subject.url or ''):match('(%d+)$'))
+        map[slug] = { thread_id = n.id, is_pr = typ == 'PullRequest' }
+        table.insert(lines, ('  %s  %s'):format(slug, n.subject.title))
       end
+    end
+    if vim.api.nvim_buf_is_valid(buf) then
       state.set_b_key(buf, 'guh.notifications', map)
     end
-    if #lines > 0 then
-      on_stdout(nil, { table.concat(lines, '\r\n') .. '\r\n' })
-    end
-    on_exit()
+    on_done(lines)
   end)
 end
 

@@ -38,8 +38,11 @@ file which Nvim automatically runs at startup. |lua-plugin-init|
 
 To review a PR without doing a checkout in your repo:
 
-- Run `:Guh` to see your status (list of PRs, issues, etc.).
-  - Hit <Enter> or `CTRL-W<Enter>` on a PR/issue to view it.
+- Run `:Guh` to see the current repo status (commits/PRs/issues), or the
+  global "guh://status" (notifications) page if no repo can be guessed from
+  the current buffer or directory.
+  - Hit "-" to go "up" to your notifications ("guh://status").
+  - Hit <Enter> or `CTRL-W<Enter>` on a commit/PR/issue to view it.
 - Run `:Guh [target]` to view a specific PR/issue. |guh-commands|
   - Hit `R` to refresh the view.
 - All "guh://…" buffers have the same basic mappings. |guh-mappings|
@@ -88,8 +91,9 @@ Default mappings (local to `guh://` buffers):
 BUFFER-RELATIVE VIEW ACTIONS
 
 -       Go "up" to the parent of the current thing.
-        - From a prlogs/ buffer, this opens the pr/ buffer.
-        - From a pr/ buffer, this opens the status/ buffer.
+        - From a prdiff/, prcomments/, prlogs/, file/ buffer: opens the pr/ buffer.
+        - From a pr/ or issue/ buffer: opens the repo page ("guh://owner/repo").
+        - From the repo page: opens "guh://status".
         <Plug>(guh-up)
 
 R       Refresh the current thing. In a PR-related buffer, refreshes all
@@ -278,13 +282,17 @@ given (or is a repo). Accepts |<mods>|: >
 If |<mods>| is not given, the existing window for [target] (if any) is
 focused. PR data is eagerly loaded (Kool-Aid man "OH YEAH!").
 
-Without [target]: shows a status dashboard.
-- Top part shows `gh pr status`.
-- Bottom part shows info for the current repo (based on the current `guh://`
-  buffer or |current-directory|).
-- Hit <Enter> or `CTRL-W<Enter>` to view any PR/issue at cursor. |guh-mappings|
+Without [target]: shows the current repo ("guh://<owner>/<repo>"), resolved
+from the current buffer or directory.
+- The 10 most-recent commits (on the default branch).
+- Open PRs and issues (recently-updated).
+- Your `gh pr status` for the repo.
+- Hit <Enter> or `CTRL-W<Enter>` to view any commit/PR/issue at cursor.
+- Hit "-" to go up to "guh://status" (your notifications). |guh-mappings|
+- If a repo can't be resolved, then :Guh shows your notifications
+  ("guh://status").
 
-With [target]: views or refreshes the PR, issue, commit, or repo-status. >vim
+With [target]: views or refreshes the PR, issue, commit, repo, or global status. >vim
     " PR or issue number (current repo)
     :Guh 35951
     " Commit SHA (current repo)
@@ -293,7 +301,7 @@ With [target]: views or refreshes the PR, issue, commit, or repo-status. >vim
     :Guh https://github.com/neovim/neovim/pull/35951
     " GitHub commit URL
     :Guh https://github.com/neovim/neovim/commit/a1b2c3d
-    " Bare repo URL (status view)
+    " Repo URL
     :Guh https://github.com/neovim/neovim
     " Slug ("owner/repo#123" or "owner/repo")
     :Guh neovim/neovim#35951
@@ -301,6 +309,7 @@ With [target]: views or refreshes the PR, issue, commit, or repo-status. >vim
     :Guh neovim/neovim
     " guh:// URI
     :Guh guh://neovim/neovim/pr/35951
+    :Guh guh://neovim/neovim
     " WORD at cursor
     :Guh .
 

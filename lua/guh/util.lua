@@ -60,60 +60,53 @@ function M.parse_target(arg)
   arg = vim.trim(arg or '')
   -- Strip surrounding punctuation ("(#123).", "[owner/repo],"). Excludes `#`, `/`, `:`.
   arg = arg:gsub([[^[%(%)%[%]<>{}'"`,;%.!?]+]], ''):gsub([[[%(%)%[%]<>{}'"`,;%.!?]+$]], '')
-  local owner, repo, num, sha, feat
 
-  owner, repo, num = arg:match('https?://github%.com/([^/]+)/([^/]+)/pull/(%d+)')
-  if owner then
-    return { owner = owner, repo = repo, id = tonumber(num), is_pr = true }
+  -- `guh://status` -> global status page (notifications).
+  if arg == 'guh://status' then
+    return { status = true }
   end
-  owner, repo, num = arg:match('https?://github%.com/([^/]+)/([^/]+)/issues/(%d+)')
+
+  -- Reduce a URI to a bare "owner/repo[/<kind>/<value>]" path; bare slugs ("owner/repo",
+  -- "owner/repo#N", "#N", SHA, N) fall through as-is. Also extracts markdown URLs ("[#918](https://github.com/o/r/issues/918)").
+  local path = (arg:match('https?://github%.com/([%w._/-]+)') or arg:match('^guh://(.+)$') or arg):gsub('/$', '')
+
+  -- GitHub web "kind" (pull/issues/commit) and guh:// "feat" both live in the 3rd path component.
+  local pr_kinds = { pull = true, pr = true, prdiff = true, prcomments = true, prlogs = true }
+
+  local owner, repo, kind, val = path:match('^([%w%._-]+)/([%w%._-]+)/(%w+)/(%w+)$')
   if owner then
-    return { owner = owner, repo = repo, id = tonumber(num), is_pr = false }
+    if kind == 'commit' then
+      return { owner = owner, repo = repo, sha = val }
+    elseif pr_kinds[kind] or kind == 'issue' or kind == 'issues' then
+      return { owner = owner, repo = repo, id = tonumber(val), is_pr = pr_kinds[kind] == true }
+    end
+    -- Unknown kind: fall through (treated as a repo target below).
   end
-  owner, repo, sha = arg:match('https?://github%.com/([^/]+)/([^/]+)/commit/(%x+)')
+
+  owner, repo, val = path:match('^([%w%._-]+)/([%w%._-]+)#(%d+)$')
   if owner then
-    return { owner = owner, repo = repo, sha = sha }
+    return { owner = owner, repo = repo, id = tonumber(val) }
   end
-  -- Bare GitHub repo URL (with optional trailing slash) -> status view for that repo.
-  owner, repo = arg:match('^https?://github%.com/([^/]+)/([^/]+)/?$')
+
+  -- Bare "owner/repo" (no id) -> repo overview.
+  owner, repo = path:match('^([%w%._-]+)/([%w%._-]+)$')
   if owner then
     return { owner = owner, repo = repo }
   end
 
-  owner, repo, sha = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/commit/(%x+)$')
-  if owner then
-    return { owner = owner, repo = repo, sha = sha }
-  end
-  owner, repo, feat, num = arg:match('^guh://([%w%._-]+)/([%w%._-]+)/(%w+)/(%d+)$')
-  if owner then
-    local is_pr = ({ pr = true, prdiff = true, prcomments = true, prlogs = true, issue = false })[feat]
-    return { owner = owner, repo = repo, id = tonumber(num), is_pr = is_pr }
+  val = path:match('^#(%d+)$')
+  if val then
+    return { id = tonumber(val) }
   end
 
-  owner, repo, num = arg:match('^([%w%._-]+)/([%w%._-]+)#(%d+)$')
-  if owner then
-    return { owner = owner, repo = repo, id = tonumber(num) }
+  -- Bare commit SHA: 7-40 hex chars with at least one a-f letter (to disambiguate from numeric IDs).
+  if path:match('^[%da-fA-F]+$') and #path >= 7 and #path <= 40 and path:match('[a-fA-F]') then
+    return { sha = path }
   end
 
-  -- Bare "owner/name" slug (no id) -> status view for that repo.
-  owner, repo = arg:match('^([%w%._-]+)/([%w%._-]+)$')
-  if owner then
-    return { owner = owner, repo = repo }
-  end
-
-  num = arg:match('^#(%d+)$')
-  if num then
-    return { id = tonumber(num) }
-  end
-
-  -- Bare commit SHA: 7-40 hex chars with at least one a-f letter (to disambiguate from numeric PR/issue IDs).
-  if arg:match('^[%da-fA-F]+$') and #arg >= 7 and #arg <= 40 and arg:match('[a-fA-F]') then
-    return { sha = arg }
-  end
-
-  num = tonumber(arg)
-  if num then
-    return { id = num }
+  val = tonumber(path)
+  if val then
+    return { id = val }
   end
   return nil
 end
