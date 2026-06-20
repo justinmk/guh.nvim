@@ -234,6 +234,39 @@ describe('guh.gh', function()
       assert(user == nil, ('expected nil, got %q'):format(tostring(user)))
     end, t.tmpname(true))
   end)
+
+  it('get_url()', function()
+    local cases = n.exec_lua(function()
+      local gh = require('guh.gh')
+      local buf = vim.api.nvim_create_buf(false, true)
+      local function url(bufstate)
+        vim.b[buf].guh = bufstate
+        return gh.get_url(buf) or 'NIL'
+      end
+      return {
+        status = url({ feat = 'status' }),
+        repo = url({ feat = 'repo', repo = 'o/r' }),
+        pr = url({ feat = 'pr', repo = 'o/r', id = 7 }),
+        prdiff = url({ feat = 'prdiff', repo = 'o/r', id = 7 }),
+        prcomments = url({ feat = 'prcomments', repo = 'o/r', id = 7 }),
+        issue = url({ feat = 'issue', repo = 'o/r', id = 9 }),
+        commit = url({ feat = 'commit', repo = 'o/r', id = 'abc123' }),
+        unmapped = url({ feat = 'edit', repo = 'o/r', id = 7 }), -- unmapped feat => nil
+        no_repo = url({ feat = 'pr' }), -- no repo => nil
+      }
+    end)
+    t.eq({
+      status = 'https://github.com/notifications',
+      repo = 'https://github.com/o/r',
+      pr = 'https://github.com/o/r/pull/7',
+      prdiff = 'https://github.com/o/r/pull/7/changes',
+      prcomments = 'https://github.com/o/r/pull/7',
+      issue = 'https://github.com/o/r/issues/9',
+      commit = 'https://github.com/o/r/commit/abc123',
+      unmapped = 'NIL',
+      no_repo = 'NIL',
+    }, cases)
+  end)
 end)
 
 describe('pr + comments view', function()

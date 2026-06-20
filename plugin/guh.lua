@@ -69,6 +69,14 @@ end, opts)
 vim.keymap.set('n', '<Plug>(guh-refresh)', function()
   require('guh.pr').refresh()
 end, opts)
+vim.keymap.set('n', '<Plug>(guh-web)', function()
+  local url = require('guh.gh').get_url(0)
+  if url then
+    vim.ui.open(url)
+  else
+    require('guh.util').msg('No URL for this buffer', vim.log.levels.WARN)
+  end
+end, opts)
 vim.keymap.set('n', '<Plug>(guh-diff)', function()
   require('guh.pr').show_pr_diff()
 end, opts)

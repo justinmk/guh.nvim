@@ -35,6 +35,33 @@ function M.pr_state_label(pr)
   return pr.isDraft and 'Draft' or (pr.state and (pr.state:sub(1, 1) .. pr.state:sub(2):lower()) or '?')
 end
 
+--- Gets the github.com web URL for a `guh://` buffer, or nil.
+---
+--- @param buf integer Buffer id (0 for current buffer).
+--- @return string?
+function M.get_url(buf)
+  local b = state.get_b_guh(buf) or {}
+  if b.feat == 'status' then
+    return 'https://github.com/notifications'
+  end
+  if not b.repo then
+    return nil
+  end
+  local base = 'https://github.com/' .. b.repo
+  if b.feat == 'repo' then
+    return base
+  elseif b.feat == 'issue' then
+    return ('%s/issues/%s'):format(base, b.id)
+  elseif b.feat == 'commit' then
+    return ('%s/commit/%s'):format(base, b.id)
+  elseif b.feat == 'prdiff' then
+    return ('%s/pull/%s/changes'):format(base, b.id)
+  elseif b.feat == 'pr' or b.feat == 'prcomments' or b.feat == 'prlogs' or b.feat == 'file' then
+    return ('%s/pull/%s'):format(base, b.id)
+  end
+  return nil
+end
+
 local function parse_or_default(str, default)
   local success, result = pcall(vim.json.decode, str, { luanil = { object = true, array = true } })
   if success then

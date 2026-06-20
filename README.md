@@ -41,6 +41,7 @@ Inside any `guh://` buffer,
 - Hit `g?` to see the keymaps.
 - Hit `<Enter>` to open the target at cursor.
 - Hit `-` to go "up" (to PR overview ⇒ repo overview ⇒ user notifications).
+- Hit `gX` to open the github.com web UI of the current buffer.
 
 When viewing a PR,
 

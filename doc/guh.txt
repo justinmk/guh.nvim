@@ -115,6 +115,9 @@ dl      View the most-recent CI logs for all job-names in the CI matrix.
 [f      View the previous "thing" (see `]f` above).
         <Plug>(guh-prev)
 
+gX      Open the current view on github.com in your web browser.
+        <Plug>(guh-web)
+
 g?      View this help section.
         <Plug>(guh-help)
 
