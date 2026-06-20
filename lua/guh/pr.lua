@@ -809,13 +809,18 @@ function M.show_pr(id, repo, focus)
   local commits_tmpl = vim.text.indent(
     0,
     [[
-    {{printf "\nCommits (%d):\n" (len .commits) -}}
-    {{range .commits}}  {{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
-  ]]
+      {{printf "\n## Commits (%d)\n\n" (len .commits) -}}
+      {{range .commits}}  {{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
+    ]]
   )
   -- Render comments as raw markdown via a template (gh has no `--format=markdown`).
-  local comments_tmpl =
-    [[{{range .comments}}{{printf "\n## %s (%s) — %s\n\n%s\n" .author.login .authorAssociation (timeago .createdAt) .body}}{{end}}]]
+  local comments_tmpl = vim.text.indent(
+    0,
+    [[
+      {{printf "\n## Discussion\n" -}}
+      {{range .comments}}{{printf "\n*%s (%s) — %s*\n\n%s\n" .author.login .authorAssociation (timeago .createdAt) .body}}{{end}}
+    ]]
+  )
 
   util.run_cmds(buf, {}, {
     -- Get the header+body in the pr_data query, bc "gh pr view" looks like shit.
@@ -832,8 +837,8 @@ function M.show_pr(id, repo, focus)
         end
       end)
     end,
-    gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'comments', '--template', comments_tmpl),
     gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'commits', '--template', commits_tmpl),
+    gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'comments', '--template', comments_tmpl),
   }, function()
     util.set_default_keymaps(buf)
     vim.bo[buf].filetype = 'markdown'
