@@ -869,8 +869,10 @@ local function render_pr_header(pr)
     ('- CI: %s'):format(checks_summary(pr.ci_jobs or {}) or '?'),
   }
 
-  vim.list_extend(lines, { '', pr.body or '', '', '' })
-  return (table.concat(lines, '\n'):gsub('\r', '')) -- Strip CR from the (CRLF) body.
+  -- Avoid extra blank lines if body is empty.
+  local body = vim.trim((pr.body or ''):gsub('\r', '')) -- Strip CR within the (CRLF) body.
+  vim.list_extend(lines, body ~= '' and { '', body, '' } or { '' })
+  return table.concat(lines, '\n')
 end
 
 --- Shows PR details + the most-recent commits (since the last force-push).
