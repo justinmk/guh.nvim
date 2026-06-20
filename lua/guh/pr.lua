@@ -102,6 +102,49 @@ local function require_pr(opts)
   return resolve_pr(opts, false)
 end
 
+--- Returns an "Unread" 'winbar' chunk if the slug is in the `b:guh.notifications` map.
+---
+--- @param repo string "owner/name"
+--- @param id integer|string
+--- @return [string, string?]?
+local function notif_chunk(repo, id)
+  local status_buf = state.get_buf('status', nil, 'all', false)
+  local notif = status_buf and state.get_b_key(status_buf, { 'guh', 'notifications', ('%s#%s'):format(repo, id) })
+  return notif and { 'Unread', 'WarningMsg' } or nil
+end
+
+--- Sets 'winbar' for a pr/issue/repo/status view.
+---
+--- @param win integer|nil
+--- @param feat Feat
+--- @param id any
+--- @param repo? string
+--- @param pr? PullRequest
+local function set_winbar(win, feat, id, repo, pr)
+  if not win then
+    return
+  end
+  local st = pr and gh.pr_state_label(pr) or ''
+  local chunks = {
+    { ('%s %s%s '):format(feat:upper(), (feat == 'pr' or feat == 'issue') and '#' or '', id) },
+    { st, gh.state_hl[st] },
+  }
+  -- Flag PRs targeting a non-default branch.
+  if pr and pr.defaultBranch and pr.baseRefName ~= pr.defaultBranch then
+    chunks[#chunks + 1] = { ' | ' }
+    chunks[#chunks + 1] = { ('Target: %s'):format(pr.baseRefName), 'WarningMsg' }
+  end
+  local nc = (feat == 'pr' or feat == 'issue') and notif_chunk(repo, id)
+  if nc then
+    chunks[#chunks + 1] = { ' | ' }
+    chunks[#chunks + 1] = nc
+  end
+  if pr then
+    chunks[#chunks + 1] = { (' | %s'):format(pr.title) }
+  end
+  util.show_winbar(win, chunks)
+end
+
 --- Implements `:Guh`. Also provides an overload for programmatic callers.
 ---
 --- Shows...
@@ -642,8 +685,9 @@ function M.show_status(focus)
   if state.get_b_key(buf, { 'guh', 'notifications' }) then
     return -- Skip the re-fetch if already loaded.
   end
+  set_winbar(vim.fn.win_findbuf(buf)[1], 'status', '', nil, nil)
   local done = util.progress('Loading notifications...')
-  gh.get_user_notifications(buf, function(lines, err)
+  gh.get_user_notifs(buf, function(lines, err)
     if not lines then
       return done('failed', err)
     end
@@ -689,6 +733,8 @@ function M.show_repo(focus, repo)
   ]]
   )
 
+  set_winbar(0, 'repo', repo, repo, nil)
+
   util.run_cmds(buf, { term = true }, {
     {
       'gh',
@@ -709,11 +755,36 @@ function M.show_repo(focus, repo)
   end)
 end
 
+--- Implements "mark as read". Updates the `b:guh.notifications` map; does NOT refresh `guh://status`.
+function M.set_read()
+  local feat, id, repo = util.require_b_guh({ 'feat', 'id', 'repo' })
+  if not feat then
+    return
+  end
+  local slug = ('%s#%s'):format(repo, id)
+  local status_buf = state.get_buf('status', nil, 'all', false)
+  local notifs = status_buf and state.get_b_key(status_buf, { 'guh', 'notifications' })
+  local notif = notifs and notifs[slug]
+  if not notif then
+    return util.msg(('No unread notification for: %s'):format(slug), vim.log.levels.WARN)
+  end
+  local done = util.progress(('Marking %s read…'):format(slug))
+  gh.set_notif_read(notif.thread_id, function(ok, err)
+    if not ok then
+      return done('failed', err)
+    end
+    done('success')
+    state.set_b_key(assert(status_buf), { 'guh', 'notifications', slug }, vim.NIL)
+    set_winbar(0, feat, id, repo, feat == 'pr' and state.get_pr_data(repo, id) or nil)
+  end)
+end
+
 --- @param id integer
 --- @param repo string "owner/name"
 --- @param focus? boolean
 function M.show_issue(id, repo, focus)
   local buf = state.init_buf('issue', focus, repo, id)
+  set_winbar(vim.fn.win_findbuf(buf)[1], 'issue', id, repo)
   util.run_cmds(buf, { term = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') }, function()
     util.set_default_keymaps(buf)
   end)
@@ -841,23 +912,10 @@ function M.show_pr(id, repo, focus)
     gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'comments', '--template', comments_tmpl),
   }, function()
     util.set_default_keymaps(buf)
-    vim.bo[buf].filetype = 'markdown'
-    local pr = state.get_pr_data(repo, id)
-    local win = vim.fn.win_findbuf(buf)[1]
-    if pr and pr.title and win then
-      local st = gh.pr_state_label(pr)
-      local chunks = {
-        { ('PR #%s '):format(id) },
-        { st, gh.state_hl[st] },
-      }
-      -- Flag PRs targeting a non-default branch.
-      if pr.defaultBranch and pr.baseRefName ~= pr.defaultBranch then
-        chunks[#chunks + 1] = { ' | ' }
-        chunks[#chunks + 1] = { ('Target: %s'):format(pr.baseRefName), 'WarningMsg' }
-      end
-      chunks[#chunks + 1] = { (' | %s'):format(pr.title) }
-      util.show_winbar(win, chunks)
-    end
+    vim._with({ buf = buf }, function()
+      vim.cmd [[set breakindent nolist filetype=markdown]]
+    end)
+    set_winbar(vim.fn.win_findbuf(buf)[1], 'pr', id, repo, state.get_pr_data(repo, id))
   end)
 end
 
@@ -891,7 +949,7 @@ function M.load_pr(opts, on_done)
     local pr_buf = state.get_buf('pr', repo, id, false)
     -- Cache the prdiff in `b:guh.pr_data`. Do this here so it runs only after `gh.get_pr_data` stored `pr_data`.
     if pr_buf and pr_data.diff_stdout ~= diff_stdout then
-      state.set_b_key(pr_buf, 'guh.pr_data.diff_stdout', diff_stdout)
+      state.set_b_key(pr_buf, { 'guh', 'pr_data', 'diff_stdout' }, diff_stdout)
     end
     local lines, threads, n_files, n_viewed_threads = comments.render_diff(pr_data, diff_stdout)
     util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
@@ -908,8 +966,8 @@ function M.load_pr(opts, on_done)
     comments.load_pr_comments(id, repo, buf, pr_data, threads, n_files, n_viewed_threads)
     -- Update `b:guh.pr_data` so the display step doesn't attempt to re-fetch.
     if pr_buf then
-      state.set_b_key(pr_buf, 'guh.pr_data.n_files', n_files)
-      state.set_b_key(pr_buf, 'guh.pr_data.n_viewed_threads', n_viewed_threads)
+      state.set_b_key(pr_buf, { 'guh', 'pr_data', 'n_files' }, n_files)
+      state.set_b_key(pr_buf, { 'guh', 'pr_data', 'n_viewed_threads' }, n_viewed_threads)
     end
     progress('success')
     if on_done then
@@ -1088,9 +1146,7 @@ function M.toggle_viewed()
 
   -- Optimization: patch `viewed` locally, then re-render from cache.
   -- Do "optimistic" gh.set_file_viewed(); on failure, local state is stale until "Refresh".
-  local new_viewed = vim.tbl_extend('force', {}, pr_data.viewed or {})
-  new_viewed[path] = viewed or nil
-  state.set_b_key(pr_buf, 'guh.pr_data.viewed', next(new_viewed) and new_viewed or vim.empty_dict())
+  state.set_b_key(pr_buf, { 'guh', 'pr_data', 'viewed', path }, viewed or vim.NIL)
 
   local msg = ('%s%s: %s'):format(
     viewed and 'Viewed' or 'Unviewed',

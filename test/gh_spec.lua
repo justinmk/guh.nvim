@@ -704,13 +704,25 @@ describe('guh.state', function()
     -- Nested scalar set: sibling keys preserved.
     t.eq(
       { pr_data = { n = 2, viewed = { a = true } }, chan = 5 },
-      set_key({ pr_data = { n = 1, viewed = { a = true } }, chan = 5 }, 'guh.pr_data.n', 2)
+      set_key({ pr_data = { n = 1, viewed = { a = true } }, chan = 5 }, { 'guh', 'pr_data', 'n' }, 2)
     )
 
     -- Set a new nested key.
-    t.eq({ pr_data = { n = 1, diff_stdout = 'X' } }, set_key({ pr_data = { n = 1 } }, 'guh.pr_data.diff_stdout', 'X'))
+    t.eq(
+      { pr_data = { n = 1, diff_stdout = 'X' } },
+      set_key({ pr_data = { n = 1 } }, { 'guh', 'pr_data', 'diff_stdout' }, 'X')
+    )
 
     -- Set a top-level key.
-    t.eq({ pr_data = { n = 1 }, chan = 9 }, set_key({ pr_data = { n = 1 }, chan = 5 }, 'guh.chan', 9))
+    t.eq({ pr_data = { n = 1 }, chan = 9 }, set_key({ pr_data = { n = 1 }, chan = 5 }, { 'guh', 'chan' }, 9))
+
+    -- Delete a leaf (value = vim.NIL), incl. a key with special chars; siblings preserved.
+    t.eq(
+      { notifications = { ['o/r#2'] = true } },
+      set_key({ notifications = { ['o/r#1'] = true, ['o/r#2'] = true } }, { 'guh', 'notifications', 'o/r#1' }, vim.NIL)
+    )
+
+    -- Errors on missing nested key-path (only the root b:guh is auto-created).
+    t.matches('E716%: Key not present in Dictionary: "pr_data"', t.pcall_err(set_key, {}, { 'guh', 'pr_data', 'n' }, 5))
   end)
 end)

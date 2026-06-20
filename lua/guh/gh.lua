@@ -381,7 +381,7 @@ function M.get_pr_data(prnum, repo, opts, on_result)
     local pr = to_pr(node)
     pr.defaultBranch = vim.tbl_get(resp, 'data', 'repository', 'defaultBranchRef', 'name')
     -- Cache on the `pr/…` buffer only (single-source-of-truth). Create it if needed.
-    state.set_b_key(assert(state.get_buf('pr', repo, prnum)), 'guh.pr_data', pr)
+    state.set_b_key(assert(state.get_buf('pr', repo, prnum)), { 'guh', 'pr_data' }, pr)
     util.log('get_pr_data resp', { comments = #pr.raw_comments, viewed = vim.tbl_count(pr.viewed) })
     on_result(pr)
   end)
@@ -432,8 +432,8 @@ end
 ---
 --- @param buf integer The `guh://status` buffer.
 --- @param on_done fun(lines?: string[], err?: string)
-function M.get_user_notifications(buf, on_done)
-  gh_api('get_user_notifications', 'GET', 'notifications', {}, function(r)
+function M.get_user_notifs(buf, on_done)
+  gh_api('get_user_notifs', 'GET', 'notifications', {}, function(r)
     if r.errors then
       local errs = util.gh_errors(r)
       return on_done(nil, #errs > 0 and table.concat(errs, '; ') or 'Failed to fetch notifications')
@@ -450,9 +450,20 @@ function M.get_user_notifications(buf, on_done)
       end
     end
     if vim.api.nvim_buf_is_valid(buf) then
-      state.set_b_key(buf, 'guh.notifications', map)
+      state.set_b_key(buf, { 'guh', 'notifications' }, map)
     end
     on_done(lines)
+  end)
+end
+
+--- Marks a notification thread as read. (One-way: GitHub's REST API has no "mark as UNread".)
+---
+--- @param thread_id string|integer Notification thread-id (`b:guh.notifications[slug].thread_id`).
+--- @param on_done fun(ok: boolean, err?: string)
+function M.set_notif_read(thread_id, on_done)
+  -- Note: gh_api() checks `resp.errors`, but this endpoint returns an empty 205.
+  util.system({ 'gh', 'api', '--method', 'PATCH', f('notifications/threads/%s', thread_id) }, nil, function(r)
+    on_done(r.code == 0, r.code ~= 0 and vim.trim(r.stderr or '') or nil)
   end)
 end
 

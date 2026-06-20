@@ -165,25 +165,34 @@ function M.get_b_key(buf, path)
   end)
 end
 
---- Sets a single (possibly nested) key-path on a `b:` variable, WITHOUT the serialization "roundtrip"
+--- Sets or deletes (vim.NIL) a nested `b:` key-path, WITHOUT the serialization "roundtrip"
 --- (`local x = vim.b.x; x.y.z = v; vim.b.x = x`), for performance. The root var (`b:foo`) is
---- created if absent; any deeper keys must already exist.
+--- created if absent; deeper keys must already exist (else error).
 ---
 --- TODO: https://github.com/neovim/neovim/issues/40159
 ---
 --- @param buf integer
---- @param path string Dotted key-path under `b:` (e.g. "guh.pr_data.n_files").
---- @param value any
+--- @param path string[] Key-path under `b:`.
+--- @param value any Value to set, or `vim.NIL` to delete the leaf.
 function M.set_b_key(buf, path, value)
+  -- Vimscript single-quoted string literal (keys may contain any chars: slug, filepath, …).
+  local function vq(s)
+    return ("'%s'"):format(tostring(s):gsub("'", "''"))
+  end
+  local idx = {} -- Build a `b:['k1']['k2']…` keypath for Vimscript.
+  for _, k in ipairs(path) do
+    idx[#idx + 1] = ('[%s]'):format(vq(k))
+  end
+
   vim.api.nvim_buf_call(buf, function()
-    vim.b._guh_patch = value -- Marshall one-way.
-    local root = path:match('^[^.]+') -- "foo.bar" => "foo"
-    vim.cmd(([[
-      " Ensure b:foo exists (but not b:foo.x.y).
-      let b:%s = get(b:, '%s', {})
-      let b:%s = b:_guh_patch
-      unlet b:_guh_patch
-    ]]):format(root, root, path))
+    -- Create the root (b:guh) if absent; deeper parents must already exist (else error).
+    vim.cmd(('if type(get(b:, %s)) != v:t_dict | let b:[%s] = {} | endif'):format(vq(path[1]), vq(path[1])))
+    if value == vim.NIL then
+      vim.cmd(('silent! call remove(b:%s, %s)'):format(table.concat(idx, '', 1, #idx - 1), vq(path[#path])))
+    else
+      vim.b._guh_set_b_val = value -- Marshall one-way.
+      vim.cmd(('let b:%s = b:_guh_set_b_val | unlet b:_guh_set_b_val'):format(table.concat(idx)))
+    end
   end)
 end
 

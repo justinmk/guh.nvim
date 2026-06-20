@@ -32,7 +32,7 @@ vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
 -- - "gh" annoyingly indents pr/issue comments
 -- - :terminal (currently, probably?) overuses whitespace where it should have negative space.
 vim.api.nvim_create_autocmd('TextYankPost', {
-  pattern = [[guh://[^/]\+/[^/]\+/{pr,issue}/*]],
+  pattern = [[guh://[^/]\+/[^/]\+/issue/*]],
   group = group,
   callback = function()
     local feat = (vim.b.guh or {}).feat
@@ -92,6 +92,9 @@ vim.keymap.set('n', '<Plug>(guh-edit)', function()
 end, opts)
 vim.keymap.set('n', '<Plug>(guh-merge)', function()
   require('guh.pr').merge_pr()
+end, opts)
+vim.keymap.set('n', '<Plug>(guh-notif-read)', function()
+  require('guh.pr').set_read()
 end, opts)
 vim.keymap.set('n', '<Plug>(guh-review)', function()
   require('guh.pr').review_pr()

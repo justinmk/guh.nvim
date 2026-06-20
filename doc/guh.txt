@@ -135,6 +135,11 @@ cM      Merge PR. |guh-merge|
 cR      Review PR (Approve / Comment / Request-changes / Toggle draft).
         <Plug>(guh-review)
 
+cV      Mark "Unread" PR/issue notification as "read". Depends on your
+        "guh://status" notifications. Note: GitHub has no "mark as UNread"
+        API(?), so this cannot be undone.
+        <Plug>(guh-notif-read)
+
 c:      Edit title/body/labels/milestone/… via `gh` in a :terminal.
         <Plug>(guh-edit)
 
@@ -161,7 +166,7 @@ cr
 
 cv      Toggle "Viewed" state of the diff-file at cursor. Also works on
         OUTDATED/OUTSIDE diff-files, but only locally: "R" (refresh) will show
-        those files again until their threads are resolved.
+        those files again if they have Unresolved threads.
         <Plug>(guh-viewed)
 
 gf      In a prdiff/ buffer, view the full contents of the diff-file at

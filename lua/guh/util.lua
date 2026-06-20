@@ -307,6 +307,7 @@ function M.set_default_keymaps(buf)
   M.map_default(buf, 'n', 'cC', '<Plug>(guh-comment-top)', 'Comment on PR/issue overview')
   M.map_default(buf, 'n', 'c:', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`, `gh issue edit`)')
   M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge)', 'Merge PR')
+  M.map_default(buf, 'n', 'cV', '<Plug>(guh-notif-read)', 'Mark PR/issue notification as read')
   M.map_default(buf, 'n', 'cR', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
 
   -- Cursor-relative actions:
@@ -429,7 +430,7 @@ function M.run_cmds(buf, opts, cmds, on_done)
       vim.bo[buf].modifiable = false
     end
 
-    state.set_b_key(buf, 'guh.chan', token)
+    state.set_b_key(buf, { 'guh', 'chan' }, token)
     local jobs = {} ---@type integer[]
 
     local debug = vim.g.guh_debug == 'debug' or vim.g.guh_debug == 'trace'
@@ -580,7 +581,7 @@ function M.run_cmds(buf, opts, cmds, on_done)
       end
     end
     -- Store job-ids in case a later `run_cmds` invocation forces a re-request.
-    state.set_b_key(buf, 'guh.jobs', jobs)
+    state.set_b_key(buf, { 'guh', 'jobs' }, jobs)
   end)
 end
 
