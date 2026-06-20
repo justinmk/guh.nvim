@@ -316,6 +316,7 @@ function M.show_file()
   local done = util.progress(('Loading %s @ %s...'):format(path, sha:sub(1, 7)))
   local cmd =
     { 'gh', 'api', ('repos/%s/contents/%s?ref=%s'):format(repo, path, sha), '-H', 'Accept: application/vnd.github.raw' }
+
   util.system(cmd, nil, function(r)
     if r.code ~= 0 then
       return done('failed', vim.trim(r.stderr or ''))
@@ -331,12 +332,6 @@ end
 --- Renders `logs` into a `prlogs/…` terminal-buf, or does nothing if `b:guh.chan` is already set.
 local function render_ci_log(buf, logs)
   if (state.get_b_guh(buf) or {}).chan then
-    -- To "refresh" a prlogs/ buffer: chanclose() + 'modifiable' + clear.
-    -- But this is only for reference, since we never "refresh" prlogs/ buffers.
-    -- pcall(vim.fn.chanclose, old_chan)
-    -- vim.bo[buf].modifiable = true
-    -- vim.bo[buf].readonly = false
-    -- vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
     return
   end
   local chan = vim.api.nvim_open_term(buf, {})
@@ -686,13 +681,13 @@ function M.show_status(focus)
     return -- Skip the re-fetch if already loaded.
   end
   set_winbar(vim.fn.win_findbuf(buf)[1], 'status', '', nil, nil)
+  util.set_default_keymaps(buf)
   local done = util.progress('Loading notifications...')
   gh.get_user_notifs(buf, function(lines, err)
     if not lines then
       return done('failed', err)
     end
     util.buf_set_readonly_lines(buf, lines, '')
-    util.set_default_keymaps(buf)
     done('success')
   end)
 end
@@ -735,6 +730,7 @@ function M.show_repo(focus, repo)
 
   set_winbar(0, 'repo', repo, repo, nil)
 
+  util.set_default_keymaps(buf)
   util.run_cmds(buf, { term = true }, {
     {
       'gh',
@@ -750,9 +746,7 @@ function M.show_repo(focus, repo)
       tmpl,
     },
     { 'gh', 'pr', 'status', '--repo', repo },
-  }, function()
-    util.set_default_keymaps(buf)
-  end)
+  })
 end
 
 --- Implements "mark as read". Updates the `b:guh.notifications` map; does NOT refresh `guh://status`.
@@ -785,9 +779,8 @@ end
 function M.show_issue(id, repo, focus)
   local buf = state.init_buf('issue', focus, repo, id)
   set_winbar(vim.fn.win_findbuf(buf)[1], 'issue', id, repo)
-  util.run_cmds(buf, { term = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') }, function()
-    util.set_default_keymaps(buf)
-  end)
+  util.set_default_keymaps(buf)
+  util.run_cmds(buf, { term = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') })
 end
 
 --- Formats an ISO-8601 timestamp as a relative "… ago" string (largest unit only, like gh's `timeago`).
@@ -893,6 +886,7 @@ function M.show_pr(id, repo, focus)
     ]]
   )
 
+  util.set_default_keymaps(buf)
   util.run_cmds(buf, {}, {
     -- Get the header+body in the pr_data query, bc "gh pr view" looks like shit.
     function(_, on_stdout, _, on_exit)
@@ -911,7 +905,6 @@ function M.show_pr(id, repo, focus)
     gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'commits', '--template', commits_tmpl),
     gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'comments', '--template', comments_tmpl),
   }, function()
-    util.set_default_keymaps(buf)
     vim._with({ buf = buf }, function()
       vim.cmd [[set breakindent nolist filetype=markdown]]
     end)
@@ -930,6 +923,7 @@ end
 function M.load_pr(opts, on_done)
   local _, id, repo = require_pr(opts)
   local buf = state.init_buf('prdiff', nil, repo, id) -- focus=nil (no display)
+  util.set_default_keymaps(buf)
 
   -- Show "Loading…" only if we actually fetch.
   local cached = state.get_pr_data(repo, id)
@@ -962,7 +956,6 @@ function M.load_pr(opts, on_done)
       -- Match offdiff file prefix ("outdated-3271868956:", "outside-3271868956:").
       vim.cmd([[syntax match GuhWarning /\<\(outdated\|outside\)\ze-\d\+:/ containedin=ALL]])
     end)
-    util.set_default_keymaps(buf)
     comments.load_pr_comments(id, repo, buf, pr_data, threads, n_files, n_viewed_threads)
     -- Update `b:guh.pr_data` so the display step doesn't attempt to re-fetch.
     if pr_buf then
