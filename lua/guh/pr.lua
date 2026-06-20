@@ -886,7 +886,7 @@ function M.show_pr(id, repo, focus)
     0,
     [[
       {{printf "\n## Discussion\n" -}}
-      {{range .comments}}{{printf "\n*%s (%s) — %s*\n\n%s\n" .author.login .authorAssociation (timeago .createdAt) .body}}{{end}}
+      {{if .comments}}{{range .comments}}{{printf "\n*%s (%s) — %s*\n\n%s\n" .author.login .authorAssociation (timeago .createdAt) .body}}{{end}}{{else}}{{"\n*No comments*\n"}}{{end}}
     ]]
   )
 
