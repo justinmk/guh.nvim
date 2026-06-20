@@ -913,6 +913,11 @@ function M.show_pr(id, repo, focus)
       vim.cmd [[set breakindent nolist filetype=markdown]]
     end)
     set_winbar(buf, 'pr', id, repo, state.get_pr_data(repo, id))
+    vim.api.nvim_buf_call(buf, function()
+      vim.cmd([[syntax match GuhWarning /\<\(Checks pending\)/]])
+      vim.cmd([[syntax match ErrorMsg /\<\(Checks failing\)/]])
+      vim.cmd([[syntax match OkMsg /\<\(Checks passing\)/]])
+    end)
   end)
 end
 

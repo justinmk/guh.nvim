@@ -112,7 +112,7 @@ dl      View the most-recent CI logs for all job-names in the CI matrix.
         - In other PR-related buffers: next commit (from the most-recent push).
         <Plug>(guh-next)
 
-[f      View the previous "thing" (see `]f` above).
+[f      View the previous "thing" (see ]f above).
         <Plug>(guh-prev)
 
 gX      Open the current view on github.com in your web browser.
@@ -138,9 +138,10 @@ cM      Merge PR. |guh-merge|
 cR      Review PR (Approve / Comment / Request-changes / Toggle draft).
         <Plug>(guh-review)
 
-cV      Mark "Unread" PR/issue notification as "read". Depends on your
-        "guh://status" notifications. Note: GitHub has no "mark as UNread"
-        API(?), so this cannot be undone.
+cV      Mark the current PR/issue as "Read". Depends on your "guh://status"
+        notifications. Note:
+        - Guh never marks anything as "Read" unless you invoke this.
+        - Cannot be undone; GitHub has no "Mark as Unread" API.
         <Plug>(guh-notif-read)
 
 c:      Edit title/body/labels/milestone/… via `gh` in a :terminal.
@@ -179,8 +180,7 @@ gf      In a prdiff/ buffer, view the full contents of the diff-file at
 ]]      In a prdiff/ buffer, jump [count] sections forward, where each
         "section" is a "diff --git" heading.
 
-[[      In a prdiff/ buffer, jump [count] sections backward, where each
-        "section" is a "diff --git" heading.
+[[      Like ]], except backwards.
 
 
 ------------------------------------------------------------------------------
@@ -363,11 +363,12 @@ Guh defines these highlight groups (with `default = true`, so a colorscheme
 that defines them wins). Link or `:hi` them to customize.
 
 GuhHeading
-    Heading for comment-threads and various other headings.
+    Comment-thread title, and various other headings.
 
 GuhWarning
-    Hints such as `(outdated)`, `(outside)`, `(truncated)`, `(viewed)` in
-    `guh://` buffers.
+    Hints such as `(outdated)`, `(outside)`, `(truncated)`, `(viewed)`.
+    Pending CI checks.
+    "Unread" status.
 
 ==============================================================================
 DEVELOPMENT                                                          *guh-dev*
@@ -389,12 +390,13 @@ Run specific tests: >
 
     NEOVIM_PATH='/path/to/neovim/' make test TEST_FILTER=load_comments
 
+------------------------------------------------------------------------------
 ARCHITECTURE
 
-- "Reload" internally is designed to work by "clearing the guh:// buffer
-  state" (i.e. call state.invalidate()). Don't pass `force` parameters around
-  in a bespoke fashion. And as a result, guh:// buffers are by default _never_
-  reloaded _unless_ their state was cleared.
+- "Reload" internally is designed to work by "clearing b:guh" (i.e. call
+  state.invalidate()). Don't pass `force` parameters around in a bespoke
+  fashion. And as a result, guh:// buffers are by default _never_
+  reloaded _unless_ b:guh was cleared.
 
 
 ------------------------------------------------------------------------------
