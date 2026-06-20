@@ -689,7 +689,7 @@ function M.show_repo(focus, repo)
   ]]
   )
 
-  util.run_term_cmds(buf, { pty = true }, {
+  util.run_cmds(buf, { term = true }, {
     {
       'gh',
       'api',
@@ -714,44 +714,19 @@ end
 --- @param focus? boolean
 function M.show_issue(id, repo, focus)
   local buf = state.init_buf('issue', focus, repo, id)
-  util.run_term_cmds(buf, { pty = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') }, function()
+  util.run_cmds(buf, { term = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') }, function()
     util.set_default_keymaps(buf)
   end)
 end
 
---- Strips SGR/CSI escapes. Used only to *detect* line structure; the kept text keeps its escapes.
-local function strip_ansi(s)
-  return (s:gsub('\27%[[%d;:?]*%a', ''))
-end
-
---- HACK: Keeps only the comments from `gh pr view --comments` output: drops gh's own header+body.
---- The header is the contiguous block at the top; the body that follows is indented, so the first
---- non-indented line after it is the first comment-author line. Returns "" if there are no comments.
---- @param out string Raw (ANSI) stdout of `gh pr view --comments`.
-local function snip_pr_comments(out)
-  local lines = vim.split(out, '\n', { plain = true })
-  local meta_end, body_end
-  for i, l in ipairs(lines) do
-    local plain = strip_ansi(l)
-    if not meta_end then
-      if vim.trim(plain) == '' then
-        meta_end = i
-      end
-    elseif plain:match('^%S') then
-      body_end = i
-      break
-    end
-  end
-  return body_end and table.concat(vim.list_slice(lines, body_end), '\n') or ''
-end
-
---- Formats an ISO-8601 timestamp as a relative "… ago" string.
+--- Formats an ISO-8601 timestamp as a relative "… ago" string (largest unit only, like gh's `timeago`).
 local function reltime(iso)
   local t = iso and vim.fn.strptime('%Y-%m-%dT%H:%M:%S', iso) or 0
   if t == 0 then
     return '' -- empty / unparseable
   end
-  return require('vim._core.time').fmt_rtime(math.max(0, os.time() - t)) .. ' ago'
+  local full = require('vim._core.time').fmt_rtime(math.max(0, os.time() - t))
+  return full:match('^[^,]+') .. ' ago' -- Keep only the first (largest) unit.
 end
 
 --- "✓ Checks passing" / "✗ N/M checks failing" / "● N/M checks pending", or nil if there are no jobs.
@@ -801,7 +776,9 @@ local function render_pr_header(pr)
   local lines = {
     '# ' .. (pr.title or ''),
     '',
-    ('  - Author: %s %s'):format(who(author.login or '?', author.name), table.concat(reactions, ' • ')),
+    (('  - Author: %s %s')
+      :format(who(author.login or '?', author.name), table.concat(reactions, ' • '))
+      :gsub('%s+$', '')),
     ('  - Date: %s'):format(reltime(pr.createdAt)),
     ('  - Diff: +%d -%d, %d commit%s to `%s` from `%s`'):format(
       pr.additions or 0,
@@ -811,12 +788,11 @@ local function render_pr_header(pr)
       pr.baseRefName or '?',
       pr.headRefName or '?'
     ),
-    ('  - CI: %s'):format(checks_summary(pr.ci_jobs or {}) or ''),
+    ('  - CI: %s'):format(checks_summary(pr.ci_jobs or {}) or '?'),
   }
 
   vim.list_extend(lines, { '', pr.body or '', '', '' })
-  -- XXX: Newlines must be CRLF for the terminal.
-  return (table.concat(lines, '\n'):gsub('\r', ''):gsub('\n', '\r\n'))
+  return (table.concat(lines, '\n'):gsub('\r', '')) -- Strip CR from the (CRLF) body.
 end
 
 --- Shows PR details + the most-recent commits (since the last force-push).
@@ -837,14 +813,11 @@ function M.show_pr(id, repo, focus)
     {{range .commits}}  {{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
   ]]
   )
+  -- Render comments as raw markdown via a template (gh has no `--format=markdown`).
+  local comments_tmpl =
+    [[{{range .comments}}{{printf "\n## %s (%s) — %s\n\n%s\n" .author.login .authorAssociation (timeago .createdAt) .body}}{{end}}]]
 
-  util.run_term_cmds(buf, {
-    pty = true,
-    transform = function(out, i)
-      -- We only use `gh pr view --comments` to render comments.
-      return i == 2 and snip_pr_comments(out) or out
-    end,
-  }, {
+  util.run_cmds(buf, {}, {
     -- Get the header+body in the pr_data query, bc "gh pr view" looks like shit.
     function(_, on_stdout, _, on_exit)
       local is_reload = not state.get_pr_data(repo, id)
@@ -859,7 +832,7 @@ function M.show_pr(id, repo, focus)
         end
       end)
     end,
-    gh.cmd(repo, 'pr', 'view', '--comments', tostring(id)),
+    gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'comments', '--template', comments_tmpl),
     gh.cmd(repo, 'pr', 'view', tostring(id), '--json', 'commits', '--template', commits_tmpl),
   }, function()
     util.set_default_keymaps(buf)

@@ -1,10 +1,10 @@
 --- @alias Feat 'comment'|'commit'|'edit'|'file'|'issue'|'merge'|'pr'|'prcomments'|'prdiff'|'prlogs'|'repo'|'review'|'status'
 
---- Function "cmd" for `util.run_term_cmds`. Not added to `b:guh.jobs` (not cancellable), so must check buffer validity.
---- @alias TermCmdFn fun(buf: integer, on_stdout: fun(_: any, data: string[]), on_stderr: fun(_: any, data: string[])?, on_exit: fun())
+--- Function "cmd" for `util.run_cmds`. Not added to `b:guh.jobs` (not cancellable), so must check buffer validity.
+--- @alias GuhJobFn fun(buf: integer, on_stdout: fun(_: any, data: string[]), on_stderr: fun(_: any, data: string[])?, on_exit: fun())
 
---- Command for `util.run_term_cmds` command: a shell argv, or a `TermCmdFn`.
---- @alias TermCmd string[]|TermCmdFn
+--- Command for `util.run_cmds` command: a shell argv, or a `GuhJobFn`.
+--- @alias GuhJob string[]|GuhJobFn
 
 --- @class GuhTarget A `:Guh` target (from a cmdline arg/URL/`guh://` URI, or a programmatic feat).
 --- @field owner? string
@@ -20,8 +20,8 @@
 
 --- @class BufState
 --- Buffer-local b:guh dict.
---- @field chan? integer Channel-id for `run_term_cmds` or other terminal-buffers.
---- @field jobs? integer[] In-flight jobs for the current `run_term_cmds` run.
+--- @field chan? integer  Marks a `run_cmds` buf as "loaded". Channel-id (term=true) or a synthetic id (plain buffer).
+--- @field jobs? integer[] In-flight jobs for the current `run_cmds` run.
 --- @field feat? Feat Feature name
 --- @field id? integer|string PR or issue number, or commit SHA.
 --- @field pr_data? PullRequest
