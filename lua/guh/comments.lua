@@ -128,32 +128,33 @@ local function to_line_map(diff_lines)
   return line_map
 end
 
---- Jumps to the `diff --git a/… b/…` (or `(viewed) <path>`) filepath heading at or above cursor in
---- `buf` (a prdiff/ buffer).
+--- Finds the `diff --git a/… b/…` (or `(viewed) <path>`) filepath heading at or above cursor in
+--- `buf` (a prdiff/ buffer). With `jump=true`, moves the cursor to the heading.
 ---
 --- Returns the path *as displayed* (and thus as keyed in `pr_data.viewed`): real path for current
 --- files, or the `outdated-<id>:`/`outside-<id>:` quasi-filename for off-diff sections.
 ---
 --- @param buf integer prdiff buffer.
+--- @param jump boolean Jump to the heading.
 --- @return string? path Filepath (or quasi-filepath), or nil if none found.
 --- @return 'outdated'|'outside'|nil quasi nil if the path is a current-HEAD file.
-function M.jump_to_file_heading(buf)
-  local path = vim.api.nvim_buf_call(buf, function()
+--- @return integer? lnum 1-indexed heading line.
+function M.find_file_heading(buf, jump)
+  local path, lnum = vim.api.nvim_buf_call(buf, function()
     local p = vim.api.nvim_get_current_line():match('^%(viewed%) (.+)$')
     if p then
-      return p
+      return p, vim.fn.line('.')
     end
-    -- Drop the `n` flag so search() moves the cursor to the match.
-    local lnum = vim.fn.search(diff_git_regex, 'bcW')
-    if lnum ~= 0 then
-      return vim.fn.getline(lnum):match(diff_git_pat)
+    local l = vim.fn.search(diff_git_regex, jump and 'bcW' or 'bcnW')
+    if l ~= 0 then
+      return vim.fn.getline(l):match(diff_git_pat), l
     end
   end)
   if not path then
-    return nil, nil
+    return nil, nil, nil
   end
   local quasi = path:match(outdated_prefix_pat) and 'outdated' or path:match(outside_prefix_pat) and 'outside' or nil
-  return path, quasi
+  return path, quasi, lnum
 end
 
 --- Display path: opens prcomments/ in a 'scrollbind' split next to the prdiff window, and sets
