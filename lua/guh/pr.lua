@@ -113,15 +113,16 @@ local function notif_chunk(repo, id)
   return notif and { 'Unread', 'WarningMsg' } or nil
 end
 
---- Sets 'winbar' for a pr/issue/repo/status view.
+--- Sets the 'winbar' for a pr/issue/repo/status view, in every window displaying `buf`.
 ---
---- @param win integer|nil
+--- @param buf integer
 --- @param feat Feat
 --- @param id any
 --- @param repo? string
 --- @param pr? PullRequest
-local function set_winbar(win, feat, id, repo, pr)
-  if not win then
+local function set_winbar(buf, feat, id, repo, pr)
+  local wins = vim.fn.win_findbuf(buf)
+  if #wins == 0 then
     return
   end
   local st = pr and gh.pr_state_label(pr) or ''
@@ -142,7 +143,9 @@ local function set_winbar(win, feat, id, repo, pr)
   if pr then
     chunks[#chunks + 1] = { (' | %s'):format(pr.title) }
   end
-  util.show_winbar(win, chunks)
+  for _, win in ipairs(wins) do
+    util.show_winbar(win, chunks)
+  end
 end
 
 --- Implements `:Guh`. Also provides an overload for programmatic callers.
@@ -680,7 +683,7 @@ function M.show_status(focus)
   if state.get_b_key(buf, { 'guh', 'notifications' }) then
     return -- Skip the re-fetch if already loaded.
   end
-  set_winbar(vim.fn.win_findbuf(buf)[1], 'status', '', nil, nil)
+  set_winbar(buf, 'status', '', nil, nil)
   util.set_default_keymaps(buf)
   local done = util.progress('Loading notifications...')
   gh.get_user_notifs(buf, function(lines, err)
@@ -728,7 +731,7 @@ function M.show_repo(focus, repo)
   ]]
   )
 
-  set_winbar(0, 'repo', repo, repo, nil)
+  set_winbar(buf, 'repo', repo, repo, nil)
 
   util.set_default_keymaps(buf)
   util.run_cmds(buf, { term = true }, {
@@ -751,6 +754,7 @@ end
 
 --- Implements "mark as read". Updates the `b:guh.notifications` map; does NOT refresh `guh://status`.
 function M.set_read()
+  local buf = vim.api.nvim_get_current_buf()
   local feat, id, repo = util.require_b_guh({ 'feat', 'id', 'repo' })
   if not feat then
     return
@@ -769,7 +773,7 @@ function M.set_read()
     end
     done('success')
     state.set_b_key(assert(status_buf), { 'guh', 'notifications', slug }, vim.NIL)
-    set_winbar(0, feat, id, repo, feat == 'pr' and state.get_pr_data(repo, id) or nil)
+    set_winbar(buf, feat, id, repo, feat == 'pr' and state.get_pr_data(repo, id) or nil)
   end)
 end
 
@@ -778,7 +782,7 @@ end
 --- @param focus? boolean
 function M.show_issue(id, repo, focus)
   local buf = state.init_buf('issue', focus, repo, id)
-  set_winbar(vim.fn.win_findbuf(buf)[1], 'issue', id, repo)
+  set_winbar(buf, 'issue', id, repo)
   util.set_default_keymaps(buf)
   util.run_cmds(buf, { term = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') })
 end
@@ -840,11 +844,11 @@ local function render_pr_header(pr)
   local lines = {
     '# ' .. (pr.title or ''),
     '',
-    (('  - Author: %s %s')
+    (('- Author: %s %s')
       :format(who(author.login or '?', author.name), table.concat(reactions, ' • '))
       :gsub('%s+$', '')),
-    ('  - Date: %s'):format(reltime(pr.createdAt)),
-    ('  - Diff: +%d -%d, %d commit%s to `%s` from `%s`'):format(
+    ('- Date: %s'):format(reltime(pr.createdAt)),
+    ('- Diff: +%d -%d, %d commit%s to `%s` from `%s`'):format(
       pr.additions or 0,
       pr.deletions or 0,
       n,
@@ -852,7 +856,7 @@ local function render_pr_header(pr)
       pr.baseRefName or '?',
       pr.headRefName or '?'
     ),
-    ('  - CI: %s'):format(checks_summary(pr.ci_jobs or {}) or '?'),
+    ('- CI: %s'):format(checks_summary(pr.ci_jobs or {}) or '?'),
   }
 
   vim.list_extend(lines, { '', pr.body or '', '', '' })
@@ -874,7 +878,7 @@ function M.show_pr(id, repo, focus)
     0,
     [[
       {{printf "\n## Commits (%d)\n\n" (len .commits) -}}
-      {{range .commits}}  {{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
+      {{range .commits}}{{slice .oid 0 12}}  {{slice .committedDate 0 10}}  {{.messageHeadline}}{{"\n"}}{{end}}
     ]]
   )
   -- Render comments as raw markdown via a template (gh has no `--format=markdown`).
@@ -908,7 +912,7 @@ function M.show_pr(id, repo, focus)
     vim._with({ buf = buf }, function()
       vim.cmd [[set breakindent nolist filetype=markdown]]
     end)
-    set_winbar(vim.fn.win_findbuf(buf)[1], 'pr', id, repo, state.get_pr_data(repo, id))
+    set_winbar(buf, 'pr', id, repo, state.get_pr_data(repo, id))
   end)
 end
 
