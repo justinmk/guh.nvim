@@ -692,6 +692,11 @@ describe('util', function()
       { owner = 'neovim', repo = 'neovim', id = 20632, is_pr = false },
       parse_target('https://github.com/neovim/neovim/issues/20632')
     )
+    -- Trailing tab segment + query string (e.g. the `gX`/get_url "…/changes" URL).
+    t.eq(
+      { owner = 'neovim', repo = 'neovim', id = 40175, is_pr = true },
+      parse_target('https://github.com/neovim/neovim/pull/40175/changes?w=1')
+    )
     t.eq({ owner = 'neovim', repo = 'neovim', id = 20632 }, parse_target('neovim/neovim#20632'))
     t.eq(
       { owner = 'justinmk', repo = 'guh.nvim', id = 24, is_pr = true },

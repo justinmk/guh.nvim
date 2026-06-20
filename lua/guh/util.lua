@@ -73,7 +73,8 @@ function M.parse_target(arg)
   -- GitHub web "kind" (pull/issues/commit) and guh:// "feat" both live in the 3rd path component.
   local pr_kinds = { pull = true, pr = true, prdiff = true, prcomments = true, prlogs = true }
 
-  local owner, repo, kind, val = path:match('^([%w%._-]+)/([%w%._-]+)/(%w+)/(%w+)$')
+  -- No `$` anchor: ignore any trailing tab segment ("…/pull/13/changes?w=1", "…/files", "…/commits").
+  local owner, repo, kind, val = path:match('^([%w%._-]+)/([%w%._-]+)/(%w+)/(%w+)')
   if owner then
     if kind == 'commit' then
       return { owner = owner, repo = repo, sha = val }
