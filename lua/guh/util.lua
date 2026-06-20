@@ -313,7 +313,7 @@ function M.set_default_keymaps(buf)
 
   -- Cursor-relative actions:
   M.map_default(buf, 'n', '<Enter>', '<Plug>(guh-open)', 'Open :Guh target at cursor')
-  M.map_default(buf, 'n', '<C-W><Enter>', '<Plug>(guh-open-split)', 'Open :Guh target at cursor in a split')
+  M.map_default(buf, 'n', 'o', '<Plug>(guh-open-split)', 'Open :Guh target at cursor in a split')
   M.map_default(buf, 'n', 'cc', '<Plug>(guh-comment)', 'Comment on PR or diff')
   M.map_default(buf, 'x', 'c', '<Plug>(guh-comment)', 'Comment on PR or diff')
   M.map_default(buf, 'n', 'gf', '<Plug>(guh-file)', 'Open the file at cursor, at current commit')

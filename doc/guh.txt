@@ -42,7 +42,7 @@ To review a PR without doing a checkout in your repo:
   global "guh://status" (notifications) page if no repo can be guessed from
   the current buffer or directory.
   - Hit "-" to go "up" to your notifications ("guh://status").
-  - Hit <Enter> or `CTRL-W<Enter>` on a commit/PR/issue to view it.
+  - Hit <Enter> or `o` on a commit/PR/issue to view it.
 - Run `:Guh [target]` to view a specific PR/issue. |guh-commands|
   - Hit `R` to refresh the view.
 - All "guh://…" buffers have the same basic mappings. |guh-mappings|
@@ -150,11 +150,10 @@ c:      Edit title/body/labels/milestone/… via `gh` in a :terminal.
 CURSOR-RELATIVE ACTIONS
 
 <Enter>
-        Invoke |:Guh| on the |WORD| at cursor.
+        Run |:Guh| on the target at cursor.
         <Plug>(guh-open)
 
-CTRL-W<Enter>
-        Invoke |:Guh| on the |WORD| at cursor, in a split window.
+o       Run |:Guh| on the target at cursor, in a split window.
         <Plug>(guh-open-split)
 
 cc
@@ -295,7 +294,7 @@ from the current buffer or directory.
 - The 10 most-recent commits (on the default branch).
 - Open PRs and issues (recently-updated).
 - Your `gh pr status` for the repo.
-- Hit <Enter> or `CTRL-W<Enter>` to view any commit/PR/issue at cursor.
+- Hit <Enter> or `o` to view any commit/PR/issue at cursor.
 - Hit "-" to go up to "guh://status" (your notifications). |guh-mappings|
 - If a repo can't be resolved, then :Guh shows your notifications
   ("guh://status").

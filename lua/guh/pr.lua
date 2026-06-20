@@ -332,6 +332,17 @@ function M.show_file()
   end)
 end
 
+--- Gets the status emoji for a CI job.
+--- @param job CIJob
+local function ci_icon(job)
+  if not job.conclusion then
+    return '⏳' -- No `conclusion` until job finishes (still-running / in-progress).
+  elseif job.conclusion == 'success' or job.conclusion == 'neutral' or job.conclusion == 'skipped' then
+    return '✅'
+  end
+  return '❌'
+end
+
 --- Renders `logs` into a `prlogs/…` terminal-buf, or does nothing if `b:guh.chan` is already set.
 local function render_ci_log(buf, logs)
   if (state.get_b_guh(buf) or {}).chan then
@@ -356,10 +367,9 @@ local function show_ci_log(job, pr_id, repo)
   -- Key the bufname by `job.databaseId` to disambiguate (multiple logs per PR).
   -- XXX: store pr-id in `b:guh.id` for refresh/actions.
   local buf = state.init_buf('prlogs', true, repo, job.databaseId, { id = pr_id })
-  local status = job.conclusion or job.status or '?'
   util.show_winbar(0, {
     { ('Logs | PR #%s | '):format(pr_id) },
-    { status == 'success' and '✅' or '❌' },
+    { ci_icon(job) },
     { (' "%s"'):format(job.name) },
   })
   if (state.get_b_guh(buf) or {}).chan then
@@ -859,8 +869,10 @@ local function render_pr_header(pr)
     ('- CI: %s'):format(checks_summary(pr.ci_jobs or {}) or '?'),
   }
 
-  vim.list_extend(lines, { '', pr.body or '', '', '' })
-  return (table.concat(lines, '\n'):gsub('\r', '')) -- Strip CR from the (CRLF) body.
+  -- Avoid extra blank lines if body is empty.
+  local body = vim.trim((pr.body or ''):gsub('\r', '')) -- Strip CR within the (CRLF) body.
+  vim.list_extend(lines, body ~= '' and { '', body, '' } or { '' })
+  return table.concat(lines, '\n')
 end
 
 --- Shows PR details + the most-recent commits (since the last force-push).
@@ -1258,12 +1270,7 @@ function M.ci_logs_pick(opts)
     vim.ui.select(jobs, {
       prompt = ('CI jobs for PR #%s'):format(id),
       format_item = function(j)
-        local status = j.conclusion or j.status or '?'
-        local label = status == 'success' and '✅'
-          or status == 'in_progress' and '⏳'
-          or status == 'failure' and '❌'
-          or '?'
-        return ('%s %s'):format(label, j.name)
+        return ('%s %s'):format(ci_icon(j), j.name)
       end,
     }, function(picked)
       if picked then
