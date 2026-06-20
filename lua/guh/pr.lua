@@ -137,23 +137,30 @@ function M.select(args, id, repo)
   -- Support command mods (`:vertical Guh …`). See `:help <mods>`.
   local smods = cmdargs.smods or {}
   local window_mod = (smods.split or '') ~= '' or smods.vertical or smods.horizontal or (smods.tab or -1) >= 0
-  -- If a command mod was given (`:vertical Guh …`), don't attempt to navigate to an existing window.
-  local focus = not window_mod
+  local focus = (function()
+    if feat then
+      return nil -- "Programmatic" invocation used by reload(), which doesn't want to change layout.
+    end
+    return not window_mod -- If a mod was given (`:vertical Guh …`), don't navigate to an existing window.
+  end)()
 
   -- Resolve target + repo (+ PR/issue probe) BEFORE potential `:new` split, so we can check `b:guh`.
-  local target --[[@type table?]]
-  if feat then
-    -- Programmatic caller provided (feat, id, repo) directly. Skip parsing.
-    target = {
-      id = id,
-      is_pr = ({ pr = true, prdiff = true, prcomments = true, prlogs = true, issue = false })[feat],
-    }
-  elseif #arg > 0 then
-    target = util.parse_target(arg)
-    if not target then
-      util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
-      return
+  local target = (function()
+    if feat == 'status' then
+      return { status = true }
+    elseif feat == 'repo' then
+      return {} -- Repo overview (no id).
+    elseif feat then
+      -- Programmatic caller provided (feat, id, repo) directly. Skip parsing.
+      return { id = id, is_pr = ({ pr = true, prdiff = true, prcomments = true, prlogs = true, issue = false })[feat] }
+    elseif #arg > 0 then
+      return util.parse_target(arg)
     end
+  end)() --[[@type GuhTarget?]]
+
+  if #arg > 0 and not target then -- `:Guh <garbage>`: parse failed.
+    util.msg(('failed to parse: %s'):format(arg), vim.log.levels.ERROR)
+    return
   end
 
   -- Resolve the repo once. Skip for guh://status (repo-less); prefer an explicit owner/repo target.
@@ -213,7 +220,7 @@ end
 ---
 --- @param sha string Commit SHA (7-40 hex chars).
 --- @param repo string "owner/name"
---- @param focus boolean
+--- @param focus? boolean
 function M.show_commit(sha, repo, focus)
   -- Optimization: If the `commit/<sha>` buf already exits, just navigate to it.
   local existing = state.get_buf('commit', repo, sha, false)
@@ -513,32 +520,16 @@ function M.refresh(target)
   local id = target.id or b.id
   local repo = target.repo or b.repo
 
-  --- Clears the cached `b:guh` state (if any), to force a reload.
-  local function invalidate(feat_, repo_, id_)
-    local buf = state.get_buf(feat_, repo_, id_, false)
-    if buf then
-      state.invalidate(buf)
-    end
+  -- Clear the cached `b:guh` state (if any), to force a reload.
+  -- PR sub-views (prdiff/prcomments/prlogs) cache on the pr/ buf; status/repo key by "all".
+  local cache_feat = (feat == 'prdiff' or feat == 'prcomments' or feat == 'prlogs') and 'pr' or feat
+  local cache_id = (feat == 'status' or feat == 'repo') and 'all' or id
+  local buf = state.get_buf(cache_feat, repo, cache_id, false)
+  if buf then
+    state.invalidate(buf)
   end
-
-  if feat == 'status' then
-    invalidate('status', nil, 'all')
-    return M.show_status(true)
-  elseif feat == 'repo' then
-    invalidate('repo', repo, 'all')
-    return M.show_repo(true, repo)
-  elseif feat == 'pr' or feat == 'prdiff' or feat == 'prcomments' or feat == 'prlogs' then
-    -- Reload all "PR bufs" (pr/ + prdiff/ + prcomments/), without changing win/buf layout.
-    -- Note: `preload_ci_logs` only refetches per-job if the job's `prlogs/` buf is not yet
-    -- rendered AND the job has a `conclusion` (not "in_progress").
-    invalidate('pr', repo, id)
-    M.show_pr(id, repo, nil)
-  elseif feat == 'issue' then
-    invalidate('issue', repo, id)
-    M.show_issue(id, repo, true)
-  else
-    M.select(feat, id, repo)
-  end
+  -- This "programmatic" select() invocation will implicitly pass focus=nil (for window layout).
+  M.select(feat, id, repo)
 end
 
 --- Performs the "merge PR" action. Shows a vim.ui.select picker unless `[count]` was given.
@@ -645,7 +636,7 @@ end
 
 --- Implements `guh://status` (global): the user's unread notifications across all repos.
 ---
---- @param focus boolean
+--- @param focus? boolean
 function M.show_status(focus)
   local buf = state.init_buf('status', focus, nil, 'all')
   if state.get_b_key(buf, { 'guh', 'notifications' }) then
@@ -664,7 +655,7 @@ end
 
 --- Implements `guh://<owner>/<repo>`: repo overview + the user's `gh pr status` for the repo.
 ---
---- @param focus boolean
+--- @param focus? boolean
 --- @param repo? string "owner/name"
 function M.show_repo(focus, repo)
   repo = repo or resolve_repo()
@@ -720,7 +711,7 @@ end
 
 --- @param id integer
 --- @param repo string "owner/name"
---- @param focus boolean
+--- @param focus? boolean
 function M.show_issue(id, repo, focus)
   local buf = state.init_buf('issue', focus, repo, id)
   util.run_term_cmds(buf, { pty = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') }, function()

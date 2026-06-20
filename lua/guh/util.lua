@@ -55,7 +55,7 @@ end
 ---   - guh URI: `"guh://owner/repo/pr/13"`, `"guh://owner/repo/issue/13"`, `"guh://owner/repo/commit/<sha>"`, …
 ---
 --- @param arg string
---- @return { owner?: string, repo?: string, id?: integer, sha?: string, is_pr?: boolean }?
+--- @return GuhTarget?
 function M.parse_target(arg)
   arg = vim.trim(arg or '')
   -- Strip surrounding punctuation ("(#123).", "[owner/repo],"). Excludes `#`, `/`, `:`.

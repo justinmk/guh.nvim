@@ -6,6 +6,14 @@
 --- Command for `util.run_term_cmds` command: a shell argv, or a `TermCmdFn`.
 --- @alias TermCmd string[]|TermCmdFn
 
+--- @class GuhTarget A `:Guh` target (from a cmdline arg/URL/`guh://` URI, or a programmatic feat).
+--- @field owner? string
+--- @field repo? string
+--- @field id? integer PR/issue number.
+--- @field sha? string Commit SHA.
+--- @field is_pr? boolean nil = unknown (probe needed).
+--- @field status? boolean true = the global `guh://status` page.
+
 --- @class Notification A `b:guh.notifications` entry (keyed by slug "owner/repo#NNN").
 --- @field thread_id string GitHub notification thread-id (for mark-as-read/done).
 --- @field is_pr boolean Lets `pr.select` skip its PR-vs-issue probe.
