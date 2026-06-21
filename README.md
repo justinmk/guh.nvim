@@ -24,9 +24,12 @@ Run `:Guh <target>` to view a PR/issue/commit/repo.
 :Guh 35951
 " Commit SHA
 :Guh a1b2c3d
+" Branch
+:Guh neovim/neovim/tree/release-0.11
 " GitHub URL
 :Guh https://github.com/neovim/neovim/pull/35951
 :Guh https://github.com/neovim/neovim/commit/a1b2c3d
+:Guh https://github.com/neovim/neovim/tree/release-0.11
 " Slug ("owner/repo#123" or "owner/repo")
 :Guh neovim/neovim#35951
 :Guh neovim/neovim

@@ -11,6 +11,7 @@
 --- @field repo? string
 --- @field id? integer PR/issue number.
 --- @field sha? string Commit SHA.
+--- @field branch? string Branch name (from "owner/repo/tree/<branch>").
 --- @field is_pr? boolean nil = unknown (probe needed).
 --- @field status? boolean true = the global `guh://status` page.
 

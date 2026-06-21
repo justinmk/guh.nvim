@@ -292,9 +292,10 @@ focused. PR data is eagerly loaded (Kool-Aid man "OH YEAH!").
 Without [target]: shows the current repo ("guh://<owner>/<repo>"), resolved
 from the current buffer or directory.
 - The 10 most-recent commits (on the default branch).
+- Recent branches (as "owner/repo/tree/<branch>" slugs).
 - Open PRs and issues (recently-updated).
 - Your `gh pr status` for the repo.
-- Hit <Enter> or `o` to view any commit/PR/issue at cursor.
+- Hit <Enter> or `o` to view any commit/branch/PR/issue at cursor.
 - Hit "-" to go up to "guh://status" (your notifications). |guh-mappings|
 - If a repo can't be resolved, then :Guh shows your notifications
   ("guh://status").
@@ -314,6 +315,9 @@ With [target]: views or refreshes the PR, issue, commit, repo, or global status.
     :Guh neovim/neovim#35951
     :Guh #35951
     :Guh neovim/neovim
+    " Branch
+    :Guh neovim/neovim/tree/release-0.11
+    :Guh https://github.com/neovim/neovim/tree/release-0.11
     " guh:// URI
     :Guh guh://neovim/neovim/pr/35951
     :Guh guh://neovim/neovim

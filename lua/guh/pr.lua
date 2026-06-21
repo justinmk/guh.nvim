@@ -231,6 +231,8 @@ function M.select(args, id, repo)
       M.show_status(focus) -- No args, no repo: guh://status.
     elseif target.sha then
       M.show_commit(target.sha, repo, focus)
+    elseif target.branch then
+      M.show_commit(target.branch, repo, focus) -- Branch: show its HEAD commit.
     elseif not target.id then
       M.show_repo(focus, repo) -- Repo target ("owner/repo", "https://github.com/owner/repo").
     elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
@@ -721,19 +723,23 @@ function M.show_repo(focus, repo)
     [[
     query($owner:String!,$name:String!){
       repository(owner:$owner,name:$name){
+        nameWithOwner
         defaultBranchRef{ target{ ... on Commit{ history(first:10){ nodes{ oid messageHeadline } } } } }
+        refs(refPrefix:"refs/heads/",first:4,orderBy:{field:TAG_COMMIT_DATE,direction:DESC}){nodes{name}}
         pullRequests(first:10,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title}}
         issues(first:10,states:OPEN,orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number title}}
       }
     }
   ]]
   )
-  -- "#NNN" and commit-oid rows match `b:guh.repo` so <CR> opens them.
+  -- "#NNN", commit-oid, and "owner/repo/tree/<branch>" rows are `:Guh .`-openable.
   local tmpl = vim.text.indent(
     0,
     [[
     {{"\nRecent commits:\n" -}}
     {{range .data.repository.defaultBranchRef.target.history.nodes}}{{printf "  %s  %s\n" (slice .oid 0 12) .messageHeadline}}{{end -}}
+    {{"\nBranches (last-updated): https://github.com/" -}}{{.data.repository.nameWithOwner}}{{"/branches\n" -}}
+    {{range .data.repository.refs.nodes}}{{printf "  %s/tree/%s\n" $.data.repository.nameWithOwner .name}}{{end -}}
     {{"\nOpen PRs (last-updated):\n" -}}
     {{range .data.repository.pullRequests.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end -}}
     {{"\nOpen issues (last-updated):\n" -}}

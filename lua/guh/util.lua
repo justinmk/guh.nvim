@@ -49,7 +49,7 @@ end
 --- Parses a :Guh argument. Accepts:
 ---   - bare number: `"13"`
 ---   - bare commit SHA (7-40 hex chars, must contain a-f): `"a1b2c3d"`
----   - GitHub URL: `"https://github.com/owner/repo/pull/13"`, `"…/issues/13"`, `"…/commit/<sha>"`
+---   - GitHub URL: `"https://github.com/owner/repo/pull/13"`, `"…/issues/13"`, `"…/commit/<sha>"`, `"…/tree/<branch>"`
 ---   - Repo URL: `"https://github.com/owner/repo"`
 ---   - slug: `"owner/repo#13"`, or bare repo slug `"owner/repo"`.
 ---   - guh URI: `"guh://owner/repo/pr/13"`, `"guh://owner/repo/issue/13"`, `"guh://owner/repo/commit/<sha>"`, …
@@ -73,8 +73,15 @@ function M.parse_target(arg)
   -- GitHub web "kind" (pull/issues/commit) and guh:// "feat" both live in the 3rd path component.
   local pr_kinds = { pull = true, pr = true, prdiff = true, prcomments = true, prlogs = true }
 
+  -- Branch: "owner/repo/tree/<branch>" (branch may contain "/", ".", etc.).
+  local owner, repo, val = path:match('^([%w%._-]+)/([%w%._-]+)/tree/(.+)$')
+  if owner then
+    return { owner = owner, repo = repo, branch = val }
+  end
+
+  local kind
   -- No `$` anchor: ignore any trailing tab segment ("…/pull/13/changes?w=1", "…/files", "…/commits").
-  local owner, repo, kind, val = path:match('^([%w%._-]+)/([%w%._-]+)/(%w+)/(%w+)')
+  owner, repo, kind, val = path:match('^([%w%._-]+)/([%w%._-]+)/(%w+)/(%w+)')
   if owner then
     if kind == 'commit' then
       return { owner = owner, repo = repo, sha = val }

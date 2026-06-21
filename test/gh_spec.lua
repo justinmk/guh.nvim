@@ -791,6 +791,15 @@ describe('util', function()
       parse_target('guh://justinmk/guh.nvim/commit/a1b2c3d')
     )
 
+    -- Branch: "owner/repo/tree/<branch>". Branch name may contain "/".
+    t.eq(
+      { owner = 'neovim', repo = 'neovim', branch = 'release-0.11' },
+      -- Branch URL
+      parse_target('https://github.com/neovim/neovim/tree/release-0.11')
+    )
+    -- Branch quasi-slug.
+    t.eq({ owner = 'neovim', repo = 'neovim', branch = 'feat/foo' }, parse_target('neovim/neovim/tree/feat/foo'))
+
     t.eq(nil, parse_target('garbage'))
     t.eq(nil, parse_target(''))
     -- Bare repo (no id) -> repo overview page.
