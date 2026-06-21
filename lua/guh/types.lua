@@ -41,7 +41,8 @@
 --- @field updated_at string
 --- @field url string
 --- @field user string
---- @field outdated? boolean true if the thread is outdated (line no longer in HEAD).
+--- @field outdated? boolean true if GraphQL marked the thread `isOutdated`.
+--- @field in_head? boolean Thread anchors to a current-HEAD line (decides "outside" vs "outdated").
 --- @field thread_id? number GraphQL thread id (root comment databaseId).
 --- @field thread_node_id? string GraphQL global node id of the thread (e.g. `PRRT_kw…`). Needed by the resolveReviewThread mutation.
 
