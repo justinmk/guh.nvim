@@ -254,6 +254,8 @@ end
 --- Resets `buf` to "not loaded" state so the next show_* will reload from scratch. Closes any
 --- in-flight jobs/channels and clears cached payloads (`pr_data`, `notifications`). Idempotent.
 ---
+--- Note: doesn't touch "immutable" buffers such as prlogs/; they are never reloaded if non-empty.
+---
 --- @param buf integer
 function M.invalidate(buf)
   local b_guh = M.get_b_guh(buf) or {}

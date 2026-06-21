@@ -345,20 +345,18 @@ local function ci_icon(job)
   return '❌'
 end
 
---- Renders `logs` into a `prlogs/…` terminal-buf, or does nothing if `b:guh.chan` is already set.
+--- Renders `logs` into a `prlogs/…` terminal-buf, or does nothing if already rendered (non-empty).
 local function render_ci_log(buf, logs)
-  if (state.get_b_guh(buf) or {}).chan then
+  if not util.buf_empty(buf) then
     return
   end
   local chan = vim.api.nvim_open_term(buf, {})
   vim.api.nvim_chan_send(chan, logs)
-  -- XXX: chan is used (above) as the token signaling "already loaded".
-  state.set_b_key(buf, { 'guh', 'chan' }, chan)
   vim.fn.chanclose(chan)
   util.set_default_keymaps(buf)
 end
 
---- Shows a `prlogs/…` buffer. Fetches the logs unless `b:guh.chan` is set (= already rendered).
+--- Shows a `prlogs/…` buffer. Fetches the logs unless the buf is already rendered (= non-empty).
 ---
 --- No "refresh": `databaseId` is unique per-run (we don't currently support in-progress logs), so
 --- each `prlogs/<databaseId>` buf never needs a "refresh".
@@ -375,7 +373,7 @@ local function show_ci_log(job, pr_id, repo)
     { ci_icon(job) },
     { (' "%s"'):format(job.name) },
   })
-  if (state.get_b_guh(buf) or {}).chan then
+  if not util.buf_empty(buf) then
     return -- Cache hit (preload or prior open).
   end
   gh.get_pr_ci_log(job.databaseId, repo, function(logs, err)
@@ -402,7 +400,7 @@ local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
   --- @param job CIJob
   local function should_skip(job)
     local buf = state.get_buf('prlogs', repo, job.databaseId, false)
-    return buf ~= nil and (state.get_b_guh(buf) or {}).chan ~= nil and vim.api.nvim_buf_line_count(buf) > 1 -- buffer is non-empty
+    return buf ~= nil and not util.buf_empty(buf)
   end
   gh.get_pr_ci_logs(top, repo, should_skip, function(job, logs, err)
     local buf = state.get_buf('prlogs', repo, job.databaseId, false)
@@ -410,7 +408,7 @@ local function preload_ci_logs(pr_id, repo, ci_jobs, limit)
       return -- Buf was wiped (e.g. user closed it) while the fetch was in flight.
     end
     if not logs then
-      -- Failure: leave the empty buf (+ unset `b:guh.chan`). Future attempts will reuse the buf.
+      -- Failure: leave the empty buf. Future attempts reuse/reload the buf.
       util.log('preload_ci_logs failed', { job = job.name, err = err })
       return
     end

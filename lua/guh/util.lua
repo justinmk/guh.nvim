@@ -385,6 +385,14 @@ function M.buf_set_readonly_lines(buf, lines, ft)
   vim.bo[buf].filetype = ft
 end
 
+--- True if `buf` has no content (a single empty line, i.e. a fresh/unwritten buffer).
+---
+--- @param buf integer
+--- @return boolean
+function M.buf_empty(buf)
+  return vim.api.nvim_buf_line_count(buf) == 1 and vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] == ''
+end
+
 --- Concurrently runs N commands and streams their stdout into `buf` in-order. If `term=true` then
 --- `buf` is rendered as a terminal (`nvim_open_term`).
 ---
