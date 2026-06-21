@@ -479,8 +479,8 @@ function M.show_next(delta)
   if not commits or #commits == 0 then
     error('guh: No commits found ("R" to refresh)', 0)
   end
-  local idx = commit_idx or (delta > 0 and 0) or (#commits + 1)
-  local next_idx = idx + delta
+  -- `commits[]` is oldest→newest. From a non-commit buffer: ]f → newest, [f → oldest.
+  local next_idx = commit_idx and (commit_idx + delta) or (delta > 0 and #commits or 1)
   if next_idx < 1 or next_idx > #commits then
     return util.msg(('No %s commit'):format(delta > 0 and 'next' or 'previous'))
   end

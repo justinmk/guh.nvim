@@ -562,6 +562,84 @@ describe('comments', function()
       assert(#lines == 1 and lines[1] == 'original body', vim.inspect(lines))
     end)
   end)
+
+  it('off-diff threads: "outside" vs "outdated" bucket/tag, and empty-hunk skipped', function()
+    n.exec_lua(function()
+      local comments = require('guh.comments')
+      local state = require('guh.state')
+      local pr_id, repo = 4242, 'justinmk/guh.nvim'
+
+      -- One synthetic pr_data covering all 3 off-diff (isOutdated) cases.
+      local function c(o)
+        return {
+          id = o.id,
+          thread_id = o.id,
+          path = o.path,
+          side = 'RIGHT',
+          end_line = o.line,
+          start_line = o.line,
+          outdated = true,
+          in_head = o.in_head, -- still anchored to a HEAD line?
+          diff_hunk = o.hunk,
+          body = o.body,
+          user = { login = o.user }, -- `to_comment` reads `user.login`
+          html_url = '',
+        }
+      end
+      local pr_data = {
+        viewed = vim.empty_dict(),
+        n_threads = 3,
+        n_resolved = 0,
+        raw_comments = {
+          -- isOutdated but still on a HEAD line (outside the diff) => "outside".
+          c({
+            id = 1,
+            path = 'src/nvim/autocmd.c',
+            line = 2112,
+            in_head = true,
+            user = 'alice',
+            body = 'on head',
+            hunk = '@@ -2108,1 +2112,1 @@\n   if (foo) {',
+          }),
+          -- isOutdated with no HEAD line => "outdated".
+          c({
+            id = 2,
+            path = 'lua/old.lua',
+            line = 5,
+            in_head = false,
+            user = 'bob',
+            body = 'stale',
+            hunk = '@@ -5,1 +5,1 @@\n   local x = 1',
+          }),
+          -- isOutdated with an empty diffHunk => nothing to anchor => skipped entirely.
+          c({
+            id = 3,
+            path = 'runtime/lua/vim/tty.lua',
+            line = 13,
+            in_head = true,
+            user = 'carol',
+            body = 'no hunk',
+            hunk = '',
+          }),
+        },
+      }
+
+      local lines, threads, n_files, n_viewed = comments.render_diff(pr_data, '')
+      local diff_buf = state.init_buf('prdiff', false, repo, pr_id)
+      vim.api.nvim_buf_set_lines(diff_buf, 0, -1, false, lines)
+      comments.load_pr_comments(pr_id, repo, diff_buf, pr_data, threads, n_files, n_viewed)
+
+      local prdiff = table.concat(lines, '\n')
+      assert(prdiff:match('diff %-%-git a/outside%-1:src/nvim/autocmd%.c'), 'autocmd.c → outside bucket')
+      assert(prdiff:match('diff %-%-git a/outdated%-2:lua/old%.lua'), 'old.lua → outdated bucket')
+      assert(not prdiff:find('tty.lua', 1, true), 'empty-hunk thread should be skipped from prdiff')
+
+      local prc = table.concat(vim.api.nvim_buf_get_lines(state.get_buf('prcomments', repo, pr_id), 0, -1, false), '\n')
+      assert(prc:match('%(outside%) alice'), 'prcomments: autocmd thread tagged (outside)')
+      assert(prc:match('%(outdated%) bob'), 'prcomments: old.lua thread tagged (outdated)')
+      assert(not prc:find('carol', 1, true), 'prcomments: empty-hunk thread absent')
+    end)
+  end)
 end)
 
 describe(':Guh', function()
@@ -691,6 +769,11 @@ describe('util', function()
     t.eq(
       { owner = 'neovim', repo = 'neovim', id = 20632, is_pr = false },
       parse_target('https://github.com/neovim/neovim/issues/20632')
+    )
+    -- Trailing tab segment + query string (e.g. the `gX`/get_url "…/changes" URL).
+    t.eq(
+      { owner = 'neovim', repo = 'neovim', id = 40175, is_pr = true },
+      parse_target('https://github.com/neovim/neovim/pull/40175/changes?w=1')
     )
     t.eq({ owner = 'neovim', repo = 'neovim', id = 20632 }, parse_target('neovim/neovim#20632'))
     t.eq(

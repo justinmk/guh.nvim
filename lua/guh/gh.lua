@@ -137,6 +137,8 @@ local function flatten_threads_to_comments(threads)
       local head_line = nodes[1] and nodes[1].originalLine
       local head_start = nodes[1] and nodes[1].originalStartLine
       local head_path = nodes[1] and nodes[1].path
+      -- Thread-level: head comment anchors to current-HEAD. Decides "outside" vs "outdated" (no HEAD line).
+      local in_head = (nodes[1] and nodes[1].line) ~= nil
       -- `diffSide` is a thread-level property in GraphQL; every comment in the thread inherits it.
       local c_side = thread.diffSide
       for _, c in ipairs(nodes) do
@@ -164,6 +166,7 @@ local function flatten_threads_to_comments(threads)
             updated_at = c.updatedAt,
             in_reply_to_id = reply_to,
             outdated = thread.isOutdated or false,
+            in_head = in_head,
             thread_id = thread_id,
             thread_node_id = thread_node_id,
           })

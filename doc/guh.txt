@@ -107,12 +107,12 @@ dd      View PR diff + comments. |guh-diff|
 dl      View the most-recent CI logs for all job-names in the CI matrix.
         <Plug>(guh-logs)
 
-]f      View the next "thing".
+]f      View the next/newer "thing".
         - In a CI logs buffer: next CI job.
-        - In other PR-related buffers: next commit (from the most-recent push).
+        - In a PR-related buffer: next commit (from the most-recent push).
         <Plug>(guh-next)
 
-[f      View the previous "thing" (see ]f above).
+[f      View the previous/older "thing" (see "]f" above).
         <Plug>(guh-prev)
 
 gX      Open the current view on github.com in your web browser.

@@ -69,7 +69,10 @@ local function to_offdiff_section(comments_list, file_prefix, viewed)
   local lines = {}
   for _, e in ipairs(entries) do
     local first = e.thread.comments[1]
-    if viewed[e.synthetic] then -- Collapse to a "(viewed) <synthetic>" line (cf. `prepare_pr_diff`).
+    local hunk = vim.trim((first and first.diff_hunk) or '')
+    if hunk == '' then
+      -- GitHub returns an empty `diffHunk` for some outdated threads; skip it rather than render an empty file section.
+    elseif viewed[e.synthetic] then -- Collapse to a "(viewed) <synthetic>" line (cf. `prepare_pr_diff`).
       table.insert(lines, ('(viewed) %s'):format(e.synthetic))
     else
       table.insert(lines, ('diff --git a/%s b/%s'):format(e.synthetic, e.synthetic))
@@ -77,7 +80,7 @@ local function to_offdiff_section(comments_list, file_prefix, viewed)
       table.insert(lines, 'index 0000000..0000000 100644')
       table.insert(lines, ('--- a/%s'):format(e.synthetic))
       table.insert(lines, ('+++ b/%s'):format(e.synthetic))
-      for hunk_line in (first.diff_hunk or ''):gmatch('[^\n]+') do
+      for hunk_line in hunk:gmatch('[^\n]+') do
         table.insert(lines, hunk_line)
       end
     end
@@ -288,7 +291,9 @@ function M.load_pr_comments(id, repo, diff_buf, pr_data, comments_list, n_files,
 
         local thread_comments = thread.comments
           or { { user = thread.user, updated_at = thread.updated_at, body = thread.body } }
-        local tag = thread_comments[1] and thread_comments[1].outdated and '(outdated) ' or ''
+        local tag = filename:match(outdated_prefix_pat) and '(outdated) '
+          or filename:match(outside_prefix_pat) and '(outside) '
+          or ''
 
         local comment_blocks = entries[start_idx] or {}
         for ci, c in ipairs(thread_comments) do
@@ -552,14 +557,10 @@ function M.render_diff(pr_data, diff_stdout)
   local line_map = to_line_map(diff_lines)
   local viewed_threads = {} ---@type table<integer, true>
   for _, c in ipairs(pr_data.raw_comments) do
-    if c.thread_id then
-      if c.outdated then
-        c.path = ('outdated-%d:%s'):format(c.thread_id, c.path)
-      elseif not viewed[c.path] and not in_diff(line_map, c) then
-        -- Viewed files are collapsed, so not in `line_map`.
-        -- But their comments are still on the PR, don't move them to "outside".
-        c.path = ('outside-%d:%s'):format(c.thread_id, c.path)
-      end
+    -- Anchor thread to an off-diff quasi-file when: `isOutdated` (GitHub flag), or outside the diff
+    -- and not in "Viewed" file. "outside" if it anchors to current-HEAD, else "outdated".
+    if c.thread_id and (c.outdated or (not viewed[c.path] and not in_diff(line_map, c))) then
+      c.path = ('%s-%d:%s'):format(c.in_head and 'outside' or 'outdated', c.thread_id, c.path)
     end
     -- Count threads hidden by "viewed". After the `c.path` assignment above, it matches how `viewed` is keyed.
     if viewed[c.path] and c.thread_id then
