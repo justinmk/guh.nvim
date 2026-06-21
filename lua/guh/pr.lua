@@ -352,7 +352,8 @@ local function render_ci_log(buf, logs)
   end
   local chan = vim.api.nvim_open_term(buf, {})
   vim.api.nvim_chan_send(chan, logs)
-  -- state.set_b_key(buf, 'guh.chan', chan)
+  -- XXX: chan is used (above) as the token signaling "already loaded".
+  state.set_b_key(buf, { 'guh', 'chan' }, chan)
   vim.fn.chanclose(chan)
   util.set_default_keymaps(buf)
 end
@@ -1169,7 +1170,7 @@ function M.toggle_viewed()
 
   local msg = ('%s%s: %s'):format(
     viewed and 'Viewed' or 'Unviewed',
-    local_only and (' (%s file, Refresh will forget)'):format(quasi) or '',
+    local_only and viewed and (' "%s" file (refresh will forget)'):format(quasi) or '',
     path
   )
 
