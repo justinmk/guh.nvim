@@ -185,7 +185,7 @@ function M.select(args, id, repo)
   end
 
   if window_mod then
-    vim.cmd((cmdargs.mods or '') .. ' new')
+    vim.cmd((cmdargs.mods or '') .. ' split')
   end
   if target and target.status then
     M.show_status(focus) -- Explicit `guh://status`.
