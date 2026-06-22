@@ -102,52 +102,6 @@ local function require_pr(opts)
   return resolve_pr(opts, false)
 end
 
---- Returns an "Unread" 'winbar' chunk if the slug is in the `b:guh.notifications` map.
----
---- @param repo string "owner/name"
---- @param id integer|string
---- @return [string, string?]?
-local function notif_chunk(repo, id)
-  local status_buf = state.get_buf('status', nil, 'all', false)
-  local notif = status_buf and state.get_b_key(status_buf, { 'guh', 'notifications', ('%s#%s'):format(repo, id) })
-  return notif and { 'Unread', 'WarningMsg' } or nil
-end
-
---- Sets the 'winbar' for a pr/issue/repo/status view, in every window displaying `buf`.
----
---- @param buf integer
---- @param feat Feat
---- @param id any
---- @param repo? string
---- @param pr? PullRequest
-local function set_winbar(buf, feat, id, repo, pr)
-  local wins = vim.fn.win_findbuf(buf)
-  if #wins == 0 then
-    return
-  end
-  local st = pr and gh.pr_state_label(pr) or ''
-  local chunks = {
-    { ('%s %s%s '):format(feat:upper(), (feat == 'pr' or feat == 'issue') and '#' or '', id) },
-    { st, gh.state_hl[st] },
-  }
-  -- Flag PRs targeting a non-default branch.
-  if pr and pr.defaultBranch and pr.baseRefName ~= pr.defaultBranch then
-    chunks[#chunks + 1] = { ' | ' }
-    chunks[#chunks + 1] = { ('Target: %s'):format(pr.baseRefName), 'WarningMsg' }
-  end
-  local nc = (feat == 'pr' or feat == 'issue') and notif_chunk(repo, id)
-  if nc then
-    chunks[#chunks + 1] = { ' | ' }
-    chunks[#chunks + 1] = nc
-  end
-  if pr then
-    chunks[#chunks + 1] = { (' | %s'):format(pr.title) }
-  end
-  for _, win in ipairs(wins) do
-    util.show_winbar(win, chunks)
-  end
-end
-
 --- Implements `:Guh`. Also provides an overload for programmatic callers.
 ---
 --- Shows...
@@ -334,17 +288,6 @@ function M.show_file()
   end)
 end
 
---- Gets the status emoji for a CI job.
---- @param job CIJob
-local function ci_icon(job)
-  if not job.conclusion then
-    return '⏳' -- No `conclusion` until job finishes (still-running / in-progress).
-  elseif job.conclusion == 'success' or job.conclusion == 'neutral' or job.conclusion == 'skipped' then
-    return '✅'
-  end
-  return '❌'
-end
-
 --- Renders `logs` into a `prlogs/…` terminal-buf, or does nothing if already rendered (non-empty).
 local function render_ci_log(buf, logs)
   if not util.buf_empty(buf) then
@@ -367,11 +310,7 @@ local function show_ci_log(job, pr_id, repo)
   -- Key the bufname by `job.databaseId` to disambiguate (multiple logs per PR).
   -- XXX: store pr-id in `b:guh.id` for refresh/actions.
   local buf = state.init_buf('prlogs', true, repo, job.databaseId, { id = pr_id })
-  util.show_winbar(0, {
-    { ('Logs | PR #%s | '):format(pr_id) },
-    { ci_icon(job) },
-    { (' "%s"'):format(job.name) },
-  })
+  state.update_info(buf)
   util.set_default_keymaps(buf)
   if not util.buf_empty(buf) then
     return -- Cache hit (preload or prior open).
@@ -515,10 +454,9 @@ function M.review_pr()
   local function do_action(label)
     local gh_action = label:lower()
     local heading = ('%s PR #%s'):format(label, id)
-    local msg = ('%s | ZZ to submit (ZQ to abort)'):format(heading)
     -- Prefill ":+1:" in the Approve body, so the user can Approve without writing a comment. #64
     local content = label == 'Approve' and { ':+1:' } or { '' }
-    comments.edit_comment('review', id, content, { { msg } }, function(input)
+    comments.edit_comment('review', id, content, { title = heading }, function(input)
       local body = vim.trim(input)
       local done = util.progress(('%s…'):format(heading))
       gh.review_pr(id, repo, gh_action, body, function(ok, stderr)
@@ -642,11 +580,11 @@ function M.merge_pr()
         end
         local text = ('%s\n\n%s'):format(subject, body):gsub('\r', '')
         local content = vim.split(text, '\n', { plain = true })
-        local heading = {
-          { ('[%s]'):format(choice), admin and 'ErrorMsg' or nil },
-          { ' | First line = subject; rest = body | ZZ to merge (ZQ to abort)' },
+        local info = {
+          title = ('[%s]'):format(choice),
+          title_hl = admin and 'ErrorMsg' or nil, -- Flag risky `--admin` merges.
         }
-        comments.edit_comment('merge', id, content, heading, function(input)
+        comments.edit_comment('merge', id, content, info, function(input)
           local subject, body = input:match('^([^\n]*)\n?(.*)$')
           do_merge(choice, subject, vim.trim(body or ''))
         end)
@@ -694,7 +632,6 @@ function M.show_status(focus)
   if state.get_b_key(buf, { 'guh', 'notifications' }) then
     return -- Skip the re-fetch if already loaded.
   end
-  set_winbar(buf, 'status', '', nil, nil)
   util.set_default_keymaps(buf)
   local done = util.progress('Loading notifications...')
   gh.get_user_notifs(buf, function(lines, err)
@@ -746,8 +683,6 @@ function M.show_repo(focus, repo)
   ]]
   )
 
-  set_winbar(buf, 'repo', repo, repo, nil)
-
   util.set_default_keymaps(buf)
   util.run_cmds(buf, { term = true }, {
     {
@@ -788,7 +723,7 @@ function M.set_read()
     end
     done('success')
     state.set_b_key(assert(status_buf), { 'guh', 'notifications', slug }, vim.NIL)
-    set_winbar(buf, feat, id, repo, feat == 'pr' and state.get_pr_data(repo, id) or nil)
+    state.update_info(buf)
   end)
 end
 
@@ -797,7 +732,7 @@ end
 --- @param focus? boolean
 function M.show_issue(id, repo, focus)
   local buf = state.init_buf('issue', focus, repo, id)
-  set_winbar(buf, 'issue', id, repo)
+  state.update_info(buf)
   util.set_default_keymaps(buf)
   util.run_cmds(buf, { term = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') })
 end
@@ -929,7 +864,7 @@ function M.show_pr(id, repo, focus)
     vim._with({ buf = buf }, function()
       vim.cmd [[set breakindent nolist filetype=markdown]]
     end)
-    set_winbar(buf, 'pr', id, repo, state.get_pr_data(repo, id))
+    state.update_info(buf)
     vim.api.nvim_buf_call(buf, function()
       vim.cmd([[syntax match GuhWarning /\<\(Checks pending\)/]])
       vim.cmd([[syntax match ErrorMsg /\<\(Checks failing\)/]])
@@ -945,10 +880,10 @@ end
 --- - Diff + comments are presented as 2 'scrollbind' windows.
 ---
 --- @param opts? { id?: integer|string, repo?: string, args?: string }
---- @param on_done? fun(buf: integer, pr_data: PullRequest, n_files: integer, n_viewed_threads: integer)
+--- @param on_done? fun(buf: integer, pr_data: PullRequest)
 function M.load_pr(opts, on_done)
   local _, id, repo = require_pr(opts)
-  local buf = state.init_buf('prdiff', nil, repo, id) -- focus=nil (no display)
+  local buf = state.init_buf('prdiff', nil, repo, id) -- focus=nil: no display.
   util.set_default_keymaps(buf)
 
   -- Show "Loading…" only if we actually fetch.
@@ -982,15 +917,18 @@ function M.load_pr(opts, on_done)
       -- Match offdiff file prefix ("outdated-3271868956:", "outside-3271868956:").
       vim.cmd([[syntax match GuhWarning /\<\(outdated\|outside\)\ze-\d\+:/ containedin=ALL]])
     end)
-    comments.load_pr_comments(id, repo, buf, pr_data, threads, n_files, n_viewed_threads)
+    local comments_buf = comments.load_pr_comments(id, repo, buf, pr_data, threads)
     -- Update `b:guh.pr_data` so the display step doesn't attempt to re-fetch.
     if pr_buf then
       state.set_b_key(pr_buf, { 'guh', 'pr_data', 'n_files' }, n_files)
       state.set_b_key(pr_buf, { 'guh', 'pr_data', 'n_viewed_threads' }, n_viewed_threads)
     end
+    -- Refresh "info" fields on re-render (e.g. after toggling "Viewed", or a Refresh).
+    state.update_info(buf)
+    state.update_info(comments_buf)
     progress('success')
     if on_done then
-      on_done(buf, pr_data, n_files, n_viewed_threads)
+      on_done(buf, pr_data)
     end
   end
 
@@ -1004,7 +942,7 @@ function M.load_pr(opts, on_done)
     try_render()
   end)
 
-  -- 2. Get the current PR diff, unless `gh.get_pr_data` found a cached one (synchronously).
+  -- 2. Get the current PR diff, unless `gh.get_pr_data` (synchronously) found a cached one.
   --    Caching `pr_data.diff_stdout` lets re-renders (e.g. toggling "Viewed") skip this.
   if not diff_stdout then
     util.system(gh.cmd(repo, 'pr', 'diff', tostring(id)), nil, function(r)
@@ -1026,11 +964,11 @@ function M.show_pr_diff(opts)
   -- Fast path: use the cached `b:guh.pr_data`; display without re-fetching.
   local pr_data = state.get_pr_data(repo, id)
   if pr_data and pr_data.n_files and pr_data.n_viewed_threads then
-    return comments.show_pr_comments(id, repo, buf, pr_data, pr_data.n_files, pr_data.n_viewed_threads)
+    return comments.show_pr_comments(id, repo, buf)
   end
 
-  M.load_pr(opts, function(prdiff_buf, pr_data_, n_files, n_viewed_threads)
-    comments.show_pr_comments(id, repo, prdiff_buf, pr_data_, n_files, n_viewed_threads)
+  M.load_pr(opts, function(prdiff_buf)
+    comments.show_pr_comments(id, repo, prdiff_buf)
   end)
 end
 
@@ -1053,13 +991,9 @@ local function new_comment(pr_id, repo, line1, line2)
     end
     local range = info.start_line == info.end_line and tostring(info.end_line)
       or ('%d..%d'):format(info.start_line, info.end_line)
-    local infomsg = {
-      { 'Comment on ' },
-      { ('%s:%s'):format(info.file, range), 'Directory' },
-      { ' | ZZ to send (ZQ to abort)' },
-    }
+    local edit_info = { title = ('Comment on %s:%s'):format(info.file, range) }
     vim.schedule(function()
-      comments.edit_comment('comment', pr_id, { '' }, infomsg, function(input)
+      comments.edit_comment('comment', pr_id, { '' }, edit_info, function(input)
         local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
         gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.side, repo, function(resp)
           if resp['errors'] == nil then
@@ -1275,7 +1209,7 @@ function M.ci_logs_pick(opts)
     vim.ui.select(jobs, {
       prompt = ('CI jobs for PR #%s'):format(id),
       format_item = function(j)
-        return ('%s %s'):format(ci_icon(j), j.name)
+        return ('%s %s'):format(gh.ci_icon(j), j.name)
       end,
     }, function(picked)
       if picked then

@@ -166,10 +166,7 @@ end
 --- @param id integer PR number.
 --- @param repo string "owner/name"
 --- @param diff_buf integer prdiff buffer.
---- @param pr_data PullRequest
---- @param n_files integer
---- @param n_viewed_threads integer
-function M.show_pr_comments(id, repo, diff_buf, pr_data, n_files, n_viewed_threads)
+function M.show_pr_comments(id, repo, diff_buf)
   if not state.try_show('prcomments', repo, id) then
     -- TODO: should state.init_buf() handle this? maybe helpful for <mods> handling on :Guh too?
     vim.cmd [[botright vertical split]]
@@ -179,24 +176,9 @@ function M.show_pr_comments(id, repo, diff_buf, pr_data, n_files, n_viewed_threa
   vim.api.nvim_win_set_buf(vim.api.nvim_get_current_win(), buf)
   vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
 
-  local visible_threads = pr_data.n_threads - pr_data.n_resolved - n_viewed_threads
-  local n_viewed = vim.tbl_count(pr_data.viewed or {})
   vim.cmd [[wincmd p]] -- Return to diff window.
   local diff_win = vim.fn.win_findbuf(diff_buf)[1]
   local comments_win = vim.fn.win_findbuf(buf)[1]
-  util.show_winbar(diff_win, {
-    { 'PR diff | ' },
-    { ('Files: %d ('):format(n_files, n_viewed) },
-    { 'Viewed', '@markup.italic' },
-    { (': %d) | '):format(n_viewed) },
-    { 'Unresolved', '@markup.italic' },
-    { (' threads: %d'):format(visible_threads) },
-  })
-  util.show_winbar(comments_win, {
-    { ('PR comments | Visible: %d | Unresolved in '):format(visible_threads) },
-    { 'Viewed', '@markup.italic' },
-    { (' files: %d'):format(n_viewed_threads) },
-  })
 
   -- Set scrollbind+cursorbind on both windows *after* writing the buffer content.
   vim.api.nvim_win_call(diff_win, function()
@@ -216,10 +198,8 @@ end
 --- @param diff_buf integer prdiff buffer (provides the diff text + receives diagnostics).
 --- @param pr_data PullRequest (provides `viewed`, `n_threads`, `n_resolved`).
 --- @param comments_list table<string, CommentThread[]>
---- @param n_files integer Count of all files in the HEAD diff.
---- @param n_viewed_threads integer Unresolved threads hidden in "Viewed" files.
 --- @return integer buf the prcomments buffer.
-function M.load_pr_comments(id, repo, diff_buf, pr_data, comments_list, n_files, n_viewed_threads)
+function M.load_pr_comments(id, repo, diff_buf, pr_data, comments_list)
   local viewed = pr_data.viewed or {}
   local diff_lines = vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false)
 
@@ -704,13 +684,12 @@ function M.update_comment(linenr)
   with_comment(linenr, 'Which comment?', function(c, prnum, repo, _)
     local content = vim.split(c.body or '', '\n', { plain = true })
     local same = gh.get_user() == c.user
-    local infomsg = same and { { ('Updating comment %d | ZZ to confirm (ZQ to abort)'):format(c.id) } }
+    local info = same and { title = ('Updating comment %d'):format(c.id) }
       or {
-        { 'Updating comment by ' },
-        { ('%s %d (not you)'):format(c.user or '?', c.id), 'ErrorMsg' },
-        { ' | ZZ to confirm (ZQ to abort)' },
+        title = ('Updating comment by %s %d (not you)'):format(c.user or '?', c.id),
+        title_hl = 'ErrorMsg',
       }
-    M.edit_comment('comment', prnum, content, infomsg, function(input)
+    M.edit_comment('comment', prnum, content, info, function(input)
       local progress = util.new_progress_report('Updating comment...', vim.api.nvim_get_current_buf())
       gh.update_comment(c.id, input, repo, function(resp)
         if resp['errors'] == nil then
@@ -835,9 +814,9 @@ end
 --- @param feat 'comment'|'merge'|'review' kind of edit; each has its own per-PR buffer.
 --- @param prnum integer
 --- @param content string[] lines to prefill the buffer with
---- @param infomsg? [string, string?][] Heading text + highlights; nil = default.
+--- @param info? { title?: string, title_hl?: string, hint?: string } Used for 'winbar'.
 --- @param on_confirm fun(input: string) Called on write-and-close (not on abort/cancel).
-function M.edit_comment(feat, prnum, content, infomsg, on_confirm)
+function M.edit_comment(feat, prnum, content, info, on_confirm)
   local repo = assert((vim.b.guh or {}).repo, 'edit_comment: not in a guh:// buffer (no b:guh.repo)')
   if not state.try_show(feat, repo, prnum) then
     vim.cmd [[split]]
@@ -847,7 +826,9 @@ function M.edit_comment(feat, prnum, content, infomsg, on_confirm)
     vim.cmd [[set wrap breakindent nonumber norelativenumber nolist]]
   end)
 
-  util.show_winbar(0, infomsg or { { 'Edit comment | ZZ to post (ZQ to abort)' } })
+  info = info or { title = 'Edit comment' }
+  state.set_b_key(buf, { 'guh', 'title' }, info.title or '')
+  state.set_b_key(buf, { 'guh', 'title_hl' }, info.title_hl or '')
 
   vim.bo[buf].buftype = 'acwrite'
   vim.bo[buf].bufhidden = 'wipe' -- Ensure BufWipeout fires on :q.

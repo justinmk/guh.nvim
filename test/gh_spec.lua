@@ -676,7 +676,7 @@ describe(':Guh', function()
       timeout = 10000,
       attr_ids = {}, -- Don't care about colors.
       grid = [[
-        {MATCH:PR diff.*}│{MATCH:PR comments.*}|
+        {MATCH:PR DIFF.*}│{MATCH:PR COMMENTS.*}|
         diff --git {MATCH:a/.* b/.*}│^{MATCH:.*}|
         index {MATCH:.*}|
         --- {MATCH:.*}|
