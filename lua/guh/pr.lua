@@ -173,46 +173,38 @@ function M.select(args, id, repo)
     return
   end
 
-  local function dispatch(is_pr)
-    if window_mod then
-      vim.cmd((cmdargs.mods or '') .. ' new')
-    end
-    if target and target.status then
-      M.show_status(focus) -- Explicit `guh://status`.
-    elseif not target and repo then
-      M.show_repo(focus, repo) -- No args, but resolved a repo.
-    elseif not target then
-      M.show_status(focus) -- No args, no repo: guh://status.
-    elseif target.sha then
-      M.show_commit(target.sha, repo, focus)
-    elseif target.branch then
-      M.show_commit(target.branch, repo, focus) -- Branch: show its HEAD commit.
-    elseif not target.id then
-      M.show_repo(focus, repo) -- Repo target ("owner/repo", "https://github.com/owner/repo").
-    elseif target.is_pr == true or (target.is_pr == nil and is_pr) then
-      M.show_pr(target.id, repo, focus)
-    else
-      M.show_issue(target.id, repo, focus)
+  -- Optimization: skip the probe (API request) if the key is already known locally.
+  -- Else `show_pr_or_issue` eagerly shows a `pr/` buffer (instant feedback) and probes.
+  local is_pr = target and target.is_pr
+  if is_pr == nil and target and target.id and not target.sha then
+    local notif = state.get_b_key(state.get_buf('status', nil, 'all', false), { 'guh', 'notifications', arg })
+    is_pr = state.get_buf('pr', repo, target.id, false) ~= nil or (notif and notif.is_pr)
+    if not is_pr and state.get_buf('issue', repo, target.id, false) then
+      is_pr = false
     end
   end
 
-  if target and target.id and target.is_pr == nil and not target.sha then
-    -- Optimization: skip the probe (API request) if the key is already stored locally.
-    if state.get_buf('pr', repo, target.id, false) then
-      dispatch(true)
-    elseif state.get_buf('issue', repo, target.id, false) then
-      dispatch(false)
-    elseif state.get_b_key(state.get_buf('status', nil, 'all', false), { 'guh', 'notifications', arg }) then
-      local notif = state.get_b_key(state.get_buf('status', nil, 'all', false), { 'guh', 'notifications', arg })
-      dispatch(notif.is_pr)
-    else -- Probe PR-vs-issue. Async so the hl_flash() highlight works.
-      util.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, target.id) }, nil, function(r)
-        util.log('select.probe.done', { code = r.code })
-        dispatch(r.code == 0)
-      end)
-    end
+  if window_mod then
+    vim.cmd((cmdargs.mods or '') .. ' split')
+  end
+  if target and target.status then
+    M.show_status(focus) -- Explicit `guh://status`.
+  elseif not target and repo then
+    M.show_repo(focus, repo) -- No args, but resolved a repo.
+  elseif not target then
+    M.show_status(focus) -- No args, no repo: guh://status.
+  elseif target.sha then
+    M.show_commit(target.sha, repo, focus)
+  elseif target.branch then
+    M.show_commit(target.branch, repo, focus) -- Branch: show its HEAD commit.
+  elseif not target.id then
+    M.show_repo(focus, repo) -- Repo target ("owner/repo", "https://github.com/owner/repo").
+  elseif is_pr == true then
+    M.show_pr(target.id, repo, focus)
+  elseif is_pr == false then
+    M.show_issue(target.id, repo, focus)
   else
-    dispatch(nil)
+    M.show_pr_or_issue(target.id, repo, focus) -- Unknown kind: eager `pr/` + probe + (maybe) re-key.
   end
 end
 
@@ -736,6 +728,26 @@ function M.show_issue(id, repo, focus)
   state.update_info(buf)
   util.set_default_keymaps(buf)
   util.run_cmds(buf, { term = true }, { gh.cmd(repo, 'issue', 'view', tostring(id), '--comments') })
+end
+
+--- Shows an `id` of unknown kind (pr vs issue). Eagerly displays a `pr/` buffer for instant
+--- feedback, then probes; if it's actually an issue, re-keys the buffer to `issue/`.
+---
+--- @param id integer
+--- @param repo string "owner/name"
+--- @param focus? boolean
+function M.show_pr_or_issue(id, repo, focus)
+  state.init_buf('pr', focus, repo, id) -- Instant: show the buffer + winbar, before the probe resolves.
+  util.progress('Loading...') -- Start a shared Progress msg, the async tasks will finish it.
+  util.system({ 'gh', 'api', ('repos/%s/pulls/%s'):format(repo, id) }, nil, function(r)
+    util.log('show_pr_or_issue.probe', { code = r.code })
+    if r.code == 0 then
+      M.show_pr(id, repo, focus)
+    else
+      state.reinit_buf('pr', 'issue', repo, id)
+      M.show_issue(id, repo, focus)
+    end
+  end)
 end
 
 --- Formats an ISO-8601 timestamp as a relative "… ago" string (largest unit only, like gh's `timeago`).
