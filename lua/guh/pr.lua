@@ -353,7 +353,6 @@ local function render_ci_log(buf, logs)
   local chan = vim.api.nvim_open_term(buf, {})
   vim.api.nvim_chan_send(chan, logs)
   vim.fn.chanclose(chan)
-  util.set_default_keymaps(buf)
 end
 
 --- Shows a `prlogs/…` buffer. Fetches the logs unless the buf is already rendered (= non-empty).
@@ -373,6 +372,7 @@ local function show_ci_log(job, pr_id, repo)
     { ci_icon(job) },
     { (' "%s"'):format(job.name) },
   })
+  util.set_default_keymaps(buf)
   if not util.buf_empty(buf) then
     return -- Cache hit (preload or prior open).
   end
