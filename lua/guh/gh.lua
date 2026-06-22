@@ -549,10 +549,16 @@ function M.update_comment(comment_id, body, repo, cb)
   }, cb)
 end
 
+--- Deletes a PR review comment.
+---
 --- @param repo string "owner/repo"
-function M.delete_comment(comment_id, repo, cb)
+--- @param on_done fun(ok: boolean, err?: string)
+function M.delete_comment(comment_id, repo, on_done)
   vim.validate('repo', repo, 'string')
-  gh_api('delete_comment', 'DELETE', f('repos/%s/pulls/comments/%s', repo, comment_id), {}, cb)
+  -- Note: gh_api() checks `resp.errors`, but this endpoint returns an empty 204.
+  util.system({ 'gh', 'api', '--method', 'DELETE', f('repos/%s/pulls/comments/%s', repo, comment_id) }, nil, function(r)
+    on_done(r.code == 0, r.code ~= 0 and vim.trim(r.stderr or '') or nil)
+  end)
 end
 
 --- Resolves a review comment-thread.

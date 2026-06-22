@@ -683,12 +683,12 @@ function M.delete_comment(linenr)
       return
     end
     local progress = util.new_progress_report('Deleting comment...', buf)
-    gh.delete_comment(c.id, repo, function(resp)
-      if not resp or resp.errors == nil then
+    gh.delete_comment(c.id, repo, function(ok, err)
+      if ok then
         progress('success', nil, 'Comment deleted.')
         require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
       else
-        progress('failed', nil, 'Failed to delete comment.')
+        progress('failed', nil, err or 'Failed to delete comment.')
       end
     end)
   end)
