@@ -1,4 +1,5 @@
 vim.api.nvim_set_hl(0, 'GuhDiffFile', { default = true, link = 'PmenuSel' })
+vim.api.nvim_set_hl(0, 'GuhDimmed', { default = true, link = 'Comment' })
 vim.api.nvim_set_hl(0, 'GuhHeading', { default = true, link = 'PmenuSel' })
 vim.api.nvim_set_hl(0, 'GuhWarning', { default = true, link = 'WarningMsg' })
 
@@ -51,6 +52,15 @@ vim.api.nvim_create_autocmd('BufWinEnter', {
   group = group,
   callback = function()
     vim.wo.winbar = winbar[(vim.b.guh or {}).feat] or ''
+  end,
+})
+
+-- Dim `guh://status` notifications that were marked read this session (kept in `b:guh.notifications`).
+vim.api.nvim_create_autocmd('BufEnter', {
+  pattern = 'guh://status',
+  group = group,
+  callback = function(args)
+    require('guh.pr').highlight_notifs(args.buf)
   end,
 })
 
