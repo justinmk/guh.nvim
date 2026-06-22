@@ -78,6 +78,20 @@ function M.get_buf(feat, repo, id, create)
   return b
 end
 
+--- Commit bufs are keyed by the full sha; a sha "slug" accepted by util.parse_target may be abbreviated (12 chars).
+---
+--- @param repo string "owner/name"
+--- @param sha string Commit sha (may be partial).
+--- @return integer? buf
+function M.get_commit_buf(repo, sha)
+  local prefix = get_key(repo, sha)
+  for key, b in pairs(bufs.commit) do
+    if vim.startswith(key, prefix) and type(b) == 'number' and vim.api.nvim_buf_is_valid(b) then
+      return b
+    end
+  end
+end
+
 --- Wipes the `guh://<repo>/<feat>/<id>` buf, and clears its `state.bufs` entry.
 ---
 --- @param feat Feat

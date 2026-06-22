@@ -225,9 +225,10 @@ end
 --- @param focus? boolean
 function M.show_commit(sha, repo, focus)
   -- Optimization: If the `commit/<sha>` buf already exits, just navigate to it.
-  local existing = state.get_buf('commit', repo, sha, false)
+  local existing = state.get_commit_buf(repo, sha)
   if existing and vim.api.nvim_buf_line_count(existing) > 1 then
-    state.init_buf('commit', focus, repo, sha, { id = sha }) -- Show the buffer.
+    local full_sha = (state.get_b_guh(existing) or {}).id
+    state.init_buf('commit', focus, repo, full_sha, { id = full_sha }) -- Show the buffer.
     return
   end
   local done = util.progress(('Loading commit %s...'):format(sha))
