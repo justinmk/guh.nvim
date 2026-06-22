@@ -521,6 +521,8 @@ function M.new_comment(pr, body, path, start_line, line, side, repo, cb)
   }
   if start_line ~= line then
     table.insert(fields, { '-F', 'start_line=' .. start_line })
+    -- Multiline: `start_side` must match `side`.
+    table.insert(fields, { '-f', 'start_side=' .. (side or 'RIGHT') })
   end
   gh_api('new_comment', 'POST', f('repos/%s/pulls/%d/comments', repo, pr.number), fields, cb)
 end
