@@ -18,6 +18,7 @@
 --- @class Notification A `b:guh.notifications` entry (keyed by slug "owner/repo#NNN").
 --- @field thread_id string GitHub notification thread-id (for mark-as-read/done).
 --- @field is_pr boolean Lets `pr.select` skip its PR-vs-issue probe.
+--- @field is_read? boolean Marked read this session (via "cV"). Kept in the map so `guh://status` can dim it.
 
 --- @class BufState
 --- Buffer-local b:guh dict.
