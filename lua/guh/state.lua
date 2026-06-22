@@ -360,14 +360,16 @@ function M.set_buf_name(buf, feat, key)
   end
 end
 
---- True if the PR/issue slug is in the (status buffer's) unread `notifications` map.
+--- True if the PR/issue slug is an unread entry in the (status buffer's) `notifications` map.
+--- Entries flagged `read` (marked-read this session via "cV") are kept for `guh://status` dimming, but count as read.
 ---
 --- @param repo string "owner/name"
 --- @param id integer|string
 --- @return boolean
 local function has_unread(repo, id)
   local status_buf = M.get_buf('status', nil, 'all', false)
-  return status_buf ~= nil and M.get_b_key(status_buf, { 'guh', 'notifications', ('%s#%s'):format(repo, id) }) ~= nil
+  local notif = status_buf and M.get_b_key(status_buf, { 'guh', 'notifications', ('%s#%s'):format(repo, id) })
+  return notif ~= nil and not notif.is_read
 end
 
 --- Sets various "denormalized" info on b:guh, for use by 'winbar' (but in theory may be useful for other purposes later).

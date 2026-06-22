@@ -7,6 +7,26 @@ local util = require('guh.util')
 
 local M = {}
 
+local notif_ns = vim.api.nvim_create_namespace('guh.notifs')
+
+--- Dims `guh://status` lines whose notification was marked read this session (kept in `b:guh.notifications`).
+---
+--- @param buf integer The `guh://status` buffer.
+function M.highlight_notifs(buf)
+  if not (buf and vim.api.nvim_buf_is_valid(buf)) then
+    return
+  end
+  local notifs = state.get_b_key(buf, { 'guh', 'notifications' }) or {}
+  vim.api.nvim_buf_clear_namespace(buf, notif_ns, 0, -1)
+  for i, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+    local slug = line:match('^%s+(%S+)')
+    local notif = slug and notifs[slug]
+    if notif and notif.is_read then
+      vim.hl.range(buf, notif_ns, 'GuhDimmed', { i - 1, 0 }, { i - 1, 0 }, { regtype = 'V' })
+    end
+  end
+end
+
 --- Resolves the repo "owner/name" for the current buffer, may block up to 5s.
 --- 1. checks `b:guh.repo`.
 --- 2. else, locates .git/ relative to curbuf.
@@ -715,8 +735,10 @@ function M.set_read()
       return done('failed', err)
     end
     done('success')
-    state.set_b_key(assert(status_buf), { 'guh', 'notifications', slug }, vim.NIL)
+    -- Keep the entry (flag it `read`) so `guh://status` can dim it; `has_unread` treats read entries as read.
+    state.set_b_key(assert(status_buf), { 'guh', 'notifications', slug, 'is_read' }, true)
     state.update_info(buf)
+    M.highlight_notifs(status_buf)
   end)
 end
 
