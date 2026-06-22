@@ -247,6 +247,23 @@ local function set_b_guh(buf, bufstate)
   vim.b[buf].guh = merged
 end
 
+--- Re-keys `from_feat` to `to_feat` (same repo+id): moves the `state.bufs` entry, renames the buffer, updates `b:guh`, refreshes 'winbar'.
+---
+--- @param from_feat Feat
+--- @param to_feat Feat
+--- @param repo string|nil
+--- @param id string|integer
+function M.reinit_buf(from_feat, to_feat, repo, id)
+  local key = get_key(repo, id)
+  assert(not bufs[to_feat][key])
+  local buf = assert(bufs[from_feat][key])
+  bufs[from_feat][key] = nil
+  bufs[to_feat][key] = buf
+  M.set_buf_name(buf, to_feat, key)
+  M.set_b_key(buf, { 'guh', 'feat' }, to_feat)
+  vim.api.nvim_exec_autocmds('BufWinEnter', { buffer = buf, group = 'guh' })
+end
+
 --- @param feat Feat
 --- @param focus boolean|nil Tristate:
 ---   - true: Navigate to existing window (if any).
@@ -325,7 +342,7 @@ function M.set_buf_name(buf, feat, key)
   local prev_altbuf = vim.fn.bufnr('#')
 
   -- NOTE: This leaves orphan "term://~/…:/usr/local/bin/gh" buffers.
-  --       Fixed upstream: https://github.com/neovim/neovim/pull/35951
+  --       Fix upstream: https://github.com/neovim/neovim/pull/35951
   vim.api.nvim_buf_set_name(buf, bufname)
   -- vim.api.nvim_buf_call(buf, function()
   --   vim.cmd.file({ bufname, mods = { noautocmd = true } })
