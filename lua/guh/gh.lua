@@ -35,6 +35,17 @@ function M.pr_state_label(pr)
   return pr.isDraft and 'Draft' or (pr.state and (pr.state:sub(1, 1) .. pr.state:sub(2):lower()) or '?')
 end
 
+--- Status emoji for a CI job.
+--- @param job CIJob
+function M.ci_icon(job)
+  if not job.conclusion then
+    return '⏳' -- No `conclusion` until job finishes (still-running / in-progress).
+  elseif job.conclusion == 'success' or job.conclusion == 'neutral' or job.conclusion == 'skipped' then
+    return '✅'
+  end
+  return '❌'
+end
+
 --- Gets the github.com web URL for a `guh://` buffer, or nil.
 ---
 --- @param buf integer Buffer id (0 for current buffer).
@@ -521,6 +532,8 @@ function M.new_comment(pr, body, path, start_line, line, side, repo, cb)
   }
   if start_line ~= line then
     table.insert(fields, { '-F', 'start_line=' .. start_line })
+    -- Multiline: `start_side` must match `side`.
+    table.insert(fields, { '-f', 'start_side=' .. (side or 'RIGHT') })
   end
   gh_api('new_comment', 'POST', f('repos/%s/pulls/%d/comments', repo, pr.number), fields, cb)
 end
@@ -549,10 +562,16 @@ function M.update_comment(comment_id, body, repo, cb)
   }, cb)
 end
 
+--- Deletes a PR review comment.
+---
 --- @param repo string "owner/repo"
-function M.delete_comment(comment_id, repo, cb)
+--- @param on_done fun(ok: boolean, err?: string)
+function M.delete_comment(comment_id, repo, on_done)
   vim.validate('repo', repo, 'string')
-  gh_api('delete_comment', 'DELETE', f('repos/%s/pulls/comments/%s', repo, comment_id), {}, cb)
+  -- Note: gh_api() checks `resp.errors`, but this endpoint returns an empty 204.
+  util.system({ 'gh', 'api', '--method', 'DELETE', f('repos/%s/pulls/comments/%s', repo, comment_id) }, nil, function(r)
+    on_done(r.code == 0, r.code ~= 0 and vim.trim(r.stderr or '') or nil)
+  end)
 end
 
 --- Resolves a review comment-thread.

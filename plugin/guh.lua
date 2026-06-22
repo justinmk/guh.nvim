@@ -20,6 +20,37 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
   end,
 })
 
+-- Define a fixed 'winbar' for each "feat". `%{b:guh.…}` segments read `b:guh` fields directly. `%{…}` is Vimscript = no marshalling.
+--
+-- - Dynamic groups (state/title color) use the `%{%…%}` form (note: an empty group `%##` is harmless).
+-- - Separators: only `title` is preceded by a "|".
+local status = [[%{%'%#' .. b:guh.status_hl .. '#' .. b:guh.status .. '%*'%}]]
+local winbar = {
+  issue = [[ISSUE #%{b:guh.id}%( %#WarningMsg#%{b:guh.unread}%*%)]],
+  pr = [[PR #%{b:guh.id} ]]
+    .. status
+    .. [[%( %#WarningMsg#%{b:guh.unread}%*%)%( %#WarningMsg#Target: %{b:guh.branch}%*%) | %{b:guh.title}%<]],
+  prcomments = [[PR COMMENTS | Unresolved: %{b:guh.n_visible_threads} | Unresolved in %#@markup.italic#Viewed%*: %{b:guh.n_viewed_threads}%<]],
+  prdiff = [[PR DIFF | Files: %{b:guh.n_files} (%#@markup.italic#Viewed%*: %{b:guh.n_viewed}) | Unresolved: %{b:guh.n_visible_threads}%<]],
+  prlogs = [[LOGS | PR #%{b:guh.id} | ]] .. status .. [[ %{b:guh.title}%<]],
+  repo = [[REPO %{b:guh.repo}]],
+  status = [[STATUS]],
+}
+-- Edit feats: the (optionally colored) `title` prompt + per-feat help hint.
+local title = [[%{%'%#' .. b:guh.title_hl .. '#' .. b:guh.title .. '%*'%}%<]]
+winbar.comment = title .. [[ | ZZ to save (ZQ to abort)]]
+winbar.merge = title .. [[ | First line = subject; rest = body | ZZ to merge (ZQ to abort)]]
+winbar.review = title .. [[ | ZZ to submit (ZQ to abort)]]
+
+-- Every guh:// window gets a 'winbar'.
+vim.api.nvim_create_autocmd('BufWinEnter', {
+  pattern = 'guh://*',
+  group = group,
+  callback = function()
+    vim.wo.winbar = winbar[(vim.b.guh or {}).feat] or ''
+  end,
+})
+
 -- :syncbind the prdiff/prcomments windows.
 vim.api.nvim_create_autocmd({ 'WinEnter', 'WinResized' }, {
   pattern = [[guh://[^/]\+/[^/]\+/{prdiff,prcomments}/*]],

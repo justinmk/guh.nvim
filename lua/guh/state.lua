@@ -32,6 +32,20 @@ local bufs = {
   status = {},
 }
 
+-- UI-related `b:guh` fields (for 'winbar').
+local info_fields = {
+  branch = '', -- Non-default base branch to flag (pr).
+  n_files = 0,
+  n_viewed = 0,
+  n_viewed_threads = 0,
+  n_visible_threads = 0,
+  status = '', -- PR state label, or CI job icon (prlogs).
+  status_hl = '',
+  title = '', -- PR title, edit prompt, or CI job name (prlogs).
+  title_hl = '',
+  unread = '',
+}
+
 --- Canonical `bufs[feat][?]` lookup key for a (repo, id) pair.
 local function get_key(repo, id)
   return repo and ('%s/%s'):format(repo, id) or tostring(id)
@@ -57,6 +71,8 @@ function M.get_buf(feat, repo, id, create)
   -- We use buffers as "storage" => we get Vim's "lifecycle" for free.
   -- Explicitly set this even though nvim_create_buf (scratch) sets it implicitly.
   vim.bo[b].bufhidden = 'hide'
+  -- Init `info_fields` defaults once, so the 'winbar' expr can assume the keys exist.
+  vim.b[b].guh = vim.deepcopy(info_fields)
   bufs[feat][key] = b
   assert(type(b) == 'number')
   return b
@@ -231,9 +247,6 @@ function M.init_buf(feat, focus, repo, id, bufstate)
   bufstate = bufstate or {}
   local key = get_key(repo, id)
   local buf = assert(M.get_buf(feat, repo, id))
-  if focus ~= nil then
-    show_buf(buf, focus)
-  end
   if bufstate.id == nil then
     bufstate.id = id == 'all' and 0 or assert(vim._tointeger(id))
   end
@@ -246,8 +259,14 @@ function M.init_buf(feat, focus, repo, id, bufstate)
   -- XXX: Stash the key so anything (e.g. `util.run_cmds()`) can rebuild the `guh://…` URL,
   -- even for "global" (non-repo-specific) buffers like `guh://status`.
   bufstate.bufkey = key
+
+  -- Init `b:guh` + buf name BEFORE show_buf(), so the BufWinEnter handler (which sets 'winbar') has an initialized buf.
+  -- (Note: `info_fields` defaults were seeded at buffer-creation by `get_buf`.)
   set_b_guh(buf, bufstate)
   M.set_buf_name(buf, feat, key)
+  if focus ~= nil then
+    show_buf(buf, focus)
+  end
   return buf, key
 end
 
@@ -308,6 +327,62 @@ function M.set_buf_name(buf, feat, key)
   if prev_altbuf > 0 and prev_altbuf ~= buf and vim.api.nvim_buf_is_valid(prev_altbuf) then
     vim.fn.setreg('#', prev_altbuf)
   end
+end
+
+--- True if the PR/issue slug is in the (status buffer's) unread `notifications` map.
+---
+--- @param repo string "owner/name"
+--- @param id integer|string
+--- @return boolean
+local function has_unread(repo, id)
+  local status_buf = M.get_buf('status', nil, 'all', false)
+  return status_buf ~= nil and M.get_b_key(status_buf, { 'guh', 'notifications', ('%s#%s'):format(repo, id) }) ~= nil
+end
+
+--- Sets various "denormalized" info on b:guh, for use by 'winbar' (but in theory may be useful for other purposes later).
+---
+--- Missing data is stored as empty ("" / 0) rather than deleting, so the 'winbar' expr can assume the fields exist.
+---
+--- @param buf integer
+function M.update_info(buf)
+  local gh = require('guh.gh')
+  local b = M.get_b_guh(buf) --[[@as BufState?]]
+  if not b then
+    return
+  end
+  local pr = b.pr_data or M.get_pr_data(b.repo, b.id)
+  local feat = b.feat
+
+  if feat == 'pr' or feat == 'issue' or feat == 'prdiff' or feat == 'prcomments' then
+    b.unread = has_unread(b.repo, b.id) and 'Unread' or ''
+    if pr then
+      local label = gh.pr_state_label(pr)
+      b.status = label
+      -- Parallel `_hl` field lets the winbar template color `status` dynamically (`%{%…%}` form).
+      b.status_hl = gh.state_hl[label] or ''
+      b.title = pr.title or ''
+      -- Base branch, but only if non-default (flag a non-default merge target).
+      b.branch = (pr.defaultBranch and pr.baseRefName ~= pr.defaultBranch and pr.baseRefName) or ''
+
+      local n_viewed_threads = pr.n_viewed_threads or 0
+      b.n_files = pr.n_files or 0
+      b.n_viewed = vim.tbl_count(pr.viewed or {})
+      b.n_viewed_threads = n_viewed_threads
+      b.n_visible_threads = (pr.n_threads or 0) - (pr.n_resolved or 0) - n_viewed_threads
+    end
+  elseif feat == 'prlogs' and pr then
+    -- `b:guh.id` is the PR number; the job's `databaseId` is the trailing bufname segment. Reuse the
+    -- shared `status`/`title` slots: CI icon as `status`, job name as `title`.
+    local dbid = tonumber((b.bufkey or ''):match('/(%d+)$'))
+    for _, j in ipairs(pr.ci_jobs or {}) do
+      if j.databaseId == dbid then
+        b.status = gh.ci_icon(j)
+        b.title = j.name
+        break
+      end
+    end
+  end
+  vim.b[buf].guh = b
 end
 
 M.bufs = bufs

@@ -483,7 +483,7 @@ function M.run_cmds(buf, opts, cmds, on_done)
 
       if debug then
         -- Append a timing report.
-        local report = { '', '## timing' }
+        local report = { '', '## Timing' }
         for i, cmd in ipairs(cmds) do
           local cmd_str = type(cmd) == 'table' and table.concat(cmd, ' '):gsub('%s+', ' ')
             or ('<lua %s:%d>'):format(
@@ -600,34 +600,6 @@ function M.run_cmds(buf, opts, cmds, on_done)
     -- Store job-ids in case a later `run_cmds` invocation forces a re-request.
     state.set_b_key(buf, { 'guh', 'jobs' }, jobs)
   end)
-end
-
---- Sets the window-local 'winbar' to a list of `{text, hl_group?}` chunks.
----
---- Pass `chunks=nil` to clear/disable.
----
---- @param win integer
---- @param chunks? [string, string?][] List of `{text, hl_group}` pairs, or nil to disable the winbar.
-function M.show_winbar(win, chunks)
-  if not vim.api.nvim_win_is_valid(win) then
-    return
-  end
-  if not chunks then
-    vim.wo[win].winbar = ''
-    return
-  end
-  local parts = {}
-  for i, ck in ipairs(chunks) do
-    local text, hl = ck[1]:gsub('%%', '%%%%'), ck[2] -- escape `%` for statusline syntax
-    assert(hl == nil or type(hl) == 'string', 'show_winbar: hl_group must be a string')
-    -- Example: ({'foo', 'Comment'}) -> "%#Comment#foo%*"
-    table.insert(parts, hl and ('%%#%s#%s%%*'):format(hl, text) or text)
-    -- After the first chunk insert `%<` so the title is preserved and truncation (">" marker) cuts from there.
-    if i == 1 then
-      table.insert(parts, '%<')
-    end
-  end
-  vim.wo[win].winbar = table.concat(parts)
 end
 
 return M

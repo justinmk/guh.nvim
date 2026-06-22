@@ -22,12 +22,24 @@
 --- @class BufState
 --- Buffer-local b:guh dict.
 --- @field chan? integer  Marks a `run_cmds` buf as "loaded". Channel-id (term=true) or a synthetic id (plain buffer).
---- @field jobs? integer[] In-flight jobs for the current `run_cmds` run.
 --- @field feat? Feat Feature name
 --- @field id? integer|string PR or issue number, or commit SHA.
+--- @field jobs? integer[] In-flight jobs for the current `run_cmds` run.
+--- @field notifications? table<string, Notification> Unread notifications on `guh://status` (keyed by slug).
 --- @field pr_data? PullRequest
 --- @field repo? string "owner/name"
---- @field notifications? table<string, Notification> Unread notifications on `guh://status` (keyed by slug).
+---
+--- "Info fields: denormalized values for use by 'winbar' (but possibly other consumers later).
+--- @field branch string Target branch (if non-default).
+--- @field n_files integer Diff file count.
+--- @field n_viewed integer "Viewed" file count.
+--- @field n_viewed_threads integer Unresolved threads hidden in "Viewed" files.
+--- @field n_visible_threads integer Unresolved threads visible in the diff.
+--- @field status string PR status label ("Open"/"Draft"/…), or CI job icon (prlogs).
+--- @field status_hl string Highlight group for `status`.
+--- @field title string Feat-specific title.
+--- @field title_hl string Highlight group for `title`.
+--- @field unread string "Unread" when the notification is unread.
 
 --- @class Comment
 --- @field body string
