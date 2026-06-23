@@ -428,13 +428,12 @@ function M.run_cmds(buf, opts, cmds, on_done)
     M.log('run_cmds.scheduled')
     assert(vim.api.nvim_buf_is_valid(buf), ('run_cmds: invalid buf %d'):format(buf))
 
-    -- UX: Preserve viewport of windows showing the buf. This makes "reload" less disorienting.
-    local winviews = {}
-    for _, win in ipairs(vim.fn.win_findbuf(buf)) do
-      winviews[win] = vim.api.nvim_win_call(win, function()
-        return vim.fn.winsaveview()
+    -- UX: Preserve viewport of windows showing the buf. Only for "reload".
+    local winviews = M.buf_empty(buf) and {}
+      or vim.iter(vim.fn.win_findbuf(buf)):fold({}, function(acc, win)
+        acc[win] = vim.api.nvim_win_call(win, vim.fn.winsaveview)
+        return acc
       end)
-    end
 
     -- Per-run token, stored in `b:guh.chan`: (1) marks the buf "loaded", (2) lets a newer run
     -- supersede this one (`is_cancelled`).
