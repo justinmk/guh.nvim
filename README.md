@@ -10,6 +10,10 @@ Guh is ~2k lines of unimpeachable code, leveraging builtin Nvim mechanisms such 
 'scrollbind', progress messages and 'winbar', otherwise delegating to the `gh` CLI in a `:terminal`
 buffer.
 
+## Demo
+
+- [Walkthrough: view repo, PR diff/comments, CI logs](https://github.com/justinmk/guh.nvim/issues/80)
+
 ## Usage
 
 Run `:Guh` to see the current repo status (commits/PRs/issues), or the global "guh://status"
