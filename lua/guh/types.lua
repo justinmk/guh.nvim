@@ -97,9 +97,9 @@
 --- @field url? string Web URL of the job (`detailsUrl`).
 
 --- @class PullRequest PR data selected from GraphQL by `gh.get_pr_data`.
---- @field node_id string GraphQL global node id (e.g. `PR_kw…`). Needed by mutations like `markFileAsViewed`.
 --- @field additions number Lines added across the diff.
 --- @field author table `{ login, name? }` (`name` only for User authors, not Bots).
+--- @field authorAssociation? string Author's repo association (e.g. "OWNER", "MEMBER", "CONTRIBUTOR", "NONE").
 --- @field baseRefName string
 --- @field baseRefOid string
 --- @field body string
@@ -109,22 +109,23 @@
 --- @field createdAt string
 --- @field defaultBranch? string Repo's default branch.
 --- @field deletions number Lines deleted across the diff.
+--- @field diff_stdout? string Cached raw `gh pr diff` output. Set by `pr.load_pr`.
+--- @field file_paths table<string, true> Set of all current paths in this PR's diff. Used to validate `markFileAsViewed` targets locally.
 --- @field headRefName string
 --- @field headRefOid string
 --- @field isDraft boolean
 --- @field labels table
+--- @field n_files? integer Files in the rendered diff (incl. outdated/outside virtual files). Set by `pr.load_pr`.
+--- @field n_resolved integer Resolved review-thread count.
+--- @field n_threads integer Total review-thread count (resolved + unresolved).
+--- @field n_viewed_threads? integer Unresolved threads hidden in "Viewed" files. Set by `pr.load_pr`.
+--- @field node_id string GraphQL global node id (e.g. `PR_kw…`). Needed by mutations like `markFileAsViewed`.
 --- @field number number
+--- @field raw_comments Comment[] Flat per-comment list from `flatten_review_threads`.
 --- @field reactions { content: string, reactors: { totalCount: integer } }[] Reaction groups (incl. zero-count).
 --- @field reviewDecision string
 --- @field reviews table
 --- @field state 'OPEN'|'CLOSED'|'MERGED'
 --- @field title string
 --- @field url string
---- @field raw_comments Comment[] Flat per-comment list from `flatten_review_threads`.
 --- @field viewed table<string, boolean> Per-file "Viewed" flag. Also for quasi-filepaths (e.g. `outdated-<id>:<path>`).
---- @field file_paths table<string, true> Set of all current paths in this PR's diff. Used to validate `markFileAsViewed` targets locally.
---- @field n_files? integer Files in the rendered diff (incl. outdated/outside virtual files). Set by `pr.load_pr`.
---- @field n_resolved integer Resolved review-thread count.
---- @field n_threads integer Total review-thread count (resolved + unresolved).
---- @field n_viewed_threads? integer Unresolved threads hidden in "Viewed" files. Set by `pr.load_pr`.
---- @field diff_stdout? string Cached raw `gh pr diff` output. Set by `pr.load_pr`.

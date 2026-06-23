@@ -180,7 +180,10 @@ describe('guh.gh', function()
       assert(by_name['CI: lint'].status == 'completed', ('lint status=%s'):format(by_name['CI: lint'].status))
       -- Same job-name, different workflow: kept separately (databaseId=105).
       assert(by_name['Lint: lint'], 'Lint: lint missing')
-      assert(by_name['Lint: lint'].databaseId == 105, ('Lint: lint databaseId=%s'):format(by_name['Lint: lint'].databaseId))
+      assert(
+        by_name['Lint: lint'].databaseId == 105,
+        ('Lint: lint databaseId=%s'):format(by_name['Lint: lint'].databaseId)
+      )
 
       -- build is in-progress (no conclusion, lowercase status).
       assert(by_name['CI: build'].conclusion == nil, 'build should have nil conclusion')

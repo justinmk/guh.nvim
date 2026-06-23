@@ -782,9 +782,9 @@ local function checks_summary(jobs)
   return '✓ Checks passing'
 end
 
---- "login (Display Name)" when a name is present, else "login" (for bots?).
-local function who(login, name)
-  return (name and name ~= '') and ('%s (%s)'):format(login, name) or login
+local function who(author, assoc)
+  local name = vim.trim(author.name or '')
+  return ('%s (%s) (%s)'):format(author.login, name == '' and '?' or name, assoc or '?')
 end
 
 --- Renders the PR header (title/author/diffstat/reactions) + raw markdown body from `pr_data`.
@@ -808,7 +808,7 @@ local function render_pr_header(pr)
     '# ' .. (pr.title or ''),
     '',
     (('- Author: %s %s')
-      :format(who(author.login or '?', author.name), table.concat(reactions, ' • '))
+      :format(who(pr.author, pr.authorAssociation), table.concat(reactions, ' • '))
       :gsub('%s+$', '')),
     ('- Date: %s'):format(reltime(pr.createdAt)),
     ('- Diff: +%d -%d, %d commit%s to `%s` from `%s`'):format(

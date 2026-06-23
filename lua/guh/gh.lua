@@ -261,6 +261,7 @@ local function to_pr(node)
     node_id = node.id,
     additions = node.additions,
     author = node.author,
+    authorAssociation = node.authorAssociation,
     baseRefName = node.baseRefName,
     baseRefOid = node.baseRefOid,
     body = node.body,
@@ -338,6 +339,7 @@ function M.get_pr_data(prnum, repo, opts, on_result)
         pullRequest(number:$number){
           id
           author{login ... on User{name}}
+          authorAssociation
           additions deletions
           baseRefName baseRefOid
           body
