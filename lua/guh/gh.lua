@@ -480,15 +480,27 @@ function M.get_user_notifs(buf, on_done)
       return on_done(nil, #errs > 0 and table.concat(errs, '; ') or 'Failed to fetch notifications')
     end
     local map = vim.empty_dict() ---@type table<string, Notification> slug ("owner/repo#NNN") => Notification.
-    local lines = { 'Notifications (unread):' }
+    local groups = {} ---@type table<string, string[]> repo => display lines (in original/chronological order).
+    local repos = {} ---@type string[] repo names.
     for _, n in ipairs(r) do
       local typ = n.subject and n.subject.type
       if typ == 'Issue' or typ == 'PullRequest' then
+        local repo = n.repository.full_name
         -- `owner/repo#NNN` is a slug that ":Guh ." can open.
-        local slug = ('%s#%s'):format(n.repository.full_name, (n.subject.url or ''):match('(%d+)$'))
+        local slug = ('%s#%s'):format(repo, (n.subject.url or ''):match('(%d+)$'))
         map[slug] = { thread_id = n.id, is_pr = typ == 'PullRequest' }
-        table.insert(lines, ('  %s  %s'):format(slug, n.subject.title))
+        if not groups[repo] then
+          groups[repo] = {}
+          table.insert(repos, repo)
+        end
+        table.insert(groups[repo], ('  %s  %s'):format(slug, n.subject.title))
       end
+    end
+    table.sort(repos) -- Sort groups by repo-name; items within a group keep their original order.
+    local lines = { 'Notifications (unread):' }
+    for _, repo in ipairs(repos) do
+      vim.list_extend(lines, groups[repo])
+      table.insert(lines, '')
     end
     if vim.api.nvim_buf_is_valid(buf) then
       state.set_b_key(buf, { 'guh', 'notifications' }, map)
