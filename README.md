@@ -3,18 +3,20 @@
 > [!NOTE]
 > This plugin is pretty sweet, but still WIP/beta. PRs/feedback welcome!
 
-Work with GitHub PRs in Neovim. Wraps the GitHub `gh` CLI with a minimalist yet
-effective workflow.
+Work with GitHub in Neovim. Guh is ~2k lines of unimpeachable code, leveraging builtin Nvim
+mechanisms such as diagnostics, 'scrollbind', progress messages and 'winbar', otherwise delegating
+to the `gh` CLI in a `:terminal` buffer.
 
-Guh is ~2k lines of unimpeachable code, leveraging builtin Nvim mechanisms such as diagnostics,
-'scrollbind', progress messages and 'winbar', otherwise delegating to the `gh` CLI in a `:terminal`
-buffer.
-
-## Demo
-
-- [Walkthrough: view repo, PR diff/comments, CI logs](https://github.com/justinmk/guh.nvim/issues/80)
+- Minimal (10x smaller than Octo.nvim).
+- No config.
+- One command: `:Guh`
+- View any GitHub object, including CI logs.
+- Review PRs.
+- Read notifications.
 
 ## Usage
+
+- [Demo: view repo, PR diff/comments, CI logs](https://github.com/justinmk/guh.nvim/issues/80)
 
 Run `:Guh` to see the current repo status (commits/PRs/issues), or the global "guh://status"
 (notifications) page if no repo can be guessed from the current buffer or directory.
