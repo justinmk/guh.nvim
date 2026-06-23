@@ -17,8 +17,6 @@ local diag_ns = vim.api.nvim_create_namespace('guh.comments')
 --- - `outside-<thread_id>:` : Thread is on HEAD, but outside the PR diff.
 local outdated_prefix_pat = '^outdated%-%d+:'
 local outside_prefix_pat = '^outside%-%d+:'
---- Matches the `+++ b/<path>` header of a file-section in a diff.
-local plus_b_pat = '^%+%+%+ b/(.+)$'
 --- Matches the `diff --git a/<a> b/<b>` header that starts each file-section. Captures `<b>`.
 local diff_git_pat = '^diff %-%-git a/.- b/(.+)$'
 local diff_git_regex = [[\v^diff --git a/]]
@@ -103,9 +101,11 @@ local function to_line_map(diff_lines)
   local old_line = 0
   local line_map = {}
   for i, l in ipairs(diff_lines) do
-    local plusfile = l:match(plus_b_pat)
-    if plusfile then
-      file = plusfile
+    -- Derive the path from the `diff --git a/… b/…` header (always present), NOT `+++ b/…`: deleted
+    -- files have a `+++ /dev/null` header, which would leave `file` stuck on the previous section.
+    local gitfile = l:match(diff_git_pat)
+    if gitfile then
+      file = gitfile
       new_line = 0
       old_line = 0
     end
@@ -839,7 +839,6 @@ function M.edit_comment(feat, prnum, content, info, on_confirm)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, content)
   -- Stay 'modified' so plain :q is refused: user must pick ZZ (submit) or ZQ (abort).
   vim.bo[buf].modified = true
-  vim.cmd [[normal! gg]]
 
   -- Write-and-close confirms the action (vim-fugitive style).
   -- Defer via vim.schedule so `on_confirm` runs after the "close" step (and the edit window is gone).
