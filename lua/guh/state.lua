@@ -414,6 +414,9 @@ function M.update_info(buf)
     end
   end
   vim.b[buf].guh = b
+  if next(vim.fn.win_findbuf(buf)) then
+    vim.cmd.redrawstatus({ bang = true })
+  end
 end
 
 M.bufs = bufs
