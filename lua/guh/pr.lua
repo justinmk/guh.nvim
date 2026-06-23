@@ -793,7 +793,6 @@ end
 ---
 --- @param pr PullRequest
 local function render_pr_header(pr)
-  local author = pr.author or {}
   local n = #(pr.commits or {})
 
   local reactions = {}
@@ -805,7 +804,7 @@ local function render_pr_header(pr)
   end
 
   local lines = {
-    '# ' .. (pr.title or ''),
+    ('# %s #%s'):format(pr.title or '', pr.number),
     '',
     (('- Author: %s %s')
       :format(who(pr.author, pr.authorAssociation), table.concat(reactions, ' • '))
