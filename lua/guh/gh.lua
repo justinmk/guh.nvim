@@ -189,7 +189,7 @@ local function flatten_threads_to_comments(threads)
 end
 
 --- Extracts CI jobs (github-actions check-runs) from the HEAD commit `statusCheckRollup`.
---- Dedupes by name (latest `startedAt`), drops `skipped`, sorts by (status, name).
+--- Dedupes by name ("workflow: job-name", latest `startedAt`), drops `skipped`, sorts by (status, name).
 ---
 --- @return CIJob[]
 local function to_ci_jobs(node)
@@ -205,12 +205,15 @@ local function to_ci_jobs(node)
     run_id = tonumber(run_id)
     job_id = tonumber(job_id)
     if job_id and cr.conclusion ~= 'SKIPPED' then
-      local existing = by_name[cr.name]
+      local workflow = vim.tbl_get(cr, 'checkSuite', 'workflowRun', 'workflow', 'name')
+      -- Name = "<workflow>: <job>". Affects dedupe + sorting.
+      local name = workflow and ('%s: %s'):format(workflow, cr.name) or cr.name
+      local existing = by_name[name]
       if not existing or (cr.startedAt or '') > (existing.startedAt or '') then
-        by_name[cr.name] = {
+        by_name[name] = {
           databaseId = job_id,
           runId = run_id,
-          name = cr.name,
+          name = name,
           -- Mimic the REST API which returns lowercase ("success", "failure", …).
           conclusion = cr.conclusion and cr.conclusion:lower() or nil,
           status = cr.status and cr.status:lower() or nil,
@@ -379,7 +382,7 @@ function M.get_pr_data(prnum, repo, opts, on_result)
                     __typename
                     ... on CheckRun{
                       databaseId name conclusion status startedAt detailsUrl
-                      checkSuite{ app{ slug } }
+                      checkSuite{ app{ slug } workflowRun{ workflow{ name } } }
                     }
                   }
                 }

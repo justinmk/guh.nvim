@@ -113,7 +113,10 @@ describe('guh.gh', function()
           status = opts.status or 'COMPLETED',
           startedAt = started_at,
           detailsUrl = job_id and ('https://github.com/o/r/actions/runs/777/job/%d'):format(job_id) or nil,
-          checkSuite = { app = { slug = opts.slug or 'github-actions' } },
+          checkSuite = {
+            app = { slug = opts.slug or 'github-actions' },
+            workflowRun = { workflow = { name = opts.workflow or 'CI' } },
+          },
         }
       end
 
@@ -125,9 +128,11 @@ describe('guh.gh', function()
                 statusCheckRollup = {
                   contexts = {
                     nodes = {
-                      -- Two runs of "lint" — keep the latest startedAt.
+                      -- Two runs of "CI: lint" — keep the latest startedAt.
                       ctx('lint', 'FAILURE', '2026-06-12T10:00:00Z', 100),
                       ctx('lint', 'SUCCESS', '2026-06-12T12:00:00Z', 101),
+                      -- Same job-name in a different workflow: must NOT dedupe into "CI: lint".
+                      ctx('lint', 'SUCCESS', '2026-06-12T12:00:00Z', 105, { workflow = 'Lint' }),
                       -- Skipped: drop entirely.
                       ctx('skipped-job', 'SKIPPED', '2026-06-12T11:00:00Z', 102),
                       -- Non-actions app: drop.
@@ -159,38 +164,40 @@ describe('guh.gh', function()
 
       local jobs = to_ci_jobs(node)
 
-      -- Exactly 3 jobs survive: lint, build, test. (skipped/codecov/StatusContext/orphan dropped.)
-      assert(#jobs == 3, ('expected 3 jobs, got %d'):format(#jobs))
+      -- 4 jobs survive: "CI: lint", "Lint: lint", "CI: build", "CI: test". (skipped/codecov/StatusContext/orphan dropped.)
+      assert(#jobs == 4, ('expected 4 jobs, got %d'):format(#jobs))
 
       local by_name = {}
       for _, j in ipairs(jobs) do
         by_name[j.name] = j
       end
 
-      -- lint deduped to the latest startedAt (databaseId=101, conclusion=success).
-      assert(by_name.lint, 'lint missing')
-      assert(by_name.lint.databaseId == 101, ('lint databaseId=%s'):format(by_name.lint.databaseId))
-      assert(by_name.lint.runId == 777, ('lint runId=%s'):format(by_name.lint.runId))
-      assert(by_name.lint.conclusion == 'success', ('lint conclusion=%s'):format(by_name.lint.conclusion))
-      assert(by_name.lint.status == 'completed', ('lint status=%s'):format(by_name.lint.status))
+      -- "CI: lint" deduped to the latest startedAt (databaseId=101, conclusion=success).
+      assert(by_name['CI: lint'], 'CI: lint missing')
+      assert(by_name['CI: lint'].databaseId == 101, ('lint databaseId=%s'):format(by_name['CI: lint'].databaseId))
+      assert(by_name['CI: lint'].runId == 777, ('lint runId=%s'):format(by_name['CI: lint'].runId))
+      assert(by_name['CI: lint'].conclusion == 'success', ('lint conclusion=%s'):format(by_name['CI: lint'].conclusion))
+      assert(by_name['CI: lint'].status == 'completed', ('lint status=%s'):format(by_name['CI: lint'].status))
+      -- Same job-name, different workflow: kept separately (databaseId=105).
+      assert(by_name['Lint: lint'], 'Lint: lint missing')
+      assert(by_name['Lint: lint'].databaseId == 105, ('Lint: lint databaseId=%s'):format(by_name['Lint: lint'].databaseId))
 
       -- build is in-progress (no conclusion, lowercase status).
-      assert(by_name.build.conclusion == nil, 'build should have nil conclusion')
-      assert(by_name.build.status == 'in_progress', ('build status=%s'):format(by_name.build.status))
-      assert(by_name.build.databaseId == 200)
-      assert(by_name.build.runId == 777)
+      assert(by_name['CI: build'].conclusion == nil, 'build should have nil conclusion')
+      assert(by_name['CI: build'].status == 'in_progress', ('build status=%s'):format(by_name['CI: build'].status))
+      assert(by_name['CI: build'].databaseId == 200)
+      assert(by_name['CI: build'].runId == 777)
 
       -- test: plain success.
-      assert(by_name.test.databaseId == 201)
-      assert(by_name.test.runId == 777)
+      assert(by_name['CI: test'].databaseId == 201)
+      assert(by_name['CI: test'].runId == 777)
 
-      -- Sort: by (conclusion or status), then name. So:
-      --   "completed" (no — `status` only used when conclusion is nil) — actually sort key is `conclusion or status`.
-      --   lint: "success", test: "success", build: "in_progress". Alphabetic on key:
-      --   "in_progress" < "success", so build first; then lint, test alphabetic.
-      assert(jobs[1].name == 'build', ('jobs[1]=%s'):format(jobs[1].name))
-      assert(jobs[2].name == 'lint', ('jobs[2]=%s'):format(jobs[2].name))
-      assert(jobs[3].name == 'test', ('jobs[3]=%s'):format(jobs[3].name))
+      -- Sort: by (conclusion or status), then name. Key "in_progress" < "success", so "CI: build" first;
+      -- then the three "success" jobs alphabetic by name: "CI: lint", "CI: test", "Lint: lint".
+      assert(jobs[1].name == 'CI: build', ('jobs[1]=%s'):format(jobs[1].name))
+      assert(jobs[2].name == 'CI: lint', ('jobs[2]=%s'):format(jobs[2].name))
+      assert(jobs[3].name == 'CI: test', ('jobs[3]=%s'):format(jobs[3].name))
+      assert(jobs[4].name == 'Lint: lint', ('jobs[4]=%s'):format(jobs[4].name))
     end)
   end)
 
