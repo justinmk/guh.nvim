@@ -98,7 +98,7 @@ BUFFER-RELATIVE VIEW ACTIONS
 
 R       Refresh the current thing. In a PR-related buffer, refreshes all
         objects related to that PR (except immutable objects such as prlogs/
-        and commit/).
+        and commit/). Also works if you ":edit" (no args) a guh:// buffer.
         <Plug>(guh-refresh)
 
 dd      View PR diff + comments. |guh-diff|

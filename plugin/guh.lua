@@ -9,13 +9,16 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
   pattern = 'guh://*',
   group = group,
   callback = function(args)
-    local uri = args.match
+    -- Treat no-args ":edit" as "reload"
+    if (vim.b[args.buf].guh or {}).feat then
+      vim.schedule(require('guh.pr').refresh)
+      return
+    end
     vim.schedule(function()
       if vim.api.nvim_buf_is_valid(args.buf) then
-        -- Wipe the placeholder buffer that :edit created.
-        vim.api.nvim_buf_delete(args.buf, { force = true })
+        vim.api.nvim_buf_delete(args.buf, { force = true }) -- Wipe the placeholder :edit created.
       end
-      vim.cmd('Guh ' .. vim.fn.fnameescape(uri))
+      vim.cmd('Guh ' .. vim.fn.fnameescape(args.match))
     end)
   end,
 })
