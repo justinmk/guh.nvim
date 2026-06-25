@@ -823,6 +823,72 @@ describe('util', function()
   end)
 end)
 
+describe('util.goto_file_at_cursor()', function()
+  it('resolves "file:line:col" refs to open buffers (incl. URI bufs)', function()
+    local r = n.exec_lua(function()
+      local util = require('guh.util')
+
+      -- Scratch (nofile) target buffers: a filesystem-style path, a guh:// URI, and a 1-char name.
+      local function make_buf(name, n_lines)
+        local buf = vim.api.nvim_create_buf(true, true)
+        vim.api.nvim_buf_set_name(buf, name)
+        local lines = {}
+        for i = 1, (n_lines or 1) do
+          lines[i] = ('line %d text'):format(i)
+        end
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+        return buf
+      end
+      local fbuf = make_buf('/tmp/proj/lua/guh/util.lua', 400)
+      local ubuf = make_buf('guh://owner/repo/pr/13', 3)
+      local abuf = make_buf('/tmp/proj/a', 1)
+
+      -- Place `word` as the cWORD in a scratch line, cursor on it, then resolve.
+      local function at(word)
+        local s = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(s, 0, -1, false, { 'see ' .. word .. ' here' })
+        vim.api.nvim_set_current_buf(s)
+        vim.api.nvim_win_set_cursor(0, { 1, 4 }) -- on the first char of `word`.
+        local buf = util.goto_file_at_cursor()
+        return { buf = buf, pos = buf and vim.api.nvim_win_get_cursor(0) or nil }
+      end
+
+      return {
+        fbuf = fbuf,
+        ubuf = ubuf,
+        abuf = abuf,
+        basename = at('util.lua'), -- bare basename, no line.
+        with_line = at('util.lua:307'),
+        with_col = at('util.lua:307:5'),
+        punct = at('(util.lua:307),'), -- surrounding punctuation peeled.
+        grep_form = at('util.lua:307:'), -- trailing ":" (grep/rg output).
+        multiseg = at('lua/guh/util.lua'), -- multi-segment path suffix.
+        uri = at('guh://owner/repo/pr/13.'), -- URI buffer + trailing sentence dot.
+        clamp_line = at('util.lua:99999'), -- line past EOF clamps to last line.
+        clamp_col = at('util.lua:9:999'), -- col past EOL clamps.
+        bare_short = at('a'), -- trivial bare word: must NOT suffix-match.
+        rel_short = at('./a'), -- explicit relative path: matches "…/a".
+        unknown = at('nope.xyz:1'), -- no such buffer.
+      }
+    end)
+
+    t.eq(r.fbuf, r.basename.buf)
+    t.eq(r.fbuf, r.with_line.buf)
+    t.eq({ 307, 0 }, r.with_line.pos)
+    t.eq({ 307, 4 }, r.with_col.pos)
+    t.eq({ 307, 0 }, r.punct.pos)
+    t.eq({ 307, 0 }, r.grep_form.pos)
+    t.eq(r.fbuf, r.multiseg.buf)
+    t.eq({ 307, 0 }, r.multiseg.pos)
+    t.eq(r.ubuf, r.uri.buf)
+    t.eq(400, r.clamp_line.pos[1]) -- clamped to the buffer's last line.
+    t.eq(9, r.clamp_col.pos[1])
+    t.eq(nil, r.bare_short.buf) -- "a" alone is too loose to suffix-match.
+    t.eq(r.abuf, r.rel_short.buf) -- "./a" is an explicit path, so it may suffix-match.
+    t.eq(nil, r.unknown.buf)
+  end)
+end)
+
 describe('guh.state', function()
   -- TODO: https://github.com/neovim/neovim/issues/40159
   it('set_b_key patches a nested key-path, preserving siblings', function()
