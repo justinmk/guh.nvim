@@ -920,8 +920,8 @@ function M.load_pr(opts, on_done)
     end
     local lines, threads, n_files, n_viewed_threads = comments.render_diff(pr_data, diff_stdout)
     util.log(('comment threads (total: %s)'):format(vim.tbl_count(threads)), threads)
-    -- filetype=gitcommit enables plugins like https://github.com/barrettruth/diffs.nvim
-    util.buf_set_readonly_lines(buf, lines, 'gitcommit')
+    -- filetype=git (not diff) enables plugins like https://github.com/barrettruth/diffs.nvim
+    util.buf_set_readonly_lines(buf, lines, 'git')
     vim.api.nvim_buf_call(buf, function()
       -- Override the builtin `diffFile` highlight. But let GuhWarning win for its sub-spans.
       vim.cmd([[syntax match GuhDiffFile /^diff --git.*/ containedin=ALL]])
