@@ -353,7 +353,7 @@ function M.get_pr_data(prnum, repo, opts, on_result)
           labels(first:20){ nodes{ name } }
           number
           reviewDecision
-          reviews(first:20){ nodes{ state body author{login} submittedAt } }
+          reviews(first:20){ nodes{ id state body author{login} submittedAt } }
           title
           url
           reviewThreads(first:100){
@@ -473,6 +473,25 @@ local function gh_api(logname, method, endpoint, fields, cb)
   end)
 end
 
+--- Starts a PR review
+---
+--- @param pr string
+--- @param on_done fun(resp: table)
+function M.start_review(pr, on_done)
+  vim.validate('pr', pr, 'string')
+  local query = [[
+    mutation($pullRequestId: ID!) {
+      addPullRequestReview(input: {pullRequestId: $pullRequestId}) {
+        pullRequestReview { id state body author{login} submittedAt }
+      }
+    }
+  ]]
+  gh_api('review_start', 'POST', 'graphql', {
+    { '-f', 'pullRequestId=' .. pr },
+    { '-f', 'query=' .. query },
+  }, on_done)
+end
+
 --- Fetches the user's "Unread" notifications, and stores their thread-ids in the `b:guh.notifications`
 --- map (for mark-as-read/done and opportunistic probe-skip), and returns the rendered lines.
 ---
@@ -536,8 +555,101 @@ function M.reply_to_comment(prnum, body, reply_to, repo, cb)
   }, cb)
 end
 
---- @param repo string "owner/repo"
+--- check if there is a pending review
+---
+--- @param reviews table
+--- @return string?
+local function pending_review_id(reviews)
+  local next = next
+  local user = M.get_user()
+  local _, pending_review = next(vim.tbl_filter(function(review)
+    return (review['state'] == 'PENDING') and (review['author']['login'] == user)
+  end, reviews))
+  if pending_review then
+    return pending_review['id']
+  else
+    return nil
+  end
+end
+
+--- Post a new comment either via api endpoint or graphql in case of pending review
+---
+--- @param pr PullRequest
+--- @param body string
+--- @param path string
+--- @param start_line integer
+--- @param line integer
+--- @param side string?
+--- @param repo string
+--- @param cb fun(resp: table)
 function M.new_comment(pr, body, path, start_line, line, side, repo, cb)
+  -- check if a pending review exists
+  local review_id = pending_review_id(pr.reviews)
+  if review_id then
+    M.new_review_comment(pr.node_id, review_id, body, path, start_line, line, side, repo, cb)
+  else
+    M.new_single_comment(pr, body, path, start_line, line, side, repo, cb)
+  end
+end
+
+--- Post a new comment associated with a pending review.
+--- If no `review_id` is supplied, github will automatically start a new review
+--- or use a pending one if it can find it.
+---
+--- @param pr_id string
+--- @param review_id string?
+--- @param body string
+--- @param path string
+--- @param start_line integer
+--- @param line integer
+--- @param side string?
+--- @param repo string
+--- @param cb fun(resp: table)
+function M.new_review_comment(pr_id, review_id, body, path, start_line, line, side, repo, cb)
+  vim.validate('repo', repo, 'string')
+  local query = [[
+    mutation($pullRequestId: ID!, $body: String!, $path: String!, $line: Int!, $side: DiffSide!, $startLine: Int, $pullRequestReviewId: ID) {
+      addPullRequestReviewThread(input: {
+        pullRequestId: $pullRequestId,
+        body: $body,
+        path: $path,
+        line: $line,
+        side: $side,
+        startLine: $startLine,
+        pullRequestReviewId: $pullRequestReviewId
+      }) {
+        thread {
+          id
+        }
+      }
+    }
+  ]]
+  local fields = {
+    { '-f', 'pullRequestId=' .. pr_id },
+    { '-f', 'body=' .. body },
+    { '-f', 'path=' .. path },
+    { '-F', 'startLine=' .. start_line },
+    { '-F', 'line=' .. line },
+    { '-f', 'side=' .. (side or 'RIGHT') },
+    { '-f', 'query=' .. query },
+  }
+  if review_id then
+    table.insert(fields, { '-f', 'pullRequestReviewId=' .. review_id })
+  end
+  gh_api('post_review_comment', 'POST', 'graphql', fields, cb)
+end
+
+--- Post a single comment via api endpoint
+---
+--- @param pr PullRequest
+--- @param body string
+--- @param path string
+--- @param start_line integer
+--- @param line integer
+--- @param side string?
+--- @param repo string
+--- @param cb fun(resp: table)
+function M.new_single_comment(pr, body, path, start_line, line, side, repo, cb)
   local commit_id = assert(pr.headRefOid)
   vim.validate('repo', repo, 'string')
   local fields = {
@@ -684,28 +796,80 @@ function M.merge_pr(id, repo, method, subject, body, admin, cb)
   end)
 end
 
---- Submits a PR review.
+--- Submits a PR review either via gh cli or graphql
 --- @param id integer
---- @param repo string "owner/name"
---- @param action 'approve'|'request-changes'|'comment'
+--- @param pr PullRequest
+--- @param action 'APPROVE'|'REQUEST_CHANGES'|'COMMENT'
 --- @param body? string review body (required for `request-changes` and `comment`).
---- @param cb fun(ok: boolean, stderr: string)
-function M.review_pr(id, repo, action, body, cb)
+--- @param cb fun(resp: table)
+function M.submit_review(id, pr, action, body, cb)
   vim.validate('id', id, 'number')
-  vim.validate('repo', repo, 'string')
   vim.validate('action', action, function(a)
-    return a == 'approve' or a == 'request-changes' or a == 'comment'
-  end, "'approve'|'request-changes'|'comment'")
+    return a == 'APPROVE' or a == 'REQUEST_CHANGES' or a == 'COMMENT'
+  end, "'APPROVE'|'REQUEST_CHANGES'|'COMMENT'")
   vim.validate('body', body, 'string', true)
-  local flag = action == 'approve' and '--approve' or action == 'request-changes' and '--request-changes' or '--comment'
-  local cmd = M.cmd(repo, 'pr', 'review', tostring(id), flag)
-  if body and body ~= '' then
-    table.insert(cmd, '--body')
-    table.insert(cmd, body)
+  local review_id = pending_review_id(pr.reviews)
+  if review_id then
+    M.review_pending_pr(review_id, action, body, cb)
+  else
+    M.review_pr(pr.node_id, action, body, cb)
   end
-  util.system(cmd, nil, function(r)
-    cb(r.code == 0, r.stderr or '')
-  end)
+end
+
+--- Adds a PR review.
+--- @param pr_id string
+--- @param action 'APPROVE'|'REQUEST_CHANGES'|'COMMENT'
+--- @param body? string review body (required for `request-changes` and `comment`).
+--- @param cb fun(resp: table)
+function M.review_pr(pr_id, action, body, cb)
+  local query = [[
+    mutation($pullRequestId: ID!, $event: PullRequestReviewEvent!, $body: String) {
+      addPullRequestReview(input: {
+        pullRequestId: $pullRequestId,
+        event: $event,
+        body: $body
+      }) {
+        pullRequestReview {
+          id
+          state
+        }
+      }
+    }
+  ]]
+  local fields = {
+    { '-f', 'pullRequestId=' .. pr_id },
+    { '-f', 'event=' .. action },
+    { '-f', 'query=' .. query },
+  }
+  if body and body ~= '' then
+    table.insert(fields, { '-f', 'body=' .. body })
+  end
+  gh_api('submit_review', 'POST', 'graphql', fields, cb)
+end
+
+--- Submits a pending PR review.
+--- @param review_id string
+--- @param action 'APPROVE'|'REQUEST_CHANGES'|'COMMENT'
+--- @param body? string review body (required for `request-changes` and `comment`).
+--- @param cb fun(resp: table)
+function M.review_pending_pr(review_id, action, body, cb)
+  local query = [[
+  mutation($reviewId: ID!, $action: PullRequestReviewEvent!, $body: String) {
+    submitPullRequestReview(input: {pullRequestReviewId: $reviewId, event: $action, body: $body}) {
+      pullRequestReview {
+        id
+        state
+      }
+    }
+  }
+  ]]
+  local fields = {
+    { '-f', 'reviewId=' .. review_id },
+    { '-f', 'body=' .. body },
+    { '-f', 'action=' .. action },
+    { '-f', 'query=' .. query },
+  }
+  gh_api('submit_pending_review', 'POST', 'graphql', fields, cb)
 end
 
 local cached_user --[[@type string?]]

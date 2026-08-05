@@ -337,6 +337,7 @@ function M.set_default_keymaps(buf)
   M.map_default(buf, 'n', 'c:', '<Plug>(guh-edit)', 'Edit PR/issue properties (`gh pr edit`, `gh issue edit`)')
   M.map_default(buf, 'n', 'cM', '<Plug>(guh-merge)', 'Merge PR')
   M.map_default(buf, 'n', 'cV', '<Plug>(guh-notif-read)', 'Mark PR/issue notification as read')
+  M.map_default(buf, 'n', 'gr', '<Plug>(guh-start-review)', 'Start PR Review')
   M.map_default(buf, 'n', 'cR', '<Plug>(guh-review)', 'Review PR (approve/request-changes/comment)')
 
   -- Cursor-relative actions:
