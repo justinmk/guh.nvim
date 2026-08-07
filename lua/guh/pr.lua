@@ -456,6 +456,23 @@ local function toggle_draft(id, repo, is_draft)
   end)
 end
 
+--- check if there is a pending review
+---
+--- @param reviews table
+--- @return string?
+local function pending_review_id(reviews)
+  local next = next
+  local user = gh.get_user()
+  local _, pending_review = next(vim.tbl_filter(function(review)
+    return (review['state'] == 'PENDING') and (review['author']['login'] == user)
+  end, reviews))
+  if pending_review then
+    return pending_review['id']
+  else
+    return nil
+  end
+end
+
 --- Performs the "review PR" action. Shows a vim.ui.select picker unless `[count]` was given.
 ---
 --- Each action opens an editable `guh://<owner>/<repo>/review/<id>` buffer for the (optional) body.
@@ -477,7 +494,14 @@ function M.review_pr()
       return
     end
     local done = util.progress(('%s…'):format(heading))
-    local resp = async.await(5, gh.submit_review, id, pr, gh_action, vim.trim(input))
+    local body = vim.trim(input)
+    local review_id = pending_review_id(pr.reviews)
+    local resp
+    if review_id then
+      resp = async.await(4, gh.review_pending_pr, review_id, gh_action, body)
+    else
+      resp = async.await(4, gh.review_pr, pr.node_id, gh_action, body)
+    end
     if resp['errors'] then
       local errs = {}
       for err in resp['errors'] do
@@ -1034,7 +1058,13 @@ local function new_comment(pr_id, repo, line1, line2)
       return
     end
     local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
-    local resp = async.await(8, gh.new_comment, pr, input, info.file, info.start_line, info.end_line, info.side, repo)
+    local review_id = pending_review_id(pr.reviews)
+    local resp
+    if review_id then
+      resp = async.await(9, gh.new_review_comment, pr.node_id, review_id, input, info.file, info.start_line, info.end_line, info.side, repo)
+    else
+      resp = async.await(8, gh.new_single_comment, pr, input, info.file, info.start_line, info.end_line, info.side, repo)
+    end
     if resp['errors'] == nil then
       progress('success', nil, 'Comment sent.')
       M.refresh({ feat = 'pr', id = pr_id, repo = repo })

@@ -555,43 +555,6 @@ function M.reply_to_comment(prnum, body, reply_to, repo, cb)
   }, cb)
 end
 
---- check if there is a pending review
----
---- @param reviews table
---- @return string?
-local function pending_review_id(reviews)
-  local next = next
-  local user = M.get_user()
-  local _, pending_review = next(vim.tbl_filter(function(review)
-    return (review['state'] == 'PENDING') and (review['author']['login'] == user)
-  end, reviews))
-  if pending_review then
-    return pending_review['id']
-  else
-    return nil
-  end
-end
-
---- Post a new comment either via api endpoint or graphql in case of pending review
----
---- @param pr PullRequest
---- @param body string
---- @param path string
---- @param start_line integer
---- @param line integer
---- @param side string?
---- @param repo string
---- @param cb fun(resp: table)
-function M.new_comment(pr, body, path, start_line, line, side, repo, cb)
-  -- check if a pending review exists
-  local review_id = pending_review_id(pr.reviews)
-  if review_id then
-    M.new_review_comment(pr.node_id, review_id, body, path, start_line, line, side, repo, cb)
-  else
-    M.new_single_comment(pr, body, path, start_line, line, side, repo, cb)
-  end
-end
-
 --- Post a new comment associated with a pending review.
 --- If no `review_id` is supplied, github will automatically start a new review
 --- or use a pending one if it can find it.
@@ -796,32 +759,17 @@ function M.merge_pr(id, repo, method, subject, body, admin, cb)
   end)
 end
 
---- Submits a PR review either via gh cli or graphql
---- @param id integer
---- @param pr PullRequest
---- @param action 'APPROVE'|'REQUEST_CHANGES'|'COMMENT'
---- @param body? string review body (required for `request-changes` and `comment`).
---- @param cb fun(resp: table)
-function M.submit_review(id, pr, action, body, cb)
-  vim.validate('id', id, 'number')
-  vim.validate('action', action, function(a)
-    return a == 'APPROVE' or a == 'REQUEST_CHANGES' or a == 'COMMENT'
-  end, "'APPROVE'|'REQUEST_CHANGES'|'COMMENT'")
-  vim.validate('body', body, 'string', true)
-  local review_id = pending_review_id(pr.reviews)
-  if review_id then
-    M.review_pending_pr(review_id, action, body, cb)
-  else
-    M.review_pr(pr.node_id, action, body, cb)
-  end
-end
-
 --- Adds a PR review.
 --- @param pr_id string
 --- @param action 'APPROVE'|'REQUEST_CHANGES'|'COMMENT'
 --- @param body? string review body (required for `request-changes` and `comment`).
 --- @param cb fun(resp: table)
 function M.review_pr(pr_id, action, body, cb)
+  vim.validate('pr_id', pr_id, 'string')
+  vim.validate('action', action, function(a)
+    return a == 'APPROVE' or a == 'REQUEST_CHANGES' or a == 'COMMENT'
+  end, "'APPROVE'|'REQUEST_CHANGES'|'COMMENT'")
+  vim.validate('body', body, 'string', true)
   local query = [[
     mutation($pullRequestId: ID!, $event: PullRequestReviewEvent!, $body: String) {
       addPullRequestReview(input: {
@@ -853,6 +801,11 @@ end
 --- @param body? string review body (required for `request-changes` and `comment`).
 --- @param cb fun(resp: table)
 function M.review_pending_pr(review_id, action, body, cb)
+  vim.validate('review_id', review_id, 'string')
+  vim.validate('action', action, function(a)
+    return a == 'APPROVE' or a == 'REQUEST_CHANGES' or a == 'COMMENT'
+  end, "'APPROVE'|'REQUEST_CHANGES'|'COMMENT'")
+  vim.validate('body', body, 'string', true)
   local query = [[
   mutation($reviewId: ID!, $action: PullRequestReviewEvent!, $body: String) {
     submitPullRequestReview(input: {pullRequestReviewId: $reviewId, event: $action, body: $body}) {
