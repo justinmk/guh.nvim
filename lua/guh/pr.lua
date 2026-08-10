@@ -502,15 +502,7 @@ function M.review_pr()
     else
       resp = async.await(4, gh.review_pr, pr.node_id, gh_action, body)
     end
-    if resp['errors'] then
-      local errs = {}
-      for err in resp['errors'] do
-        table.insert(errs, err['message'])
-      end
-      done('failed', errs)
-    else
-      done('success')
-    end
+    done(resp['errors'] and 'failed' or 'success', util.gh_errors(resp))
   end
 
   -- Menu item 4 toggles "Draft"/"Ready".
