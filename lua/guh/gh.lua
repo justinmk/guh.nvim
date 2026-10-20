@@ -764,6 +764,7 @@ function M.get_pr_ci_log(job_id, repo, on_result)
     {
       'gh',
       'api',
+      '--allow-escape-sequences',
       f('repos/%s/actions/jobs/%s/logs', repo, tostring(job_id)),
     },
     nil,
