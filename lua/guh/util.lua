@@ -46,6 +46,26 @@ function M.system(cmd, opts, cb)
   end)
 end
 
+--- Awaitable `vim.ui.select()`.
+---
+--- @async
+--- @generic T
+--- @param items T[]
+--- @param opts table (see `vim.ui.select()`)
+--- @return T? item nil if cancelled.
+--- @return integer? idx
+function M.await_select(items, opts)
+  return vim.async.await(3, vim.ui.select, items, opts)
+end
+
+--- Runs `fn` as a fire-and-forget task. Its unhandled error is raised (see `vim.async.Task:raise_on_error()`).
+---
+--- @param fn async fun()
+--- @return vim.async.Task
+function M.run_async(fn)
+  return vim.async.run(fn):raise_on_error()
+end
+
 --- Parses a :Guh argument. Accepts:
 ---   - bare number: `"13"`
 ---   - bare commit SHA (7-40 hex chars, must contain a-f): `"a1b2c3d"`
