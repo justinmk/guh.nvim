@@ -5,6 +5,10 @@ local gh = require('guh.gh')
 local state = require('guh.state')
 local util = require('guh.util')
 
+local async = vim.async
+local await_edit_comment = async.wrap(5, comments.edit_comment)
+local await_get_pr_data = async.wrap(4, gh.get_pr_data)
+
 local M = {}
 
 local notif_ns = vim.api.nvim_create_namespace('guh.notifs')
@@ -42,14 +46,8 @@ local function resolve_repo()
   local is_uri = bufname:match('^%w+://')
   local dir = (bufname ~= '' and not is_uri) and vim.fs.dirname(bufname) or vim.fn.getcwd()
 
-  local repo
-  gh.get_repo(dir, function(r)
-    repo = r
-  end)
-  vim.wait(5000, function()
-    return not not repo
-  end)
-  return repo
+  local ok, repo = async.run(async.wrap(2, gh.get_repo), dir):pwait(5000)
+  return ok and repo or nil
 end
 
 --- Finds the first `pr/…` buffer matching the given commit `sha`.
@@ -464,22 +462,23 @@ end
 function M.review_pr()
   local _, id, repo = require_pr()
 
+  --- @async
   local function do_action(label)
     local gh_action = label:lower()
     local heading = ('%s PR #%s'):format(label, id)
     -- Prefill ":+1:" in the Approve body, so the user can Approve without writing a comment. #64
     local content = label == 'Approve' and { ':+1:' } or { '' }
-    comments.edit_comment('review', id, content, { title = heading }, function(input)
-      local body = vim.trim(input)
-      local done = util.progress(('%s…'):format(heading))
-      gh.review_pr(id, repo, gh_action, body, function(ok, stderr)
-        if ok then
-          done('success')
-        else
-          done('failed', vim.trim(stderr))
-        end
-      end)
-    end)
+    local input = await_edit_comment('review', id, content, { title = heading })
+    if not input then
+      return
+    end
+    local done = util.progress(('%s…'):format(heading))
+    local ok, stderr = async.await(5, gh.review_pr, id, repo, gh_action, vim.trim(input))
+    if ok then
+      done('success')
+    else
+      done('failed', vim.trim(stderr))
+    end
   end
 
   -- Menu item 4 toggles "Draft"/"Ready".
@@ -489,14 +488,8 @@ function M.review_pr()
 
   local actions = { 'Approve', 'Comment', 'Request-changes', draft_label }
   local count = vim.v.count
-  if count >= 1 and count <= #actions then
-    if actions[count] == draft_label then
-      return toggle_draft(id, repo, is_draft)
-    end
-    return do_action(actions[count])
-  end
-
-  vim.ui.select(actions, { prompt = ('Review PR #%s:'):format(id) }, function(action)
+  util.run_async(function()
+    local action = actions[count] or util.await_select(actions, { prompt = ('Review PR #%s:'):format(id) })
     if not action then
       return
     elseif action == draft_label then
@@ -539,79 +532,78 @@ end
 function M.merge_pr()
   local _, id, repo = require_pr()
 
+  --- @async
   local function do_merge(choice, subject, body)
     local method = choice:match('^(%S+)')
     local admin = choice:find('--admin', 1, true) ~= nil
     local done = util.progress(('Merging PR #%s (%s)…'):format(id, choice))
-    gh.merge_pr(id, repo, method, subject, body, admin, function(ok, stderr)
-      if ok then
-        done('success')
-      else
-        done('failed', vim.trim(stderr))
-      end
-    end)
+    local ok, stderr = async.await(7, gh.merge_pr, id, repo, method, subject, body, admin)
+    if ok then
+      done('success')
+    else
+      done('failed', vim.trim(stderr))
+    end
   end
 
+  --- @async
   local function with_choice(choice)
     local method = choice:match('^(%S+)')
     local admin = choice:find('--admin', 1, true) ~= nil
     if method == 'rebase' then
       return do_merge(choice)
     end
-    gh.get_pr_data(id, repo, nil, function(pr, err)
-      if not pr then
-        return util.msg(err or ('PR #%s not found'):format(id), vim.log.levels.ERROR)
-      end
-      vim.schedule(function()
-        local subject, body
-        if method == 'merge' then
-          subject = ('Merge #%s %s'):format(id, pr.title)
-          body = pr.body or ''
-        elseif method == 'squash' then -- Prefill body with commit messages instead of PR desc.
-          subject = ('%s #%s'):format(pr.title, id)
-          local cs = pr.commits or {}
-          if #cs == 1 and vim.trim(cs[1].messageHeadline) == vim.trim(pr.title) then
-            -- Single commit: don't append redundant subject line, just use the commit body (like GitHub web).
-            body = cs[1].messageBody
-          else
-            local parts = {}
-            for _, c in ipairs(cs) do
-              local entry = ('* %s'):format(c.messageHeadline)
-              if c.messageBody ~= '' then
-                entry = entry .. '\n\n' .. c.messageBody
-              end
-              table.insert(parts, entry)
-            end
-            body = table.concat(parts, '\n\n')
+    local pr, err = await_get_pr_data(id, repo, nil)
+    if not pr then
+      return util.msg(err or ('PR #%s not found'):format(id), vim.log.levels.ERROR)
+    end
+    -- Defer, in case get_pr_data() returned synchronously (cache hit).
+    async.await(vim.schedule)
+    local subject, body
+    if method == 'merge' then
+      subject = ('Merge #%s %s'):format(id, pr.title)
+      body = pr.body or ''
+    elseif method == 'squash' then -- Prefill body with commit messages instead of PR desc.
+      subject = ('%s #%s'):format(pr.title, id)
+      local cs = pr.commits or {}
+      if #cs == 1 and vim.trim(cs[1].messageHeadline) == vim.trim(pr.title) then
+        -- Single commit: don't append redundant subject line, just use the commit body (like GitHub web).
+        body = cs[1].messageBody
+      else
+        local parts = {}
+        for _, c in ipairs(cs) do
+          local entry = ('* %s'):format(c.messageHeadline)
+          if c.messageBody ~= '' then
+            entry = entry .. '\n\n' .. c.messageBody
           end
-          -- Fall back to the PR description if the commit-derived body is blank/whitespace.
-          if vim.trim(body or '') == '' then
-            body = pr.body or ''
-          end
-        else
-          error(('unknown method: %s'):format(method))
+          table.insert(parts, entry)
         end
-        local text = ('%s\n\n%s'):format(subject, body):gsub('\r', '')
-        local content = vim.split(text, '\n', { plain = true })
-        local info = {
-          title = ('[%s]'):format(choice),
-          title_hl = admin and 'ErrorMsg' or nil, -- Flag risky `--admin` merges.
-        }
-        comments.edit_comment('merge', id, content, info, function(input)
-          local subject, body = input:match('^([^\n]*)\n?(.*)$')
-          do_merge(choice, subject, vim.trim(body or ''))
-        end)
-      end)
-    end)
+        body = table.concat(parts, '\n\n')
+      end
+      -- Fall back to the PR description if the commit-derived body is blank/whitespace.
+      if vim.trim(body or '') == '' then
+        body = pr.body or ''
+      end
+    else
+      error(('unknown method: %s'):format(method))
+    end
+    local text = ('%s\n\n%s'):format(subject, body):gsub('\r', '')
+    local content = vim.split(text, '\n', { plain = true })
+    local info = {
+      title = ('[%s]'):format(choice),
+      title_hl = admin and 'ErrorMsg' or nil, -- Flag risky `--admin` merges.
+    }
+    local input = await_edit_comment('merge', id, content, info)
+    if not input then
+      return
+    end
+    subject, body = input:match('^([^\n]*)\n?(.*)$')
+    do_merge(choice, subject, vim.trim(body or ''))
   end
 
   local choices = { 'squash', 'merge', 'rebase', 'squash --admin', 'merge --admin', 'rebase --admin' }
   local count = vim.v.count
-  if count >= 1 and count <= #choices then
-    return with_choice(choices[count])
-  end
-
-  vim.ui.select(choices, { prompt = ('Merge PR #%s:'):format(id) }, function(choice)
+  util.run_async(function()
+    local choice = choices[count] or util.await_select(choices, { prompt = ('Merge PR #%s:'):format(id) })
     if choice then
       with_choice(choice)
     end
@@ -1019,26 +1011,28 @@ local function new_comment(pr_id, repo, line1, line2)
     return
   end
   util.hl_flash(buf, line1 - 1, line2 - 1)
-  gh.get_pr_data(pr_id, repo, nil, function(pr, err)
+  util.run_async(function()
+    local pr, err = await_get_pr_data(pr_id, repo, nil)
     if not pr then
       return util.msg(err or ('PR #%s not found'):format(pr_id), vim.log.levels.ERROR)
     end
     local range = info.start_line == info.end_line and tostring(info.end_line)
       or ('%d..%d'):format(info.start_line, info.end_line)
-    local edit_info = { title = ('Comment on %s:%s'):format(info.file, range) }
-    vim.schedule(function()
-      comments.edit_comment('comment', pr_id, { '' }, edit_info, function(input)
-        local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
-        gh.new_comment(pr, input, info.file, info.start_line, info.end_line, info.side, repo, function(resp)
-          if resp['errors'] == nil then
-            progress('success', nil, 'Comment sent.')
-            M.refresh({ feat = 'pr', id = pr_id, repo = repo })
-          else
-            progress('failed', nil, 'Failed to send comment.')
-          end
-        end)
-      end)
-    end)
+    local title = ('Comment on %s:%s'):format(info.file, range)
+    -- Defer, in case get_pr_data() returned synchronously (cache hit).
+    async.await(vim.schedule)
+    local input = await_edit_comment('comment', pr_id, { '' }, { title = title })
+    if not input then
+      return
+    end
+    local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
+    local resp = async.await(8, gh.new_comment, pr, input, info.file, info.start_line, info.end_line, info.side, repo)
+    if resp['errors'] == nil then
+      progress('success', nil, 'Comment sent.')
+      M.refresh({ feat = 'pr', id = pr_id, repo = repo })
+    else
+      progress('failed', nil, 'Failed to send comment.')
+    end
   end)
 end
 
@@ -1047,16 +1041,19 @@ local function comment_top()
   local feat, id, repo = resolve_pr()
   local kind = feat == 'issue' and 'issue' or 'pr'
 
-  comments.edit_comment('comment', id, { '' }, nil, function(input)
+  util.run_async(function()
+    local input = await_edit_comment('comment', id, { '' }, nil)
+    if not input then
+      return
+    end
     local progress = util.new_progress_report('Sending comment...', vim.api.nvim_get_current_buf())
-    gh.new_top_comment(kind, id, repo, input, function(ok, stderr)
-      if ok then
-        progress('success', nil, 'Comment sent.')
-        M.refresh({ feat = (kind == 'issue' and 'issue' or 'pr'), id = id, repo = repo })
-      else
-        progress('failed', nil, ('Failed to send comment: %s'):format(vim.trim(stderr or '')))
-      end
-    end)
+    local ok, stderr = async.await(5, gh.new_top_comment, kind, id, repo, input)
+    if ok then
+      progress('success', nil, 'Comment sent.')
+      M.refresh({ feat = kind, id = id, repo = repo })
+    else
+      progress('failed', nil, ('Failed to send comment: %s'):format(vim.trim(stderr or '')))
+    end
   end)
 end
 

@@ -4,6 +4,8 @@ local gh = require('guh.gh')
 local state = require('guh.state')
 local util = require('guh.util')
 
+local async = vim.async
+
 local M = {}
 
 local severity = vim.diagnostic.severity
@@ -608,69 +610,85 @@ end
 
 --- Auto-picks the candidate (if exactly one) or shows a `vim.ui.select` picker.
 ---
----@param on_pick fun(choice: Comment)
-local function pick_comment(comments, prompt, on_pick)
+--- @async
+--- @param comments Comment[]
+--- @param prompt string
+--- @return Comment? choice nil if cancelled.
+local function pick_comment(comments, prompt)
   if #comments == 1 then
-    return on_pick(comments[1])
+    return comments[1]
   end
-  vim.ui.select(comments, {
+  return util.await_select(comments, {
     prompt = prompt,
     format_item = function(c)
       local snippet = (c.body or ''):gsub('\n.*$', ''):sub(1, 60)
       return ('%s %s: %s'):format(c.user or '?', c.updated_at or '', snippet)
     end,
-  }, function(c)
-    if c then
-      on_pick(c)
-    end
-  end)
+  })
 end
 
---- Performs an action on a comment at `linenr`. Identifies the comment by querying the sibling
+--- Picks the comment at `linenr` to act on. Identifies the comment by querying the sibling
 --- `prdiff/…` buffer's per-comment diagnostics.
 ---
 --- - When multiple comments share a diff row, prompts via `vim.ui.select`.
 --- - Flashes the comment region.
 ---
+--- @async
 --- @param linenr integer 1-indexed line number
 --- @param prompt string Picker prompt text (only if there are multiple candidates).
---- @param on_comment fun(c: Comment, prnum: integer, repo: string, buf: integer): nil
 --- @param filter? fun(c: Comment[]): Comment[] Optional candidate filter (e.g. dedupe by thread).
-local function with_comment(linenr, prompt, on_comment, filter)
+--- @return Comment? c nil if there is no comment at `linenr`, or the picker was cancelled.
+--- @return integer? prnum
+--- @return string? repo
+--- @return integer? buf
+local function pick_comment_at(linenr, prompt, filter)
   local buf = vim.api.nvim_get_current_buf()
   local prnum, repo, candidates = comments_at_line(linenr)
   if not prnum then
-    return
+    return nil
   end
   if filter then
     candidates = filter(candidates)
   end
   local block = find_block()
-  pick_comment(candidates, prompt, function(c)
-    local r = block or { c.start_bufline, c.end_bufline }
-    util.hl_flash(buf, r[1] - 1, r[2] - 1)
-    on_comment(c, prnum, assert(repo), buf)
-  end)
+  local c = pick_comment(candidates, prompt)
+  if not c then
+    return nil
+  end
+  local r = block or { c.start_bufline, c.end_bufline }
+  util.hl_flash(buf, r[1] - 1, r[2] - 1)
+  return c, prnum, assert(repo), buf
+end
+
+--- Awaitable `M.edit_comment()`.
+---
+--- @async
+--- @return string? input nil on abort.
+local function await_edit_comment(feat, prnum, content, info)
+  return async.await(5, M.edit_comment, feat, prnum, content, info)
 end
 
 --- Deletes the PR review comment at `linenr`. Prompts for confirmation.
 ---
 --- @param linenr integer 1-indexed line number in the prdiff/prcomments buffer.
 function M.delete_comment(linenr)
-  with_comment(linenr, 'Delete which comment?', function(c, prnum, repo, buf)
+  util.run_async(function()
+    local c, prnum, repo, buf = pick_comment_at(linenr, 'Delete which comment?')
+    if not c then
+      return
+    end
     local prompt = ('Delete comment by %s? %q'):format(c.user or '?', (c.body or ''):gsub('\n.*$', ''):sub(1, 60))
     if vim.fn.confirm(prompt, '&Yes\n&No', 2) ~= 1 then
       return
     end
     local progress = util.new_progress_report('Deleting comment...', buf)
-    gh.delete_comment(c.id, repo, function(ok, err)
-      if ok then
-        progress('success', nil, 'Comment deleted.')
-        require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
-      else
-        progress('failed', nil, err or 'Failed to delete comment.')
-      end
-    end)
+    local ok, err = async.await(3, gh.delete_comment, c.id, repo)
+    if ok then
+      progress('success', nil, 'Comment deleted.')
+      require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
+    else
+      progress('failed', nil, err or 'Failed to delete comment.')
+    end
   end)
 end
 
@@ -681,7 +699,11 @@ end
 ---
 --- @param linenr integer 1-indexed cursor row in the prcomments buffer.
 function M.update_comment(linenr)
-  with_comment(linenr, 'Which comment?', function(c, prnum, repo, _)
+  util.run_async(function()
+    local c, prnum, repo = pick_comment_at(linenr, 'Which comment?')
+    if not c then
+      return
+    end
     local content = vim.split(c.body or '', '\n', { plain = true })
     local same = gh.get_user() == c.user
     local info = same and { title = ('Updating comment %d'):format(c.id) }
@@ -689,17 +711,18 @@ function M.update_comment(linenr)
         title = ('Updating comment by %s %d (not you)'):format(c.user or '?', c.id),
         title_hl = 'ErrorMsg',
       }
-    M.edit_comment('comment', prnum, content, info, function(input)
-      local progress = util.new_progress_report('Updating comment...', vim.api.nvim_get_current_buf())
-      gh.update_comment(c.id, input, repo, function(resp)
-        if resp['errors'] == nil then
-          progress('success', nil, 'Comment updated.')
-          require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
-        else
-          progress('failed', nil, 'Failed to update comment.')
-        end
-      end)
-    end)
+    local input = await_edit_comment('comment', prnum, content, info)
+    if not input then
+      return
+    end
+    local progress = util.new_progress_report('Updating comment...', vim.api.nvim_get_current_buf())
+    local resp = async.await(4, gh.update_comment, c.id, input, repo)
+    if resp['errors'] == nil then
+      progress('success', nil, 'Comment updated.')
+      require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
+    else
+      progress('failed', nil, 'Failed to update comment.')
+    end
   end)
 end
 
@@ -716,44 +739,41 @@ function M.reply_or_resolve(linenr)
       end)
       :totable()
   end
-  with_comment(linenr, 'Which comment thread?', function(c, prnum, repo, buf)
-    vim.ui.select({ 'Reply', 'Resolve' }, {
+  util.run_async(function()
+    local c, prnum, repo, buf = pick_comment_at(linenr, 'Which comment thread?', dedupe_threads)
+    if not c then
+      return
+    end
+    local action = util.await_select({ 'Reply', 'Resolve' }, {
       prompt = ('Thread on %s:%d:'):format(c.path or '?', c.end_line or 0),
-    }, function(action)
-      if action == 'Reply' then
-        M.edit_comment(
-          'comment',
-          prnum,
-          { '' },
-          { { ('Reply to %s. ZZ to send (ZQ to abort)'):format(c.user or '?') } },
-          function(input)
-            local progress = util.new_progress_report('Sending reply...', vim.api.nvim_get_current_buf())
-            gh.reply_to_comment(prnum, input, c.id, repo, function(resp)
-              if resp['errors'] == nil then
-                progress('success', nil, 'Reply sent.')
-                require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
-              else
-                progress('failed', nil, 'Failed to send reply.')
-              end
-            end)
-          end
-        )
-      elseif action == 'Resolve' then
-        if not c.thread_node_id then
-          return util.msg('Missing thread_node_id (refresh and retry)', vim.log.levels.WARN)
-        end
-        local progress = util.new_progress_report('Resolving thread...', buf)
-        gh.resolve_thread(c.thread_node_id, function(resp)
-          if resp['errors'] == nil then
-            progress('success', nil, 'Thread resolved.')
-            require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
-          else
-            progress('failed', nil, 'Failed to resolve thread.')
-          end
-        end)
+    })
+    if action == 'Reply' then
+      local input = await_edit_comment('comment', prnum, { '' }, { title = ('Reply to %s'):format(c.user or '?') })
+      if not input then
+        return
       end
-    end)
-  end, dedupe_threads)
+      local progress = util.new_progress_report('Sending reply...', vim.api.nvim_get_current_buf())
+      local resp = async.await(5, gh.reply_to_comment, prnum, input, c.id, repo)
+      if resp['errors'] == nil then
+        progress('success', nil, 'Reply sent.')
+        require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
+      else
+        progress('failed', nil, 'Failed to send reply.')
+      end
+    elseif action == 'Resolve' then
+      if not c.thread_node_id then
+        return util.msg('Missing thread_node_id (refresh and retry)', vim.log.levels.WARN)
+      end
+      local progress = util.new_progress_report('Resolving thread...', buf)
+      local resp = async.await(2, gh.resolve_thread, c.thread_node_id)
+      if resp['errors'] == nil then
+        progress('success', nil, 'Thread resolved.')
+        require('guh.pr').refresh({ feat = 'pr', id = prnum, repo = repo })
+      else
+        progress('failed', nil, 'Failed to resolve thread.')
+      end
+    end
+  end)
 end
 
 --- Gets info for commenting on a range in a prdiff. Does not make a network request.
@@ -815,7 +835,7 @@ end
 --- @param prnum integer
 --- @param content string[] lines to prefill the buffer with
 --- @param info? { title?: string, title_hl?: string, hint?: string } Used for 'winbar'.
---- @param on_confirm fun(input: string) Called on write-and-close (not on abort/cancel).
+--- @param on_confirm fun(input?: string) Called with the text on write-and-close, or nil on abort (ZQ, or empty buffer).
 function M.edit_comment(feat, prnum, content, info, on_confirm)
   local repo = assert((vim.b.guh or {}).repo, 'edit_comment: not in a guh:// buffer (no b:guh.repo)')
   if not state.try_show(feat, repo, prnum) then
@@ -849,11 +869,11 @@ function M.edit_comment(feat, prnum, content, info, on_confirm)
       local input = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
       vim.bo[buf].modified = false
       vim.schedule(function()
-        if vim.trim(input) ~= '' then
-          on_confirm(input)
-        else
+        if vim.trim(input) == '' then
           util.msg('aborted (empty buffer)')
+          return on_confirm(nil)
         end
+        on_confirm(input)
       end)
     end,
   })
@@ -864,6 +884,9 @@ function M.edit_comment(feat, prnum, content, info, on_confirm)
     callback = function()
       if vim.bo[buf].modified then
         util.msg('aborted')
+        vim.schedule(function()
+          on_confirm(nil)
+        end)
       end
     end,
   })

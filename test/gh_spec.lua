@@ -3,6 +3,7 @@
 local Screen = require('test.functional.ui.screen')
 local n = require('test.functional.testnvim')()
 local t = require('test.testutil')
+local describe, it, before_each = t.describe, t.it, t.before_each
 
 local test_cwd = assert(os.getenv('TEST_CWD'))
 
@@ -34,68 +35,50 @@ end)
 describe('guh.gh', function()
   it('get_pr_data', function()
     n.exec_lua(function()
-      local async = require('async')
+      local async = vim.async
       local gh = require('guh.gh')
       local util = require('guh.util')
-      local system_async = async.wrap(3, util.system)
-      local get_pr_data_async = async.wrap(4, gh.get_pr_data)
+      local await_system = async.wrap(3, util.system)
+      local await_get_pr_data = async.wrap(4, gh.get_pr_data)
 
-      local function test_get_pr_data()
-        return async.run(function()
-          local r = assert(system_async({ 'gh', 'pr', 'list', '--json', 'number' }, nil))
-          local pr_num = assert(vim.json.decode(r.stdout)[1].number, 'failed to get a repo issue')
+      local task = async.run(function()
+        local r = assert(await_system({ 'gh', 'pr', 'list', '--json', 'number' }, nil))
+        local pr_num = assert(vim.json.decode(r.stdout)[1].number, 'failed to get a repo issue')
 
-          async.await(vim.schedule)
-          local pr = get_pr_data_async(pr_num, 'justinmk/guh.nvim', nil)
-          assert(pr, 'pr is nil')
-          assert(type(pr.number) == 'number', 'pr.number not number')
-          assert(type(pr.title) == 'string', 'pr.title not string')
-          assert(type(pr.author) == 'table', 'pr.author not table')
-        end)
-      end
-      local task = test_get_pr_data()
+        async.await(vim.schedule)
+        local pr = await_get_pr_data(pr_num, 'justinmk/guh.nvim', nil)
+        assert(pr, 'pr is nil')
+        assert(type(pr.number) == 'number', 'pr.number not number')
+        assert(type(pr.title) == 'string', 'pr.title not string')
+        assert(type(pr.author) == 'table', 'pr.author not table')
+      end)
       task:wait(5000)
     end)
   end)
 
   it('get_pr_data populates ci_jobs + get_pr_ci_log', function()
     n.exec_lua(function()
+      local async = vim.async
       local gh = require('guh.gh')
 
-      local done = false
-      local logs = nil
-      local err = nil
-
-      -- `pr_data.ci_jobs` is batched into the `get_pr_data` GraphQL query.
-      gh.get_pr_data(9, 'justinmk/guh.nvim', { force = true }, function(pr)
-        if not pr then
-          err = 'failed to get PR'
-          done = true
-          return
-        end
+      local task = async.run(function()
+        -- `pr_data.ci_jobs` is batched into the `get_pr_data` GraphQL query.
+        local pr = async.await(4, gh.get_pr_data, 9, 'justinmk/guh.nvim', { force = true })
+        assert(pr, 'failed to get PR')
         local jobs = pr.ci_jobs or {}
         assert(#jobs > 0, 'no CI jobs returned')
         assert(jobs[1].databaseId, 'job missing databaseId')
         assert(type(jobs[1].name) == 'string', 'job missing name')
 
-        gh.get_pr_ci_log(jobs[1].databaseId, 'justinmk/guh.nvim', function(job_logs, job_err)
-          logs = job_logs
-          err = job_err
-          done = true
-        end)
+        local logs, err = async.await(3, gh.get_pr_ci_log, jobs[1].databaseId, 'justinmk/guh.nvim')
+        -- Logs may have been purged by GitHub (90 day retention). Either logs or
+        -- a "log unavailable" error is acceptable; a crash or timeout is not.
+        assert(logs or err, 'no result returned')
+        if err then
+          assert(err:match('[Ll]og unavailable') or err:match('HTTP 410'), ('unexpected error: %s'):format(err))
+        end
       end)
-
-      local ok = vim.wait(15000, function()
-        return done
-      end, 100)
-      assert(ok, 'get_pr_ci_logs timed out')
-
-      -- Logs may have been purged by GitHub (90 day retention). Either logs or
-      -- a "log unavailable" error is acceptable; a crash or timeout is not.
-      assert(logs or err, 'no result returned')
-      if err then
-        assert(err:match('[Ll]og unavailable') or err:match('HTTP 410'), ('unexpected error: %s'):format(err))
-      end
+      task:wait(15000)
     end)
   end)
 
