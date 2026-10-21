@@ -88,7 +88,11 @@ function M.parse_target(arg)
 
   -- Reduce a URI to a bare "owner/repo[/<kind>/<value>]" path; bare slugs ("owner/repo",
   -- "owner/repo#N", "#N", SHA, N) fall through as-is. Also extracts markdown URLs ("[#918](https://github.com/o/r/issues/918)").
-  local path = (arg:match('https?://github%.com/([%w._/-]+)') or arg:match('^guh://(.+)$') or arg):gsub('/$', '')
+  local host, url_path = arg:match('https?://([^/%s]+)/([%w._/-]+)')
+  if host and host ~= 'github.com' and host ~= require('guh.gh').get_host() then
+    url_path = nil -- Foreign host: not a GitHub URL.
+  end
+  local path = (url_path or arg:match('^guh://(.+)$') or arg):gsub('/$', '')
 
   -- GitHub web "kind" (pull/issues/commit) and guh:// "feat" both live in the 3rd path component.
   local pr_kinds = { pull = true, pr = true, prdiff = true, prcomments = true, prlogs = true }
