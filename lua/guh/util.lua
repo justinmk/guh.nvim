@@ -73,6 +73,7 @@ end
 ---   - Repo URL: `"https://github.com/owner/repo"`
 ---   - slug: `"owner/repo#13"`, or bare repo slug `"owner/repo"`.
 ---   - guh URI: `"guh://owner/repo/pr/13"`, `"guh://owner/repo/issue/13"`, `"guh://owner/repo/commit/<sha>"`, …
+---   - fallback: the first `#N` (else `N`) match: `"#42578:"`, `"fix(#42578):"`.
 ---
 --- @param arg string
 --- @return GuhTarget?
@@ -132,8 +133,9 @@ function M.parse_target(arg)
     return { sha = path }
   end
 
-  val = tonumber(path)
-  if val then
+  -- Bare number, else the first "#N"/"N" match (cWORD garbage like "#42578:").
+  val = tonumber(path) or tonumber(path:match('#(%d+)') or path:match('%d+'))
+  if val and val > 0 then
     return { id = val }
   end
   return nil

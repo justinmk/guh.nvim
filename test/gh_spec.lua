@@ -744,6 +744,11 @@ describe('util', function()
     t.eq({ id = 123 }, parse_target('(#123).'))
     t.eq({ id = 123 }, parse_target('#123,'))
     t.eq({ id = 123 }, parse_target('"#123"'))
+    -- Fallback: first "#N"/"N" match (":" is not stripped, it belongs to URIs).
+    t.eq({ id = 42578 }, parse_target('#42578:'))
+    t.eq({ id = 42578 }, parse_target('fix(#42578):'))
+    t.eq({ id = 42578 }, parse_target('42578:'))
+    t.eq(nil, parse_target('v0.11.2')) -- First digit-run is "0": not a valid id.
     t.eq({ owner = 'owner', repo = 'repo' }, parse_target('[owner/repo]'))
     t.eq(
       { owner = 'justinmk', repo = 'guh.nvim', id = 13, is_pr = true },
