@@ -29,13 +29,19 @@ vim.api.nvim_create_autocmd('BufReadCmd', {
 -- - Dynamic groups (state/title color) use the `%{%…%}` form (note: an empty group `%##` is harmless).
 -- - Separators: only `title` is preceded by a "|".
 local status = [[%{%'%#' .. b:guh.status_hl .. '#' .. b:guh.status .. '%*'%}]]
+-- "Resolved: 4 (hidden)", or "Resolved: 4" when "dz" toggled them on.
+local resolved = [[ | Resolved: %{b:guh.n_resolved}%{b:guh.n_resolved && !b:guh.show_resolved ? ' (hidden)' : ''}]]
 local winbar = {
   issue = [[ISSUE #%{b:guh.id}%( %#WarningMsg#%{b:guh.unread}%*%)]],
   pr = [[PR #%{b:guh.id} ]]
     .. status
     .. [[%( %#WarningMsg#%{b:guh.unread}%*%)%( %#WarningMsg#Target: %{b:guh.branch}%*%) | %{b:guh.title}%<]],
-  prcomments = [[PR COMMENTS | Unresolved: %{b:guh.n_visible_threads} | Unresolved in %#@markup.italic#Viewed%*: %{b:guh.n_viewed_threads}%<]],
-  prdiff = [[PR DIFF | Files: %{b:guh.n_files} (%#@markup.italic#Viewed%*: %{b:guh.n_viewed}) | Unresolved: %{b:guh.n_visible_threads}%<]],
+  prcomments = [[PR COMMENTS | Unresolved: %{b:guh.n_visible_threads} | Unresolved in %#@markup.italic#Viewed%*: %{b:guh.n_viewed_threads}]]
+    .. resolved
+    .. [[%<]],
+  prdiff = [[PR DIFF | Files: %{b:guh.n_files} (%#@markup.italic#Viewed%*: %{b:guh.n_viewed}) | Unresolved: %{b:guh.n_visible_threads}]]
+    .. resolved
+    .. [[%<]],
   prlogs = [[LOGS | PR #%{b:guh.id} | ]] .. status .. [[ %{b:guh.title}%<]],
   repo = [[REPO %{b:guh.repo}]],
   status = [[STATUS]],
@@ -123,6 +129,9 @@ vim.keymap.set('n', '<Plug>(guh-web)', function()
 end, opts)
 vim.keymap.set('n', '<Plug>(guh-diff)', function()
   require('guh.pr').show_pr_diff()
+end, opts)
+vim.keymap.set('n', '<Plug>(guh-resolved)', function()
+  require('guh.pr').toggle_resolved()
 end, opts)
 vim.keymap.set('n', '<Plug>(guh-logs)', function()
   require('guh.pr').ci_logs_pick()

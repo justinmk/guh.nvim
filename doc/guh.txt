@@ -104,6 +104,10 @@ R       Refresh the current thing. In a PR-related buffer, refreshes all
 dd      View PR diff + comments. |guh-diff|
         <Plug>(guh-diff)
 
+dz      Toggle resolved comment threads in the PR diff. Hidden by default,
+        and after "R" (refresh). |guh-diff|
+        <Plug>(guh-resolved)
+
 dl      View the most-recent CI logs for all job-names in the CI matrix.
         <Plug>(guh-logs)
 
@@ -188,7 +192,7 @@ View PR diff                                                        *guh-diff*
 `dd` on a PR view opens the diff + comments in 'scrollbind' split windows.
 Comments are also provided as diagnostics (and loaded into the quickfix list).
 
-- Only UNRESOLVED comments are shown.
+- RESOLVED comments are hidden; "dz" toggles them.
 - Comments on VIEWED files are never shown, even if Unresolved.
 - Unresolved comments on OUTDATED code (i.e. code from an old push), are
   anchored to pseudo-diff sections above the "current" PR diff, with
@@ -206,8 +210,8 @@ PR diff:
 - Shows VIEWED files as a single line (diff/comments not loaded): >
   (viewed) path/to/file
 <
-- The diff overlay shows: >
-  PR diff (Viewed files: 3/12, Resolved comments: 4/20).
+- The 'winbar' shows: >
+  PR DIFF | Files: 12 (Viewed: 3) | Unresolved: 5 | Resolved: 4 (hidden)
 <
 - Refresh ("R") to update after marking/unmarking a file as VIEWED.
 
@@ -220,7 +224,8 @@ PR comments:
   comment bodies in-order. If a comment can't fit, it shows `(truncated)`. The
   full comment is always accessible via the diagnostic peek (`<C-w>d`) or the
   quickfix list.
-- as diagnostics on the diff buffer (severity INFO, source "guh.nvim"):
+- as diagnostics on the diff buffer (severity INFO, or HINT for resolved
+  threads; source "guh.nvim"):
   - Navigate using `vim.diagnostic.jump` (|]d| |[d|).
   - See comment details using `<C-w>d` |CTRL-W_d-default|.
 - in the quickfix list ("Guh comments") via |vim.diagnostic.setqflist()|.
@@ -234,7 +239,7 @@ Comment on issues, PRs, and diffs                                *guh-comment*
 
 `cr` on a comment (thread), presents a menu:
 1. Reply
-2. Resolve
+2. Resolve/Unresolve
 
 See |:GuhComment|.
 

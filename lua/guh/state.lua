@@ -36,9 +36,11 @@ local bufs = {
 local info_fields = {
   branch = '', -- Non-default base branch to flag (pr).
   n_files = 0,
+  n_resolved = 0,
   n_viewed = 0,
   n_viewed_threads = 0,
   n_visible_threads = 0,
+  show_resolved = false,
   status = '', -- PR state label, or CI job icon (prlogs).
   status_hl = '',
   title = '', -- PR title, edit prompt, or CI job name (prlogs).
@@ -402,6 +404,8 @@ function M.update_info(buf)
       b.n_viewed = vim.tbl_count(pr.viewed or {})
       b.n_viewed_threads = n_viewed_threads
       b.n_visible_threads = (pr.n_threads or 0) - (pr.n_resolved or 0) - n_viewed_threads
+      b.n_resolved = pr.n_resolved or 0
+      b.show_resolved = pr.show_resolved or false
     end
   elseif feat == 'prlogs' and pr then
     -- `b:guh.id` is the PR number; the job's `databaseId` is the trailing bufname segment. Reuse the

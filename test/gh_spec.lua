@@ -556,7 +556,7 @@ describe('comments', function()
     end)
   end)
 
-  it('off-diff threads: "outside" vs "outdated" bucket/tag, and empty-hunk skipped', function()
+  it('off-diff threads: "outside"/"outdated" bucket/tag, empty-hunk skipped, resolved hidden until "dz"', function()
     n.exec_lua(function()
       local comments = require('guh.comments')
       local state = require('guh.state')
@@ -572,6 +572,7 @@ describe('comments', function()
           end_line = o.line,
           start_line = o.line,
           outdated = true,
+          resolved = o.resolved,
           in_head = o.in_head, -- still anchored to a HEAD line?
           diff_hunk = o.hunk,
           body = o.body,
@@ -581,8 +582,8 @@ describe('comments', function()
       end
       local pr_data = {
         viewed = vim.empty_dict(),
-        n_threads = 3,
-        n_resolved = 0,
+        n_threads = 4,
+        n_resolved = 1,
         raw_comments = {
           -- isOutdated but still on a HEAD line (outside the diff) => "outside".
           c({
@@ -614,8 +615,22 @@ describe('comments', function()
             body = 'no hunk',
             hunk = '',
           }),
+          -- isResolved => hidden, until "dz" (`pr.toggle_resolved`).
+          c({
+            id = 4,
+            path = 'src/nvim/eval.c',
+            line = 77,
+            in_head = true,
+            user = 'dave',
+            body = 'done',
+            hunk = '@@ -70,1 +77,1 @@\n   int y = 2;',
+            resolved = true,
+          }),
         },
       }
+      -- Seed the pr/ buf cache (`diff_stdout` = "" skips `gh pr diff`), so `toggle_resolved` below re-renders from
+      -- cache. `render_diff` rewrites `raw_comments[].path` in-place; the cached (marshalled) copy stays pristine.
+      state.init_buf('pr', nil, repo, pr_id, { pr_data = vim.tbl_extend('keep', { diff_stdout = '' }, pr_data) })
 
       local lines, threads, n_files, n_viewed = comments.render_diff(pr_data, '')
       local diff_buf = state.init_buf('prdiff', false, repo, pr_id)
@@ -631,6 +646,22 @@ describe('comments', function()
       assert(prc:match('%(outside%) alice'), 'prcomments: autocmd thread tagged (outside)')
       assert(prc:match('%(outdated%) bob'), 'prcomments: old.lua thread tagged (outdated)')
       assert(not prc:find('carol', 1, true), 'prcomments: empty-hunk thread absent')
+      assert(not prdiff:find('eval.c', 1, true) and not prc:find('dave', 1, true), 'resolved thread hidden by default')
+
+      -- "dz" (curbuf is the prdiff buf): tagged "(resolved)", HINT diagnostic, 'winbar' fields.
+      local pr = require('guh.pr')
+      pr.toggle_resolved()
+      prdiff = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      prc = table.concat(vim.api.nvim_buf_get_lines(state.get_buf('prcomments', repo, pr_id), 0, -1, false), '\n')
+      assert(prdiff:match('diff %-%-git a/outside%-4:src/nvim/eval%.c'), 'dz: eval.c → outside bucket')
+      assert(prc:match('%(resolved%) %(outside%) dave'), 'dz: prcomments thread tagged (resolved)')
+      local hints = vim.diagnostic.get(diff_buf, { severity = vim.diagnostic.severity.HINT })
+      assert(#hints == 1 and hints[1].message == 'done', 'dz: resolved thread → HINT diagnostic')
+      local b = vim.b[diff_buf].guh
+      assert(b.show_resolved == true and b.n_resolved == 1 and b.n_visible_threads == 3, vim.inspect(b))
+      pr.toggle_resolved()
+      prdiff = table.concat(vim.api.nvim_buf_get_lines(diff_buf, 0, -1, false), '\n')
+      assert(not prdiff:find('eval.c', 1, true) and vim.b[diff_buf].guh.show_resolved == false, 'dz again: hidden')
     end)
   end)
 end)
