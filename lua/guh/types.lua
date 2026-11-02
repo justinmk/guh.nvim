@@ -33,9 +33,11 @@
 --- "Info fields: denormalized values for use by 'winbar' (but possibly other consumers later).
 --- @field branch string Target branch (if non-default).
 --- @field n_files integer Diff file count.
+--- @field n_resolved integer Resolved thread count.
 --- @field n_viewed integer "Viewed" file count.
 --- @field n_viewed_threads integer Unresolved threads hidden in "Viewed" files.
 --- @field n_visible_threads integer Unresolved threads visible in the diff.
+--- @field show_resolved boolean Resolved threads are rendered (see `PullRequest.show_resolved`).
 --- @field status string PR status label ("Open"/"Draft"/…), or CI job icon (prlogs).
 --- @field status_hl string Highlight group for `status`.
 --- @field title string Feat-specific title.
@@ -56,6 +58,7 @@
 --- @field url string
 --- @field user string
 --- @field outdated? boolean true if GraphQL marked the thread `isOutdated`.
+--- @field resolved? boolean true if GraphQL marked the thread `isResolved`. Hidden unless `PullRequest.show_resolved`.
 --- @field in_head? boolean Thread anchors to a current-HEAD line (decides "outside" vs "outdated").
 --- @field thread_id? number GraphQL thread id (root comment databaseId).
 --- @field thread_node_id? string GraphQL global node id of the thread (e.g. `PRRT_kw…`). Needed by the resolveReviewThread mutation.
@@ -126,6 +129,7 @@
 --- @field reactions { content: string, reactors: { totalCount: integer } }[] Reaction groups (incl. zero-count).
 --- @field reviewDecision string
 --- @field reviews table
+--- @field show_resolved? boolean Render resolved threads ("dz"). Set by `pr.toggle_resolved`.
 --- @field state 'OPEN'|'CLOSED'|'MERGED'
 --- @field title string
 --- @field url string

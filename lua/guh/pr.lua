@@ -1151,6 +1151,21 @@ function M.toggle_viewed()
   end
 end
 
+--- Toggles rendering of resolved threads in the prdiff/ + prcomments/ buffers.
+function M.toggle_resolved()
+  local _, id, repo = require_pr()
+  local pr_data, pr_buf = state.get_pr_data(repo, id)
+  if not pr_data then
+    return util.msg(('PR #%s not loaded? ("R" to refresh)'):format(id), vim.log.levels.ERROR)
+  end
+  local show = not pr_data.show_resolved
+  state.set_b_key(pr_buf, { 'guh', 'pr_data', 'show_resolved' }, show)
+  -- Re-render from cache.
+  M.load_pr({ id = id, repo = repo }, function()
+    util.msg(('Resolved threads (%d): %s'):format(pr_data.n_resolved or 0, show and 'shown' or 'hidden'))
+  end)
+end
+
 --- Reruns CI for the current PR. Shows a vim.ui.select picker unless `[count]` was given.
 ---
 --- @param opts? { id?: integer|string, repo?: string, args?: string }

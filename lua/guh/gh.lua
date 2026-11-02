@@ -135,53 +135,50 @@ local function flatten_threads_to_comments(threads)
   local out = {}
   local n_resolved = 0
   for _, thread in ipairs(threads or {}) do
-    if thread.isResolved then
-      -- Drop resolved threads entirely.
-      n_resolved = n_resolved + 1
-    else
-      local nodes = vim.tbl_get(thread, 'comments', 'nodes') or {}
-      local thread_id = nodes[1] and nodes[1].databaseId
-      -- GraphQL global node id (e.g. "PRRT_kw…"). Needed by the resolveReviewThread mutation.
-      local thread_node_id = thread.id
-      -- Reply comments on outdated threads carry no originalLine of their own;
-      -- inherit from the head comment so they aren't filtered out below.
-      local head_line = nodes[1] and nodes[1].originalLine
-      local head_start = nodes[1] and nodes[1].originalStartLine
-      local head_path = nodes[1] and nodes[1].path
-      -- Thread-level: head comment anchors to current-HEAD. Decides "outside" vs "outdated" (no HEAD line).
-      local in_head = (nodes[1] and nodes[1].line) ~= nil
-      -- `diffSide` is a thread-level property in GraphQL; every comment in the thread inherits it.
-      local c_side = thread.diffSide
-      for _, c in ipairs(nodes) do
-        local c_path = c.path ~= nil and c.path or head_path
-        -- LEFT-side (deleted-line) comments, and outdated threads, have a null `line` on HEAD; fallback to `originalLine` then.
-        local effective_end_line = c.line ~= nil and c.line or c.originalLine ~= nil and c.originalLine or head_line
-        local effective_start = c.startLine ~= nil and c.startLine
-          or c.originalStartLine ~= nil and c.originalStartLine
-          or head_start
-        if effective_end_line ~= nil and c_path ~= nil then
-          local reply_to
-          if c.replyTo ~= nil and c.replyTo.databaseId then
-            reply_to = c.replyTo.databaseId
-          end
-          table.insert(out, {
-            id = c.databaseId,
-            html_url = c.url,
-            user = { login = c.author ~= nil and c.author.login or '?' },
-            body = c.body or '',
-            diff_hunk = c.diffHunk or '',
-            path = c_path,
-            end_line = effective_end_line,
-            start_line = effective_start,
-            side = c_side,
-            updated_at = c.updatedAt,
-            in_reply_to_id = reply_to,
-            outdated = thread.isOutdated or false,
-            in_head = in_head,
-            thread_id = thread_id,
-            thread_node_id = thread_node_id,
-          })
+    n_resolved = n_resolved + (thread.isResolved and 1 or 0)
+    local nodes = vim.tbl_get(thread, 'comments', 'nodes') or {}
+    local thread_id = nodes[1] and nodes[1].databaseId
+    -- GraphQL global node id (e.g. "PRRT_kw…"). Needed by the resolveReviewThread mutation.
+    local thread_node_id = thread.id
+    -- Reply comments on outdated threads carry no originalLine of their own;
+    -- inherit from the head comment so they aren't filtered out below.
+    local head_line = nodes[1] and nodes[1].originalLine
+    local head_start = nodes[1] and nodes[1].originalStartLine
+    local head_path = nodes[1] and nodes[1].path
+    -- Thread-level: head comment anchors to current-HEAD. Decides "outside" vs "outdated" (no HEAD line).
+    local in_head = (nodes[1] and nodes[1].line) ~= nil
+    -- `diffSide` is a thread-level property in GraphQL; every comment in the thread inherits it.
+    local c_side = thread.diffSide
+    for _, c in ipairs(nodes) do
+      local c_path = c.path ~= nil and c.path or head_path
+      -- LEFT-side (deleted-line) comments, and outdated threads, have a null `line` on HEAD; fallback to `originalLine` then.
+      local effective_end_line = c.line ~= nil and c.line or c.originalLine ~= nil and c.originalLine or head_line
+      local effective_start = c.startLine ~= nil and c.startLine
+        or c.originalStartLine ~= nil and c.originalStartLine
+        or head_start
+      if effective_end_line ~= nil and c_path ~= nil then
+        local reply_to
+        if c.replyTo ~= nil and c.replyTo.databaseId then
+          reply_to = c.replyTo.databaseId
         end
+        table.insert(out, {
+          id = c.databaseId,
+          html_url = c.url,
+          user = { login = c.author ~= nil and c.author.login or '?' },
+          body = c.body or '',
+          diff_hunk = c.diffHunk or '',
+          path = c_path,
+          end_line = effective_end_line,
+          start_line = effective_start,
+          side = c_side,
+          updated_at = c.updatedAt,
+          in_reply_to_id = reply_to,
+          outdated = thread.isOutdated or false,
+          resolved = thread.isResolved or false,
+          in_head = in_head,
+          thread_id = thread_id,
+          thread_node_id = thread_node_id,
+        })
       end
     end
   end
@@ -304,7 +301,7 @@ end
 
 --- Gets PR data via a single GraphQL query: metadata + comments + per-file "Viewed" state.
 ---
---- - Drops resolved threads.
+--- - Provides a per-comment `resolved` field (see `Comment.resolved`).
 --- - Provides a per-comment `outdated` field, so the caller doesn't need to walk the "thread".
 --- - Provides a map of  `viewed` files.
 --- - Threads and files are limited to 100.
@@ -591,26 +588,28 @@ function M.delete_comment(comment_id, repo, on_done)
   end)
 end
 
---- Resolves a review comment-thread.
+--- Resolves or unresolves a review comment-thread.
 ---
 --- Note: `thread_node_id` is the GraphQL global node id (e.g. `PRRT_kw…`), not the REST
 --- `databaseId`.
 ---
 --- @param thread_node_id string
---- @param cb fun(resp: table)
-function M.resolve_thread(thread_node_id, cb)
+--- @param resolve boolean false = unresolve.
+--- @param on_done fun(resp: table)
+function M.resolve_thread(thread_node_id, resolve, on_done)
   vim.validate('thread_node_id', thread_node_id, 'string')
-  local query = [[
+  local op = resolve and 'resolveReviewThread' or 'unresolveReviewThread'
+  local query = ([[
     mutation($thread:ID!){
-      resolveReviewThread(input:{threadId:$thread}){
+      %s(input:{threadId:$thread}){
         thread{ id isResolved }
       }
     }
-  ]]
+  ]]):format(op)
   gh_api('resolve_thread', 'POST', 'graphql', {
     { '-F', 'thread=' .. thread_node_id },
     { '-f', 'query=' .. query },
-  }, cb)
+  }, on_done)
 end
 
 --- Marks a file as "Viewed"/"Unviewed" for the current user on a PR.
