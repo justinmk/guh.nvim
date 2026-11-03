@@ -349,17 +349,19 @@ function M.set_default_keymaps(buf)
   M.map_default(buf, 'n', 'cv', '<Plug>(guh-viewed)', 'Toggle "Viewed" on diff-file at cursor')
 
   -- The builtin gitcommit/diff ftplugins don't map [[/]] ?
-  local heading = [[\v^(diff --git a/|\(viewed\) )]]
+  local is_comments = (vim.b[buf].guh or {}).feat == 'prcomments'
+  local heading = is_comments and [[\v^▎]] or [[\v^(diff --git a/|\(viewed\) )]]
+  local jump_target = is_comments and 'comment' or 'diff-file heading'
   vim.keymap.set('n', ']]', function()
     for _ = 1, vim.v.count1 do
       vim.fn.search(heading, 'W')
     end
-  end, { buffer = buf, silent = true, desc = 'Jump to next diff-file heading' })
+  end, { buffer = buf, silent = true, desc = 'Jump to next ' .. jump_target })
   vim.keymap.set('n', '[[', function()
     for _ = 1, vim.v.count1 do
       vim.fn.search(heading, 'bW')
     end
-  end, { buffer = buf, silent = true, desc = 'Jump to previous diff-file heading' })
+  end, { buffer = buf, silent = true, desc = 'Jump to previous ' .. jump_target })
 end
 
 function M.buf_keymap(buf, mode, lhs, desc, rhs)
