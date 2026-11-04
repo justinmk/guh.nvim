@@ -181,7 +181,8 @@ gf      In a prdiff/ buffer, view the full contents of the diff-file at
         <Plug>(guh-file)
 
 ]]      In a prdiff/ buffer, jump [count] sections forward, where each
-        "section" is a "diff --git" heading.
+        "section" is a "diff --git" heading. In a prcomments/ buffer, jump
+        [count] comments forward.
 
 [[      Like ]], except backwards.
 

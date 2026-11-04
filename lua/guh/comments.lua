@@ -407,7 +407,10 @@ function M.load_pr_comments(id, repo, diff_buf, pr_data, comments_list)
 
   -- vim.bo[buf].modifiable = false
   -- vim.bo[buf].readonly = true
-  vim.bo[buf].filetype = 'markdown'
+  -- Only set 'filetype' when it actually changes, avoid retriggering FileType
+  if vim.bo[buf].filetype ~= 'markdown' then
+    vim.bo[buf].filetype = 'markdown'
+  end
   vim.api.nvim_buf_call(buf, function()
     vim.cmd([[syntax match GuhHeading /^▎ \zs.*$/ containedin=ALL]])
     vim.cmd([[syntax match GuhWarning /(outdated)\|(outside)\|(truncated)/ containedin=ALL]])
