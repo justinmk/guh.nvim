@@ -228,8 +228,80 @@ describe('guh.gh', function()
     end, t.tmpname(true))
   end)
 
+  it('get_host()', function()
+    local res = n.exec_lua(function(tmpdir)
+      local gh = require('guh.gh')
+      local function fresh()
+        -- `host_cache` is module-local: reload the module to reset it.
+        package.loaded['guh.gh'] = nil
+        gh = require('guh.gh')
+        return gh
+      end
+      local out = {}
+
+      -- 1. $GH_HOST wins.
+      vim.fn.setenv('GH_HOST', 'ghe.example.com')
+      out.env = fresh().get_host()
+
+      -- 2. Otherwise: host parsed from `gh repo view` (stubbed with a fake `gh` on $PATH).
+      vim.fn.setenv('GH_HOST', vim.NIL)
+      local bindir = tmpdir .. '/bin'
+      vim.fn.mkdir(bindir, 'p')
+      local stub = bindir .. '/gh'
+      vim.fn.writefile({ '#!/bin/sh', 'echo https://ghe2.example.com/o/r' }, stub)
+      vim.uv.fs_chmod(stub, tonumber('755', 8))
+      local old_path = vim.env.PATH
+      vim.env.PATH = bindir .. ':' .. old_path
+      out.remote = fresh().get_host()
+
+      -- 3. Cached: later changes are ignored.
+      vim.fn.setenv('GH_HOST', 'other.example.com')
+      out.cached = gh.get_host()
+
+      -- 4. Fallback: `gh` fails => github.com.
+      vim.fn.setenv('GH_HOST', vim.NIL)
+      vim.fn.writefile({ '#!/bin/sh', 'exit 1' }, stub)
+      out.fallback = fresh().get_host()
+
+      vim.env.PATH = old_path
+      return out
+    end, t.tmpname(true))
+    t.eq({
+      env = 'ghe.example.com',
+      remote = 'ghe2.example.com',
+      cached = 'ghe2.example.com',
+      fallback = 'github.com',
+    }, res)
+  end)
+
+  it('get_url() uses the enterprise host', function()
+    local urls = n.exec_lua(function()
+      vim.fn.setenv('GH_HOST', 'ghe.example.com')
+      local gh = require('guh.gh')
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.b[buf].guh = { feat = 'pr', repo = 'o/r', id = 7 }
+      local pr = gh.get_url(buf)
+      vim.b[buf].guh = { feat = 'status' }
+      return { pr = pr, status = gh.get_url(buf) }
+    end)
+    t.eq({ pr = 'https://ghe.example.com/o/r/pull/7', status = 'https://ghe.example.com/notifications' }, urls)
+  end)
+
+  it('parse_target() accepts enterprise host URLs only', function()
+    local res = n.exec_lua(function()
+      vim.fn.setenv('GH_HOST', 'ghe.example.com')
+      local parse_target = require('guh.util').parse_target
+      return {
+        ghe = parse_target('https://ghe.example.com/o/r/pull/7'),
+        foreign = parse_target('https://example.com/o/r/pull/7') or 'NIL',
+      }
+    end)
+    t.eq({ ghe = { owner = 'o', repo = 'r', id = 7, is_pr = true }, foreign = 'NIL' }, res)
+  end)
+
   it('get_url()', function()
     local cases = n.exec_lua(function()
+      vim.fn.setenv('GH_HOST', 'github.com') -- Deterministic: don't depend on the local `gh` remote.
       local gh = require('guh.gh')
       local buf = vim.api.nvim_create_buf(false, true)
       local function url(bufstate)

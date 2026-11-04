@@ -679,7 +679,7 @@ function M.show_repo(focus, repo)
     [[
     {{"\nRecent commits:\n" -}}
     {{range .data.repository.defaultBranchRef.target.history.nodes}}{{printf "  %s  %s\n" (slice .oid 0 12) .messageHeadline}}{{end -}}
-    {{"\nBranches (last-updated): https://github.com/" -}}{{.data.repository.nameWithOwner}}{{"/branches\n" -}}
+    {{"\nBranches (last-updated): https://__HOST__/" -}}{{.data.repository.nameWithOwner}}{{"/branches\n" -}}
     {{range .data.repository.refs.nodes}}{{printf "  %s/tree/%s\n" $.data.repository.nameWithOwner .name}}{{end -}}
     {{"\nOpen PRs (last-updated):\n" -}}
     {{range .data.repository.pullRequests.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end -}}
@@ -687,6 +687,7 @@ function M.show_repo(focus, repo)
     {{range .data.repository.issues.nodes}}{{printf "  %-7s%s\n" (printf "#%v" .number) .title}}{{end}}
   ]]
   )
+  tmpl = tmpl:gsub('__HOST__', (gh.get_host():gsub('%%', '%%%%')))
 
   util.set_default_keymaps(buf)
   util.run_cmds(buf, { term = true }, {

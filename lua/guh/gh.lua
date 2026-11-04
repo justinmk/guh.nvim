@@ -46,19 +46,40 @@ function M.ci_icon(job)
   return '❌'
 end
 
---- Gets the github.com web URL for a `guh://` buffer, or nil.
+--- @type string?
+local host_cache
+
+--- Gets the GitHub host (e.g. "github.com" or an enterprise host) for the current repo.
+--- Order: `$GH_HOST`, then the remote of the repo in CWD (via `gh repo view`), else "github.com". Cached.
+--- @return string
+function M.get_host()
+  if host_cache then
+    return host_cache
+  end
+  local host = vim.env.GH_HOST
+  if not host or host == '' then
+    local ok, r = pcall(function()
+      return vim.system({ 'gh', 'repo', 'view', '--json', 'url', '-q', '.url' }, { text = true }):wait()
+    end)
+    host = ok and r.code == 0 and vim.trim(r.stdout or ''):match('^https?://([^/]+)') or nil
+  end
+  host_cache = (host and host ~= '') and host or 'github.com'
+  return host_cache
+end
+
+--- Gets the web URL (on the repo's GitHub host) for a `guh://` buffer, or nil.
 ---
 --- @param buf integer Buffer id (0 for current buffer).
 --- @return string?
 function M.get_url(buf)
   local b = state.get_b_guh(buf) or {}
   if b.feat == 'status' then
-    return 'https://github.com/notifications'
+    return ('https://%s/notifications'):format(M.get_host())
   end
   if not b.repo then
     return nil
   end
-  local base = 'https://github.com/' .. b.repo
+  local base = ('https://%s/%s'):format(M.get_host(), b.repo)
   if b.feat == 'repo' then
     return base
   elseif b.feat == 'issue' then
