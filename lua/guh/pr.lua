@@ -461,7 +461,6 @@ end
 --- @param reviews table
 --- @return string?
 local function pending_review_id(reviews)
-  local next = next
   local user = gh.get_user()
   local _, pending_review = next(vim.tbl_filter(function(review)
     return (review['state'] == 'PENDING') and (review['author']['login'] == user)
