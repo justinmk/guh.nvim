@@ -5,16 +5,11 @@ local n = require('test.functional.testnvim')()
 local t = require('test.testutil')
 local describe, it, before_each = t.describe, t.it, t.before_each
 
-local test_cwd = assert(os.getenv('TEST_CWD'))
+local test_cwd = assert(vim.uv.cwd())
 
 local screen
 before_each(function()
-  n.clear {
-    args = {
-      '-c',
-      ("cd '%s'"):format(test_cwd),
-    },
-  }
+  n.clear()
   n.exec [[
     set laststatus=2
   ]]
@@ -63,7 +58,8 @@ describe('guh.gh', function()
 
       local task = async.run(function()
         -- `pr_data.ci_jobs` is batched into the `get_pr_data` GraphQL query.
-        local pr = async.await(4, gh.get_pr_data, 9, 'justinmk/guh.nvim', { force = true })
+        -- NOTE: GitHub expires CI data after ~1 year, then need update this.
+        local pr = async.await(4, gh.get_pr_data, 97, 'justinmk/guh.nvim', { force = true })
         assert(pr, 'failed to get PR')
         local jobs = pr.ci_jobs or {}
         assert(#jobs > 0, 'no CI jobs returned')

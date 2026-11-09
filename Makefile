@@ -1,25 +1,34 @@
-.PHONY: validate test
+NVIM_PRG ?= nvim
+TEST_FILE ?= test
+TEST_FILTER ?=
+# Cached in .deps/ ("rm -rf .deps" to update).
+NVIM_TEST_VERSION ?= master
+NVIM_TEST_URL ?= https://raw.githubusercontent.com/neovim/neovim/$(NVIM_TEST_VERSION)/test
+TEST_DEPS := .deps/neovim/$(NVIM_TEST_VERSION)
 
-TEST_CWD := $(shell pwd)
+# Downloads to a temp dir, renamed after all downloads succeed.
+$(TEST_DEPS):
+	rm -rf "$@.tmp"
+	curl --parallel --fail --location --silent --show-error --create-dirs \
+		--output "$@.tmp/test/#1" "$(NVIM_TEST_URL)/{\
+	assert.lua,\
+	client/rpc_stream.lua,\
+	client/session.lua,\
+	client/uv_stream.lua,\
+	functional/preload.lua,\
+	functional/testnvim.lua,\
+	functional/testnvim/exec_lua.lua,\
+	functional/ui/screen.lua,\
+	harness.lua,\
+	reporter.lua,\
+	runner.lua,\
+	testutil.lua}"
+	mv "$@.tmp" "$@"
 
-validate:
-ifeq ($(NEOVIM_PATH),)
-	$(error NEOVIM_PATH is not set. Export it or pass it like: make NEOVIM_PATH=/path/to/neovim test)
-endif
-
-# Run tests with "nvim -l" instead of "-ll", so tests can use the full "vim."
-# API from the Nvim test harness process itself.
-# patch-runner: validate
-# 	@if grep -q -- "-ll " "$(NEOVIM_PATH)/cmake/RunTests.cmake"; then \
-# 		echo "Patching RunTests.cmake (-ll → -l)..."; \
-# 		sed -i.bak 's/-ll /-l /' "$(NEOVIM_PATH)/cmake/RunTests.cmake" && rm -f "$(NEOVIM_PATH)/cmake/RunTests.cmake.bak"; \
-# 	else \
-# 		echo "RunTests.cmake already patched; skipping."; \
-# 	fi
-
-
-test: validate
-	ln -sf $(shell pwd) $(NEOVIM_PATH)/test/functional/guh.nvim
-	@cd $(NEOVIM_PATH) && env GH_TOKEN=$${GH_TOKEN:-$(shell gh auth token 2>/dev/null)} \
-		TEST_CWD=$(TEST_CWD) \
-		TEST_FILE=test/functional/guh.nvim/test/gh_spec.lua make functionaltest
+# LUA_PATH: `exec_lua` requires test modules in the Nvim under test.
+.PHONY: test
+test: $(TEST_DEPS)
+	GH_TOKEN="$${GH_TOKEN:-$$(gh auth token 2>/dev/null)}" NVIM_LOG_FILE="$(abspath .deps/nvim.log)" \
+		LUA_PATH="$(abspath $(TEST_DEPS))/?.lua;;" \
+		"$(NVIM_PRG)" --clean -l "$(TEST_DEPS)/test/runner.lua" -X"$(abspath .deps/xdg)" -v \
+		--helper="$(TEST_DEPS)/test/functional/preload.lua" $(if $(TEST_FILTER),--filter="$(TEST_FILTER)") "$(TEST_FILE)"

@@ -393,11 +393,15 @@ View the logs: >
 
 Run the tests: >
 
-    NEOVIM_PATH='/path/to/neovim/' make test
+    make test
 
 Run specific tests: >
 
-    NEOVIM_PATH='/path/to/neovim/' make test TEST_FILTER=load_comments
+    make test TEST_FILTER=load_comments
+
+Run the tests on a specific Nvim (default: "nvim" in $PATH): >
+
+    make test NVIM_PRG=/path/to/bin/nvim
 
 ------------------------------------------------------------------------------
 ARCHITECTURE
