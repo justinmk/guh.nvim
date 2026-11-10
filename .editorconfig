@@ -8,3 +8,7 @@ indent_size = 2
 insert_final_newline = true
 trim_trailing_whitespace = true
 max_line_length = 100
+
+[{Makefile,**/Makefile,*.mk,doc/*.txt}]
+indent_style = tab
+indent_size = 8
