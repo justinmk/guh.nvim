@@ -490,7 +490,7 @@ local function prepare_pr_diff(difftext, viewed)
   local out, total = {}, 0
   local skipping = false
   for line in vim.gsplit(difftext, '\n', { plain = true, trimempty = true }) do
-    local path = line:match('^diff %-%-git a/(.-) b/')
+    local path = line:match(diff_git_pat)
     if path then
       total = total + 1
       if viewed[path] then
