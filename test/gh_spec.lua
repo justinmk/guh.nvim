@@ -418,6 +418,36 @@ describe('comments', function()
     end)
   end)
 
+  it('render_diff collapses "viewed" renamed files', function()
+    n.exec_lua(function()
+      local comments = require('guh.comments')
+      local diff = table.concat({
+        'diff --git a/old/a.lua b/new/a.lua',
+        'similarity index 90%',
+        'rename from old/a.lua',
+        'rename to new/a.lua',
+        '--- a/old/a.lua',
+        '+++ b/new/a.lua',
+        '@@ -1,1 +1,1 @@',
+        '-x',
+        '+y',
+        'diff --git a/b.lua b/b.lua',
+        '--- a/b.lua',
+        '+++ b/b.lua',
+        '@@ -1,1 +1,1 @@',
+        '-x',
+        '+y',
+      }, '\n')
+      -- "Viewed" is keyed by the new path (as GitHub reports it, and as `cv` marks it).
+      local pr_data = { viewed = { ['new/a.lua'] = true }, raw_comments = {} }
+      local lines, _, n_files = comments.render_diff(pr_data, diff)
+      assert(2 == n_files, n_files)
+      assert('(viewed) new/a.lua' == lines[1], lines[1])
+      assert('diff --git a/b.lua b/b.lua' == lines[2], lines[2])
+      assert(not table.concat(lines, '\n'):find('old/a.lua', 1, true), 'renamed file body should be collapsed')
+    end)
+  end)
+
   it('comments.show anchors LEFT-side (deleted-line) comments', function()
     n.exec_lua(function()
       local comments = require('guh.comments')
